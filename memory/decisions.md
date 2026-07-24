@@ -53,3 +53,8 @@
 - Ideias são capturadas via GitHub Issues com template `idea`, amadurecidas em
   triagem externa e só entram no repositório como escopo de fase ou ADR
   Proposto; nenhuma ideia é implementada fora da fase correspondente.
+- Na Fase 3, long-polling com `getUpdates` é o modo de desenvolvimento do
+  Telegram enquanto não há URL HTTPS pública nem deploy autorizado; webhook e
+  polling compartilham o mesmo serviço.
+- A autorização Telegram do MVP aceita exatamente um `TELEGRAM_ALLOWED_USER_ID`.
+- Rotas `/internal/*` exigem Bearer token configurado por variável de ambiente.

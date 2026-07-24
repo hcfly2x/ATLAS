@@ -2,12 +2,20 @@
 
 ## Fase
 
-Fase 2 — Core mínimo do Coordinator concluída, aceita e integrada. O fluxo
-documental `idea-intake` está registrado. A Fase 3 — Telegram MVP está autorizada
-como próxima fase.
+Fase 3 — Telegram MVP concluída em branch/worktree próprios. A Fase 4 não está
+autorizada e exige confirmação explícita separada.
 
 ## Implementado
 
+- Gateway Telegram com webhook injetável e long-polling de desenvolvimento.
+- Webhook só é registrado com secret não vazio; polling opera sem expor a rota.
+- Replay idempotente não reenvia mensagens e ainda reconhece callbacks repetidos.
+- Autorização por um único Telegram ID, seleção de projeto e texto para Task.
+- Status, botões de aprovação ligados a alvo/version/hash e cancelamento
+  cooperativo por `CANCEL_REQUESTED`.
+- Idempotência persistida para updates e callbacks.
+- Bearer token obrigatório nas rotas internas.
+- Sessões Telegram e respostas processadas persistidas via Prisma.
 - Fluxo documental de ideias definido: Issue com template `idea`, triagem externa
   e registro oficial sem autorização automática de implementação.
 - Primeira ideia triada registrada no escopo da Fase 10; ADR-013 permanece
@@ -36,12 +44,12 @@ como próxima fase.
 - Formatação: aprovada.
 - Lint: 9/9 tarefas aprovadas.
 - Typecheck: 15/15 tarefas aprovadas.
-- Testes unitários/API/contrato estático: 13 aprovados.
+- Testes unitários/API/contrato estático: 22 aprovados.
 - Build: 9/9 tarefas aprovadas.
 - Migração inicial aplicada com sucesso no PostgreSQL 17 de desenvolvimento.
 - Seed de projetos executado com sucesso.
-- Testes de integração PostgreSQL: 2 aprovados.
-- Nenhum deploy, credencial real ou feature das Fases 3–5 foi implementado.
+- Testes de integração PostgreSQL: 3 aprovados.
+- Nenhum deploy, credencial real ou feature das Fases 4–5 foi implementado.
 - O Compose do ATLAS foi encerrado após os testes; o volume de desenvolvimento foi preservado.
 
 ## Decisões vigentes
@@ -56,12 +64,15 @@ como próxima fase.
 
 ## Próximo passo
 
-Iniciar a Fase 3 — Telegram MVP em branch/worktree próprios.
+Confirmar o CI do PR da Fase 3 após as correções da auditoria e aguardar
+autorização de merge. A Fase 4 só pode começar após autorização explícita
+separada.
 
 ## Restrições ativas
 
 - não implementar a ideia de configuração de agentes antes da Fase 10;
-- não implementar features das Fases 4–5;
+- não iniciar a Fase 4;
+- não implementar LLM, supervisor ou execução do worker;
 - não fazer deploy;
 - não integrar credenciais reais;
 - não configurar produção.

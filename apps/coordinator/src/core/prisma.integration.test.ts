@@ -6,10 +6,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { InvalidTaskTransitionError, TaskStateMachine } from "@atlas/core";
 
 import { PrismaTaskCoreStore } from "./prisma-task-core-store.js";
+import { PrismaTelegramStore } from "../telegram/store.js";
 
 const prisma = new PrismaClient();
 const store = new PrismaTaskCoreStore(prisma);
 const machine = new TaskStateMachine(store);
+const telegramStore = new PrismaTelegramStore(prisma);
 
 beforeAll(async () => prisma.$connect());
 afterAll(async () => prisma.$disconnect());
@@ -142,5 +144,75 @@ describe("Prisma core persistence", () => {
         data: { payloadHash: "forbidden-update" },
       }),
     ).rejects.toThrow(/immutable/);
+  });
+
+  it("persists Telegram update replay, project selection and versioned approval decisions", async () => {
+    const projectId = `telegram-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Telegram Integration Test",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: { audit_events_expire: false, files_days: 1, logs_days: 1 },
+        risk: "low",
+      },
+    });
+    await telegramStore.selectProject(42n, 100n, projectId);
+    expect(await telegramStore.getSelectedProject(42n)).toMatchObject({ id: projectId });
+
+    const responses = [{ text: "persisted response" }];
+    await telegramStore.recordProcessedUpdate({
+      chatId: 100n,
+      responses,
+      updateId: 9001n,
+      userId: 42n,
+    });
+    expect(await telegramStore.findProcessedUpdate(9001n)).toEqual(responses);
+
+    const task = await prisma.task.create({
+      data: {
+        idempotencyKey: `telegram-task-${randomUUID()}`,
+        origin: "telegram:42",
+        originalMessage: "approve this",
+        projectId,
+        state: "WAITING_APPROVAL",
+      },
+    });
+    const approval = await prisma.approval.create({
+      data: {
+        channel: "telegram",
+        idempotencyKey: `approval-${randomUUID()}`,
+        presentedPayload: { objective: "integration" },
+        requestedBy: "system",
+        targetHash: "sha256:integration",
+        targetId: "specification-integration",
+        targetType: "SPECIFICATION",
+        targetVersion: 3,
+        taskId: task.id,
+        type: "PRE_EXECUTION",
+      },
+    });
+    const decided = await telegramStore.decideApproval({
+      approvalId: approval.id,
+      callbackId: "integration-callback",
+      correlationId: "integration-telegram",
+      decision: "APPROVED",
+      userId: 42n,
+    });
+
+    expect(decided.approval).toMatchObject({
+      targetHash: "sha256:integration",
+      targetId: "specification-integration",
+      targetVersion: 3,
+    });
+    expect(
+      await prisma.auditEvent.findUnique({
+        where: { idempotencyKey: "telegram:callback:integration-callback:approval" },
+      }),
+    ).not.toBeNull();
   });
 });
