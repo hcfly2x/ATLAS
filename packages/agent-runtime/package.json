@@ -14,5 +14,9 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "openai": "^6.48.0",
+    "zod": "^3.25.76"
   }
 }

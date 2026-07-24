@@ -22,6 +22,7 @@ const retentionSchema = z.object({
 const projectDefaultsSchema = z.object({
   status: z.string(),
   policy: z.string(),
+  autonomy_level: z.number().int().min(0).max(4),
   protected_paths_profile: z.string(),
   allowed_commands: z.array(z.string()),
   required_tools: requiredToolsSchema,
@@ -36,6 +37,7 @@ const projectSchema = z.object({
   risk: z.string().min(1),
   data_classification: z.string().min(1),
   policy: z.string().optional(),
+  autonomy_level: z.number().int().min(0).max(4).optional(),
   repository: z.string().nullable(),
   protected_paths_profile: z.string().optional(),
   allowed_commands: z.array(z.string()).optional(),
@@ -75,6 +77,7 @@ async function main(): Promise<void> {
   for (const project of config.projects) {
     const data = {
       allowedCommands: project.allowed_commands ?? config.schema.defaults.allowed_commands,
+      autonomyLevel: project.autonomy_level ?? config.schema.defaults.autonomy_level,
       dataClassification: project.data_classification,
       name: project.name,
       policy: project.policy ?? config.schema.defaults.policy,

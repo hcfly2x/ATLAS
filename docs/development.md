@@ -35,6 +35,28 @@ pnpm test:integration
 
 Nenhuma credencial real deve ser adicionada ao `.env`. O arquivo `.env.example` contém apenas valores locais de desenvolvimento.
 
+## Supervisor local
+
+O supervisor só é registrado quando `OPENAI_API_KEY` contém um valor não vazio.
+A chave deve existir apenas no ambiente local do coordinator (por exemplo,
+`.env.local`, que é ignorado pelo Git) ou no secret store do ambiente; o ATLAS
+não carrega nem copia esse arquivo automaticamente. Exporte as variáveis no
+processo antes de iniciar:
+
+```bash
+export INTERNAL_API_TOKEN=valor-local-descartavel
+export OPENAI_API_KEY=valor-fornecido-fora-do-repositorio
+export LLM_MONTHLY_BUDGET_USD=25
+pnpm --filter @atlas/coordinator dev
+```
+
+`POST /internal/tasks/:taskId/supervise` executa o fluxo da Fase 4 e exige o
+mesmo Bearer token das demais rotas internas. O teto é agregado por mês e
+avaliado antes de iniciar uma nova deliberação; atingir o teto bloqueia novas
+Tasks sem interromper uma já iniciada. Toda chamada registra tokens, custo
+estimado e latência. Os testes usam exclusivamente um `AgentRuntime` falso e
+nunca chamam a API real.
+
 ## API interna
 
 As rotas `/internal/*` exigem `Authorization: Bearer <INTERNAL_API_TOKEN>`.

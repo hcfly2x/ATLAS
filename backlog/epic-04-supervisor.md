@@ -1,6 +1,8 @@
 # Epic 04 — Supervisor mínimo
 
 > Trilha 1 — Fase 4. Sem conselho multiagente.
+>
+> **Status:** concluído em branch própria; aguarda revisão e merge.
 
 ## Tarefas
 - runtime LLM por interface do ADR-008;

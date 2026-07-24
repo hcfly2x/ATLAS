@@ -217,6 +217,41 @@ describe("coordinator core API", () => {
     expect(response.statusCode).toBe(401);
     expect(store.tasks.size).toBe(0);
   });
+
+  it("runs the supervisor through an authenticated internal boundary", async () => {
+    const store = new InMemoryTaskCoreStore();
+    const taskId = randomUUID();
+    const calls: { correlationId: string; taskId: string }[] = [];
+    const app = createCoordinatorApp({
+      internalAuthToken,
+      logger: false,
+      supervisorService: {
+        processTask: (requestedTaskId, correlationId) => {
+          calls.push({ correlationId, taskId: requestedTaskId });
+          return Promise.resolve({
+            approvalId: randomUUID(),
+            specificationId: randomUUID(),
+            state: "QUEUED",
+          });
+        },
+      },
+      taskStore: store,
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/internal/tasks/${taskId}/supervise`,
+      headers: {
+        ...internalAuthHeader,
+        "x-correlation-id": "supervisor-api-correlation",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ state: "QUEUED" });
+    expect(calls).toEqual([{ correlationId: "supervisor-api-correlation", taskId }]);
+  });
 });
 
 function zodTaskId(payload: unknown): string {

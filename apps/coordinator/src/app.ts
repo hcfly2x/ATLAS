@@ -15,6 +15,12 @@ import { taskTransitionCommandSchema } from "@atlas/shared";
 
 import { dispatchTelegram, type TelegramClient } from "./telegram/client.js";
 import { TelegramUnauthorizedError, type TelegramGateway } from "./telegram/service.js";
+import { ApprovalTargetHashMismatchError } from "./telegram/store.js";
+import {
+  LlmMonthlyBudgetExceededError,
+  TaskNotReadyForSupervisionError,
+  type SupervisorService,
+} from "./supervisor/service.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -32,6 +38,7 @@ const transitionBodySchema = taskTransitionCommandSchema.omit({ correlationId: t
 export interface CoordinatorAppOptions {
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
+  readonly supervisorService?: Pick<SupervisorService, "processTask">;
   readonly taskStore?: TaskCoreStore;
   readonly telegramClient?: TelegramClient;
   readonly telegramGateway?: TelegramGateway;
@@ -116,6 +123,18 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
         });
       },
     );
+
+    if (options.supervisorService !== undefined) {
+      const supervisorService = options.supervisorService;
+      app.post(
+        "/internal/tasks/:taskId/supervise",
+        { preHandler: requireInternalAuth },
+        async (request) => {
+          const { taskId } = taskParamsSchema.parse(request.params);
+          return supervisorService.processTask(taskId, request.id);
+        },
+      );
+    }
   }
 
   if (options.telegramGateway !== undefined && options.telegramClient !== undefined) {
@@ -183,6 +202,32 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       return reply.code(403).send({
         code: "TELEGRAM_USER_FORBIDDEN",
         correlationId: request.id,
+      });
+    }
+    if (error instanceof ApprovalTargetHashMismatchError) {
+      request.log.warn(
+        { approvalId: error.approvalId, correlationId: request.id },
+        "approval target hash mismatch",
+      );
+      return reply.code(409).send({
+        code: error.code,
+        correlationId: request.id,
+      });
+    }
+    if (error instanceof LlmMonthlyBudgetExceededError) {
+      request.log.warn({ correlationId: request.id }, "LLM monthly budget exceeded");
+      return reply.code(429).send({
+        code: error.code,
+        correlationId: request.id,
+        limitUsd: error.limitUsd,
+        spentUsd: error.spentUsd,
+      });
+    }
+    if (error instanceof TaskNotReadyForSupervisionError) {
+      return reply.code(409).send({
+        code: "TASK_NOT_READY_FOR_SUPERVISION",
+        correlationId: request.id,
+        state: error.state,
       });
     }
 

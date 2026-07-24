@@ -66,3 +66,16 @@
   polling compartilham o mesmo serviço.
 - A autorização Telegram do MVP aceita exatamente um `TELEGRAM_ALLOWED_USER_ID`.
 - Rotas `/internal/*` exigem Bearer token configurado por variável de ambiente.
+- A Fase 4 usa `AgentRuntime` próprio com OpenAI operacional: GPT-5.6 Luna para
+  normalização/classificação e GPT-5.6 Terra para produzir a Specification.
+- O hash canônico da Specification é SHA-256 da serialização determinística do
+  payload validado; a decisão Telegram rejeita alvo divergente e preserva a
+  rejeição em AuditEvent.
+- A política vigente da Fase 4 combina `autonomy_level`, complexidade e
+  `always_human`: no nível 2, `simple|moderate` dispensam aprovação prévia;
+  `critical` e ações sempre humanas exigem Approval do usuário.
+- Dispensa de aprovação humana não dispensa registro: gera Approval
+  `actor=SYSTEM`, `channel=POLICY`, alvo versionado/hash e AuditEvent.
+- O teto mensal deliberativo do ATLAS bloqueia novas Tasks antes da primeira
+  chamada quando o consumo agregado registrado atinge o limite configurado; não
+  interrompe Task deliberativa já iniciada.
