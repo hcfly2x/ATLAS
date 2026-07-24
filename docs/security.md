@@ -4,22 +4,31 @@
 
 - Menor privilégio.
 - Negar por padrão.
-- Aprovação humana para ações sensíveis.
+- Autonomia configurável por projeto conforme o ADR-014 proposto.
 - Separar ambiente de desenvolvimento e produção.
 - Não enviar secrets ao modelo.
 - Registrar toda ação relevante.
 
-## Ações sempre bloqueadas sem aprovação
+## Ações sempre humanas
 
-- deploy;
 - merge na branch principal;
+- deploy em produção;
 - exclusão de dados;
 - migração destrutiva;
-- alteração de autenticação;
 - mudança de pagamentos;
 - mudança de tracking;
 - aumento de orçamento de anúncios;
-- alteração das políticas do próprio ATLAS.
+- alteração de áreas protegidas pelo ADR-010.
+
+O nível de autonomia pode dispensar aprovações síncronas para ações reversíveis,
+mas a lista `always_human` não varia por nível. Deploy em staging é distinto de
+deploy em produção: a partir do nível 2, staging pode ser automático somente
+depois do merge humano na `main` e de CI verde, em ambiente isolado conforme o
+ADR-015 proposto. Promoção para produção permanece sempre humana.
+
+Staging usa banco, secrets, `DATABASE_URL`, seed sintético e bot Telegram
+próprios. Dados reais nunca são copiados para staging, especialmente dados
+`personal_financial`.
 
 ## Worker
 

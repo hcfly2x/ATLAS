@@ -4,10 +4,16 @@
 
 Fase 2 — Core mínimo do Coordinator concluída, aceita e integrada. O fluxo
 documental `idea-intake` está registrado. A Fase 3 — Telegram MVP está autorizada
-como próxima fase.
+e segue isolada no PR #5. Esta branch documenta propostas de autonomia e
+ambientes sem modificar a implementação da Fase 3.
 
 ## Implementado
 
+- ADR-014 e ADR-015 registrados como Propostos, sem enforcement ou
+  provisionamento.
+- Nível de autonomia 2 registrado como padrão decidido de todos os projetos.
+- Modelo conceitual, políticas e configuração preparados documentalmente para
+  autonomia por projeto, staging automático e produção manual.
 - Fluxo documental de ideias definido: Issue com template `idea`, triagem externa
   e registro oficial sem autorização automática de implementação.
 - Primeira ideia triada registrada no escopo da Fase 10; ADR-013 permanece
@@ -56,11 +62,14 @@ como próxima fase.
 
 ## Próximo passo
 
-Iniciar a Fase 3 — Telegram MVP em branch/worktree próprios.
+Auditar separadamente o PR #5 da Fase 3 e este PR documental. A ordem de
+integração será decidida após as duas auditorias.
 
 ## Restrições ativas
 
 - não implementar a ideia de configuração de agentes antes da Fase 10;
+- não implementar enforcement de autonomia nesta branch;
+- não provisionar staging/produção, criar bot, webhook ou `render.yaml`;
 - não implementar features das Fases 4–5;
 - não fazer deploy;
 - não integrar credenciais reais;

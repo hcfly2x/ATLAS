@@ -206,28 +206,27 @@ O ATLAS pode desenvolver a si próprio, mas áreas protegidas exigem revisão e 
 
 Política: `SELF_MODIFICATION_RESTRICTED`.
 
-### 9.4 Time multiagente de marketing
+### 9.4 Autonomia por projeto
 
-Projeto futuro separado, construído pelo ATLAS.
+Os níveis 0–4 valem para qualquer projeto, não apenas para marketing:
 
-Agentes:
-- estratégia;
-- pesquisa;
-- conteúdo;
-- revisão;
-- publicação;
-- dados;
-- analytics;
-- Meta Ads;
-- Google Ads;
-- supervisor de marketing.
+0. **observação** — somente análise;
+1. **recomendação** — aprovação prévia e de resultado;
+2. **autonomia limitada** — tarefas simples e moderadas podem executar em branch
+   isolada e abrir pull request automaticamente quando testes passam e nenhum
+   path protegido é tocado; merge permanece humano;
+3. **autonomia supervisionada** — inclui tarefas críticas sem aprovação prévia e
+   retry automático apenas de falha técnica segura, com fencing token;
+4. **reservado** — não habilitado no MVP e dependente de decisão futura.
 
-Autonomia de gastos deve evoluir por níveis:
-0. observação;
-1. recomendação;
-2. autonomia limitada;
-3. autonomia supervisionada;
-4. autonomia ampliada.
+O nível padrão decidido é 2 para todos os projetos. As ações `always_human`
+permanecem humanas em qualquer nível. O detalhamento e o enforcement futuro estão
+registrados no ADR-014 proposto.
+
+O time multiagente de marketing permanece um projeto futuro separado, construído
+pelo ATLAS, com agentes de estratégia, pesquisa, conteúdo, revisão, publicação,
+dados, analytics, Meta Ads, Google Ads e supervisão de marketing. Seus gastos
+continuam sujeitos a tetos e às ações `always_human`.
 
 ## 10. Processo obrigatório de implementação
 

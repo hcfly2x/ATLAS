@@ -2,7 +2,7 @@
 
 ## Entidades
 
-**Project** — id, nome, risco, classificação de dados, política, repositório, paths protegidos, comandos permitidos, requisitos de ferramentas, teto de custo por tarefa, política de retenção e status. Os campos mínimos e defaults estão definidos em `.atlas/projects.yaml`; um projeto incompleto permanece `draft` e não pode receber tarefas.
+**Project** — id, nome, risco, classificação de dados, política, `autonomy_level` (`0|1|2|3|4`), repositório, paths protegidos, comandos permitidos, requisitos de ferramentas, teto de custo por tarefa, política de retenção e status. Os campos mínimos e defaults estão definidos em `.atlas/projects.yaml`; um projeto incompleto permanece `draft` e não pode receber tarefas.
 
 **Task** — id, project_id, origem (telegram), mensagem original, demanda normalizada, complexidade (`simple|moderate|critical`), estado, `failure_stage?`, timestamps. Uma Task é a unidade central: tudo se liga a ela.
 
@@ -12,7 +12,7 @@
 
 **Specification** — id, task_id, versão, hash do payload canônico, payload validado conforme `specifications/executable-specification.md`, produzida pelo supervisor, criada_em. Cada versão é imutável; uma Task aponta para sua versão ativa.
 
-**Approval** — id, task_id, tipo (`pre_execution|result|sensitive_action`), status (`pending|approved|rejected|expired`), target_type (`specification|execution_result|sensitive_action`), target_id, target_version, target_hash, payload apresentado ao usuário, requested_by, decided_by?, solicitada_em, respondida_em?, expira_em?, canal (`telegram`), idempotency_key. Uma aprovação só vale para o alvo e hash registrados.
+**Approval** — id, task_id, tipo (`pre_execution|result|sensitive_action`), status (`pending|approved|rejected|expired`), actor (`user|system`), target_type (`specification|execution_result|sensitive_action`), target_id, target_version, target_hash, payload apresentado ao usuário, requested_by, decided_by?, solicitada_em, respondida_em?, expira_em?, canal (`telegram|policy`), idempotency_key. Uma aprovação só vale para o alvo e hash registrados.
 
 **Execution** — id, task_id, specification_id, worker_id, attempt, status (`queued|running|testing|awaiting_result_approval|finalizing|succeeded|failed|cancel_requested|cancelled`), branch, worktree, comandos executados, exit codes, logs sanitizados/referenciados, diff resumido, diff_hash, resultado de testes, failure_stage?, timestamps. Retry técnico gera nova Execution para a mesma Specification.
 
@@ -47,6 +47,9 @@ Project 1—N MemoryItem
 - Aprovação não é transferível entre versões, executions, diffs ou ações.
 - Aprovação de resultado referencia `execution_id` e `diff_hash`.
 - Commit e abertura de PR só ocorrem em `FINALIZING`, depois de aprovação válida do resultado.
+- Aprovação automática também cria Approval com `actor=system`, `target_type`,
+  `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
+  e não pode produzir trilha mais fraca que a aprovação manual.
 - Eventos repetidos usam idempotency key; lease renovável e fencing token seguem o ADR-012 aceito.
 
 ## Máquina de estados da Task
@@ -61,7 +64,10 @@ SPECIFYING → QUEUED              (política dispensa aprovação prévia)
 WAITING_APPROVAL → QUEUED        (aprovação válida para a Specification ativa)
 WAITING_APPROVAL → CANCELLED     (rejeição definitiva)
 
-QUEUED → RUNNING → TESTING → WAITING_RESULT_APPROVAL
+QUEUED → RUNNING → TESTING
+TESTING → WAITING_RESULT_APPROVAL  (política exige aprovação humana do resultado)
+TESTING → FINALIZING               (política dispensa aprovação humana do resultado;
+                                    Approval automática é registrada)
 WAITING_RESULT_APPROVAL → FINALIZING  (resultado/diff aprovado)
 FINALIZING → COMPLETED
 ```
@@ -72,11 +78,15 @@ FINALIZING → COMPLETED
 
 ```text
 WAITING_RESULT_APPROVAL → SPECIFYING  (retrabalho funcional; nova Specification)
-FAILED → QUEUED                      (retry técnico manual; mesma Specification, nova Execution)
+FAILED → QUEUED                      (retry técnico; automático só no nível 3 após reconciliação e fencing;
+                                      mesma Specification, nova Execution)
 FAILED → CANCELLED                   (encerramento sem retry)
 ```
 
-Retrabalho funcional nunca reenfileira silenciosamente a mesma Specification. Retry técnico não altera escopo nem payload e sempre cria nova Execution.
+Retrabalho funcional nunca reenfileira silenciosamente a mesma Specification.
+Retry técnico não altera escopo nem payload e sempre cria nova Execution. No
+nível 3, ele só é automático para falha técnica classificada e nunca enquanto o
+lease anterior permanecer ambíguo.
 
 ### Falhas
 
