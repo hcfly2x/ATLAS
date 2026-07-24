@@ -75,6 +75,8 @@ class InMemoryTaskCoreStore implements TaskCoreStore {
 }
 
 const apps: ReturnType<typeof createCoordinatorApp>[] = [];
+const internalAuthToken = "test-internal-token";
+const internalAuthHeader = { authorization: `Bearer ${internalAuthToken}` };
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map(async (app) => app.close()));
@@ -101,7 +103,7 @@ describe("coordinator core API", () => {
 
   it("creates a Task idempotently and traverses the canonical flow through the internal API", async () => {
     const store = new InMemoryTaskCoreStore();
-    const app = createCoordinatorApp({ logger: false, taskStore: store });
+    const app = createCoordinatorApp({ internalAuthToken, logger: false, taskStore: store });
     apps.push(app);
 
     const createPayload = {
@@ -113,12 +115,13 @@ describe("coordinator core API", () => {
     const created = await app.inject({
       method: "POST",
       url: "/internal/tasks",
-      headers: { "x-correlation-id": "create-correlation" },
+      headers: { ...internalAuthHeader, "x-correlation-id": "create-correlation" },
       payload: createPayload,
     });
     const replay = await app.inject({
       method: "POST",
       url: "/internal/tasks",
+      headers: internalAuthHeader,
       payload: createPayload,
     });
 
@@ -143,7 +146,10 @@ describe("coordinator core API", () => {
       const response = await app.inject({
         method: "POST",
         url: `/internal/tasks/${taskId}/transitions`,
-        headers: { "x-correlation-id": `transition-${String(index)}` },
+        headers: {
+          ...internalAuthHeader,
+          "x-correlation-id": `transition-${String(index)}`,
+        },
         payload: {
           actor: "system",
           expectedVersion: index,
@@ -162,11 +168,12 @@ describe("coordinator core API", () => {
 
   it("rejects and audits an invalid transition", async () => {
     const store = new InMemoryTaskCoreStore();
-    const app = createCoordinatorApp({ logger: false, taskStore: store });
+    const app = createCoordinatorApp({ internalAuthToken, logger: false, taskStore: store });
     apps.push(app);
     const created = await app.inject({
       method: "POST",
       url: "/internal/tasks",
+      headers: internalAuthHeader,
       payload: {
         idempotencyKey: "create-invalid-test",
         origin: "internal-test",
@@ -178,6 +185,7 @@ describe("coordinator core API", () => {
     const response = await app.inject({
       method: "POST",
       url: `/internal/tasks/${zodTaskId(created.json())}/transitions`,
+      headers: internalAuthHeader,
       payload: {
         actor: "system",
         expectedVersion: 0,
@@ -188,6 +196,26 @@ describe("coordinator core API", () => {
 
     expect(response.statusCode).toBe(422);
     expect(store.rejected).toHaveLength(1);
+  });
+
+  it("requires Bearer authentication on internal endpoints", async () => {
+    const store = new InMemoryTaskCoreStore();
+    const app = createCoordinatorApp({ internalAuthToken, logger: false, taskStore: store });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/tasks",
+      payload: {
+        idempotencyKey: "unauthorized-create",
+        origin: "internal-test",
+        originalMessage: "must not be created",
+        projectId: "atlas",
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(store.tasks.size).toBe(0);
   });
 });
 

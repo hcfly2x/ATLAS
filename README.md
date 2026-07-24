@@ -28,7 +28,9 @@ Transformar mensagens enviadas pelo Telegram em demandas estruturadas, analisada
 
 ## Estado atual
 
-Este repositório contém o ATLAS v0.0.5: Fases 0–2 concluídas, com ADRs 001–012 aceitos. Nenhuma feature de Telegram, supervisor ou worker foi antecipada e a Fase 3 não está autorizada.
+Este repositório contém o ATLAS v0.0.6: Fases 0–3 concluídas, com ADRs
+001–012 aceitos e ADR-013 Proposto. Supervisor, LLM e execução do worker não
+foram antecipados; a Fase 4 exige autorização separada.
 
 ## Foundation
 
@@ -51,3 +53,13 @@ Consulte `docs/development.md` para executar a validação local.
 - Execution ligada a Specification;
 - idempotência, lease e fencing desde o primeiro schema;
 - auditoria append-only e logging real com correlation ID.
+
+## Telegram MVP
+
+- webhook testável localmente por injeção Fastify;
+- long-polling como modo de desenvolvimento sem URL pública;
+- autorização por um único Telegram ID;
+- seleção de projeto e mensagem de texto para Task;
+- status, aprovações ligadas a alvo/version/hash e cancelamento cooperativo;
+- idempotência persistida para updates e callbacks;
+- Bearer token obrigatório nas rotas internas.

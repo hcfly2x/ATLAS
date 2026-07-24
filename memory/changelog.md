@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.6
+
+- Fase 3 — Telegram MVP concluída.
+- Webhook validado por handler Fastify injetável e long-polling escolhido para
+  desenvolvimento sem URL pública.
+- Autorização restrita a um único Telegram ID.
+- Seleção de projeto, texto para Task, status, aprovação e cancelamento
+  cooperativo implementados.
+- Updates e callbacks persistidos com idempotência conforme ADR-012.
+- Approval consumida pelo Telegram com alvo, ID, versão e hash preservados.
+- Rotas internas protegidas por Bearer token obrigatório.
+- Semântica de 409/retry concorrente documentada.
+- Migração adicionada para sessões Telegram e replay de updates.
+- `@types/node` alinhado à linha 22.
+
 ## 0.0.5
 
 - Fase 1 aceita com ressalvas; workspace Vitest morto removido. A allowlist

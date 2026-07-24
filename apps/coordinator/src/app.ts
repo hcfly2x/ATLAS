@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
 import {
@@ -12,6 +12,9 @@ import {
   type TaskCoreStore,
 } from "@atlas/core";
 import { taskTransitionCommandSchema } from "@atlas/shared";
+
+import { dispatchTelegram, type TelegramClient } from "./telegram/client.js";
+import { TelegramUnauthorizedError, type TelegramGateway } from "./telegram/service.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -27,8 +30,12 @@ const taskParamsSchema = z.object({
 const transitionBodySchema = taskTransitionCommandSchema.omit({ correlationId: true });
 
 export interface CoordinatorAppOptions {
+  readonly internalAuthToken?: string;
   readonly logger?: boolean;
   readonly taskStore?: TaskCoreStore;
+  readonly telegramClient?: TelegramClient;
+  readonly telegramGateway?: TelegramGateway;
+  readonly telegramWebhookSecret?: string;
 }
 
 function headerCorrelationId(header: string | string[] | undefined): string | undefined {
@@ -56,10 +63,26 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
   }));
 
   if (options.taskStore !== undefined) {
+    if (options.internalAuthToken === undefined || options.internalAuthToken.length === 0) {
+      throw new Error("internalAuthToken is required when internal routes are enabled");
+    }
     const taskStore = options.taskStore;
+    const internalAuthToken = options.internalAuthToken;
     const stateMachine = new TaskStateMachine(taskStore);
 
-    app.post("/internal/tasks", async (request, reply) => {
+    const requireInternalAuth = async (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ): Promise<void> => {
+      if (request.headers.authorization !== `Bearer ${internalAuthToken}`) {
+        await reply.code(401).send({
+          code: "UNAUTHORIZED",
+          correlationId: request.id,
+        });
+      }
+    };
+
+    app.post("/internal/tasks", { preHandler: requireInternalAuth }, async (request, reply) => {
       const input = createTaskSchema.parse(request.body);
       const result = await taskStore.createTask({
         ...input,
@@ -68,16 +91,43 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       return reply.code(result.idempotentReplay ? 200 : 201).send(result);
     });
 
-    app.post("/internal/tasks/:taskId/transitions", async (request) => {
-      const { taskId } = taskParamsSchema.parse(request.params);
-      const input = transitionBodySchema.parse(request.body);
-      const { failureStage, ...requiredInput } = input;
-      return stateMachine.transition({
-        ...requiredInput,
+    app.post(
+      "/internal/tasks/:taskId/transitions",
+      { preHandler: requireInternalAuth },
+      async (request) => {
+        const { taskId } = taskParamsSchema.parse(request.params);
+        const input = transitionBodySchema.parse(request.body);
+        const { failureStage, ...requiredInput } = input;
+        return stateMachine.transition({
+          ...requiredInput,
+          correlationId: request.id,
+          taskId,
+          ...(failureStage === undefined ? {} : { failureStage }),
+        });
+      },
+    );
+  }
+
+  if (options.telegramGateway !== undefined && options.telegramClient !== undefined) {
+    const telegramGateway = options.telegramGateway;
+    const telegramClient = options.telegramClient;
+    app.post("/telegram/webhook", async (request, reply) => {
+      if (
+        options.telegramWebhookSecret !== undefined &&
+        request.headers["x-telegram-bot-api-secret-token"] !== options.telegramWebhookSecret
+      ) {
+        return reply.code(401).send({
+          code: "INVALID_WEBHOOK_SECRET",
+          correlationId: request.id,
+        });
+      }
+      const dispatch = await telegramGateway.handle(request.body, request.id);
+      await dispatchTelegram(telegramClient, dispatch);
+      return {
         correlationId: request.id,
-        taskId,
-        ...(failureStage === undefined ? {} : { failureStage }),
-      });
+        ok: true,
+        replayed: dispatch.replayed,
+      };
     });
   }
 
@@ -117,6 +167,13 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       request.log.warn({ correlationId: request.id }, "failure stage required");
       return reply.code(422).send({
         code: "FAILURE_STAGE_REQUIRED",
+        correlationId: request.id,
+      });
+    }
+    if (error instanceof TelegramUnauthorizedError) {
+      request.log.warn({ correlationId: request.id }, "unauthorized telegram user");
+      return reply.code(403).send({
+        code: "TELEGRAM_USER_FORBIDDEN",
         correlationId: request.id,
       });
     }

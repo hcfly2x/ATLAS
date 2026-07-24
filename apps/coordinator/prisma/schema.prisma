@@ -83,22 +83,23 @@ enum AuditActor {
 }
 
 model Project {
-  id                    String        @id
+  id                    String            @id
   name                  String
   risk                  String
-  dataClassification    String        @map("data_classification")
+  dataClassification    String            @map("data_classification")
   policy                String
   repository            String?
-  protectedPathsProfile String        @map("protected_paths_profile")
-  allowedCommands       Json          @map("allowed_commands")
-  requiredTools         Json          @map("required_tools")
-  taskCostLimitUsd      Decimal?      @map("task_cost_limit_usd") @db.Decimal(10, 2)
+  protectedPathsProfile String            @map("protected_paths_profile")
+  allowedCommands       Json              @map("allowed_commands")
+  requiredTools         Json              @map("required_tools")
+  taskCostLimitUsd      Decimal?          @map("task_cost_limit_usd") @db.Decimal(10, 2)
   retention             Json
-  status                ProjectStatus @default(DRAFT)
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  status                ProjectStatus     @default(DRAFT)
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
   tasks                 Task[]
   auditEvents           AuditEvent[]
+  telegramSessions      TelegramSession[]
 
   @@map("projects")
 }
@@ -235,4 +236,26 @@ model AuditEvent {
   @@index([projectId, createdAt])
   @@index([taskId, createdAt])
   @@map("audit_events")
+}
+
+model TelegramSession {
+  userId            BigInt   @id @map("user_id")
+  chatId            BigInt   @map("chat_id")
+  selectedProjectId String?  @map("selected_project_id")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  selectedProject   Project? @relation(fields: [selectedProjectId], references: [id], onDelete: Restrict)
+
+  @@index([selectedProjectId])
+  @@map("telegram_sessions")
+}
+
+model TelegramUpdate {
+  updateId    BigInt   @id @map("update_id")
+  callbackId  String?  @unique @map("callback_id")
+  userId      BigInt   @map("user_id")
+  chatId      BigInt   @map("chat_id")
+  response    Json
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("telegram_updates")
 }
