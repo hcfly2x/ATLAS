@@ -31,7 +31,9 @@ Execution.
 **TelegramTaskDelivery** — cursores e chaves idempotentes de publicação ligados
 a uma Task Telegram. A entrega terminal guarda a chave derivada de `task_id` e
 estado antes do envio; o destino vem exclusivamente de `Task.origin`
-(`telegram:user_id:chat_id`), nunca da Specification, worker ou demanda.
+(`telegram:user_id:chat_id`), nunca da Specification, worker ou demanda. Para
+compatibilidade com Tasks legadas de conversa privada, `telegram:user_id` usa o
+mesmo valor como `chat_id`.
 
 **CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
 início, fim e timestamp de registro. É separado de `LlmCall`.

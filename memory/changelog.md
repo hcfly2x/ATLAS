@@ -6,6 +6,9 @@
   estado, paths, PR e estágio de falha quando aplicável.
 - A publicação recebe chave persistida por Task/estado e AuditEvents para claim,
   envio, falha ou ausência de canal; envio genérico permanece bloqueado.
+- Origens legadas de conversa privada (`telegram:user_id`) permanecem entregáveis
+  ao usar o `user_id` como `chat_id`; a publicação limita-se a `COMPLETED` e
+  `FAILED` e adota `at-most-once` para não duplicar após reinício.
 
 ## Unreleased — correção pós-piloto
 

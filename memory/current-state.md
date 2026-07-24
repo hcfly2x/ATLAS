@@ -31,7 +31,8 @@ entrega de resultado terminal ao autor Telegram está em implementação na bran
 - O coordinator passa a publicar o resultado terminal de uma Task Telegram no
   chat codificado em sua origem: resumo, paths alterados, PR quando existir e
   `failure_stage` em falhas. A chave de entrega é persistida antes do envio para
-  impedir duplicação após reinício; ausência de canal também gera AuditEvent.
+  impedir duplicação após reinício; origens legadas de conversa privada usam o
+  `user_id` como chat. Ausência de canal também gera AuditEvent.
 
 ## Testes e validações
 

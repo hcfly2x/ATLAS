@@ -88,6 +88,18 @@ describe("TelegramResultPublisher", () => {
     expect(store.sent).toEqual([taskId]);
   });
 
+  it("delivers a legacy private Telegram origin to its user id as chat id", async () => {
+    const store = new ResultStore();
+    const client = new ResultClient();
+    store.candidates = [candidate({ origin: "telegram:6006002947" })];
+
+    await new TelegramResultPublisher(store, client).poll();
+
+    expect(client.messages).toHaveLength(1);
+    expect(client.messages[0]?.chatId).toBe(6006002947n);
+    expect(store.destinations).toEqual([6006002947n]);
+  });
+
   it("ignores an arbitrary chat id present in task content", async () => {
     const store = new ResultStore();
     const client = new ResultClient();

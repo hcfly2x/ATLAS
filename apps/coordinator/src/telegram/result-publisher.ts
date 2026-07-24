@@ -4,8 +4,9 @@ import { workerResultSchema } from "@atlas/shared";
 
 import type { TelegramClient } from "./client.js";
 
-const TERMINAL_STATES: TaskState[] = ["COMPLETED", "FAILED", "CANCELLED"];
-const telegramOrigin = /^telegram:(\d+):(-?\d+)$/;
+const TERMINAL_STATES: TaskState[] = ["COMPLETED", "FAILED"];
+const telegramOriginWithChat = /^telegram:(\d+):(-?\d+)$/;
+const legacyTelegramDirectOrigin = /^telegram:(\d+)$/;
 const TELEGRAM_TEXT_LIMIT = 4096;
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -34,9 +35,17 @@ export interface TelegramResultStore {
 export function telegramResultDestination(
   origin: string,
 ): { chatId: bigint; userId: bigint } | undefined {
-  const match = telegramOrigin.exec(origin);
-  if (match?.[1] === undefined || match[2] === undefined) return undefined;
-  return { userId: BigInt(match[1]), chatId: BigInt(match[2]) };
+  const current = telegramOriginWithChat.exec(origin);
+  if (current?.[1] !== undefined && current[2] !== undefined) {
+    return { userId: BigInt(current[1]), chatId: BigInt(current[2]) };
+  }
+
+  // Antes do PR #20, conversas privadas eram persistidas sem o chat_id. Para
+  // esse formato legado, o Telegram usa o próprio user_id como chat_id.
+  const legacy = legacyTelegramDirectOrigin.exec(origin);
+  if (legacy?.[1] === undefined) return undefined;
+  const userId = BigInt(legacy[1]);
+  return { userId, chatId: userId };
 }
 
 export function formatTelegramResult(candidate: TelegramResultCandidate): string {
