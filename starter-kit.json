@@ -1,0 +1,12 @@
+{
+  "name": "ATLAS Project Starter Kit",
+  "version": "0.0.4",
+  "status": "planning",
+  "entrypoints": [
+    "README.md",
+    "AGENTS.md",
+    "docs/master-implementation-specification.md",
+    "docs/implementation-plan.md",
+    "memory/current-state.md"
+  ]
+}

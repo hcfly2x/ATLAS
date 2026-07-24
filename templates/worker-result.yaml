@@ -1,0 +1,28 @@
+contract_version:
+task_id:
+execution_id:
+specification_id:
+specification_version:
+specification_hash:
+worker_id:
+status:
+started_at:
+finished_at:
+failure_stage:
+error:
+summary:
+changed_paths: []
+diff_summary:
+diff_ref:
+diff_hash:
+protected_path_matches: []
+risks: []
+pending_items: []
+commands: []
+tests: []
+log_chunks: []
+logs_truncated: false
+redaction_applied: true
+result_hash:
+idempotency_key:
+sequence:

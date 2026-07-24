@@ -1,0 +1,16 @@
+task_id:
+project_id:
+version:
+specification_hash:
+risk_level:
+objective:
+context: []
+authorized_scope: []
+out_of_scope: []
+implementation_strategy: []
+constraints: []
+acceptance_criteria: []
+required_tests: []
+allowed_commands: []
+approval_required_for: []
+expected_delivery:

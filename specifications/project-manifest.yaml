@@ -1,0 +1,38 @@
+# FONTE DE VERDADE da stack. Alterações exigem ADR.
+project:
+  id: atlas
+  name: ATLAS
+  type: agent_orchestration_platform
+  status: planning
+  default_branch: main
+
+  objectives:
+    - receive_instructions_from_telegram
+    - deliberate_with_specialized_agents
+    - produce_executable_specification
+    - execute_through_local_worker
+    - preserve_project_memory
+    - require_human_approval_for_sensitive_actions
+
+  initial_stack:
+    language: typescript
+    runtime: nodejs
+    monorepo: pnpm_turborepo
+    api: fastify
+    database: postgresql
+    orm: prisma
+    agent_llm_runtime: coordinator_llm_api  # ADR-008
+    contracts: zod  # ADR-009
+    queue: pg_boss_postgresql  # ADR-005
+    telegram: telegram_bot_api
+    worker_execution: codex_cli_adapter  # ADR-006
+    version_control: git_github
+
+  protected_areas:
+    - authentication
+    - permissions
+    - secrets
+    - supervisor
+    - worker
+    - audit
+    - deployment

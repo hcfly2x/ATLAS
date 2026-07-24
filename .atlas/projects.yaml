@@ -1,0 +1,77 @@
+# Esta configuração é seed declarativo. Um projeto só pode mudar de draft para
+# active depois de satisfazer activation_required_fields.
+schema:
+  activation_required_fields:
+    - repository
+    - data_classification
+    - policy
+    - protected_paths_profile
+    - allowed_commands
+    - required_tools
+    - task_cost_limit_usd
+    - retention
+
+  defaults:
+    status: draft
+    policy: least_privilege
+    protected_paths_profile: project_default
+    allowed_commands: []
+    required_tools:
+      node: null
+      git: null
+      codex_cli: null
+      gnu_tools: []
+    task_cost_limit_usd: null
+    retention:
+      logs_days: 30
+      files_days: 30
+      sensitive_days: null
+      audit_events_expire: false
+
+projects:
+  - id: atlas
+    name: ATLAS
+    status: draft
+    risk: critical
+    data_classification: internal_sensitive
+    policy: self_modification_restricted
+    repository: null
+    protected_paths_profile: atlas
+    allowed_commands: []
+    required_tools:
+      node: null
+      git: null
+      codex_cli: null
+      gnu_tools: []
+    task_cost_limit_usd: null
+    retention:
+      logs_days: 30
+      files_days: 30
+      sensitive_days: 7
+      audit_events_expire: false
+
+  - id: personal-finance-reconciler
+    name: Conciliador Financeiro Pessoal
+    status: draft
+    risk: high
+    data_classification: personal_financial
+    repository: null
+
+  - id: course-platform
+    name: Plataforma de Curso
+    status: draft
+    risk: high
+    data_classification: commercial_sensitive
+    repository: null
+    integrations:
+      - mercado_pago
+      - meta_pixel
+      - google_tag_manager
+      - analytics
+
+  - id: marketing-operations
+    name: Marketing Operations
+    status: future
+    risk: high
+    data_classification: commercial_sensitive
+    repository: null

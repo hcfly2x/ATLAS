@@ -1,0 +1,74 @@
+# Mapeamento normativo de áreas semânticas para globs por projeto (ADR-010).
+# Alterações neste arquivo exigem aprovação humana.
+projects:
+  atlas:
+    semantic_areas:
+      authentication:
+        - "apps/coordinator/src/auth/**"
+        - "packages/shared/src/auth/**"
+      permissions:
+        - "packages/policies/**"
+        - "specifications/permissions.md"
+      policies:
+        - "packages/policies/**"
+        - ".atlas/policies.yaml"
+      secrets:
+        - "apps/**/src/secrets/**"
+        - "packages/**/src/secrets/**"
+        - ".env*"
+      supervisor:
+        - "packages/supervisor/**"
+        - "agents/engineering/supervisor.md"
+      worker:
+        - "apps/worker/**"
+        - "packages/codex-adapter/**"
+        - "packages/git-adapter/**"
+      audit:
+        - "packages/audit/**"
+        - "apps/coordinator/src/audit/**"
+      deployment:
+        - ".github/workflows/**"
+        - "Dockerfile*"
+        - "docker-compose*.yml"
+        - "docker-compose*.yaml"
+        - "render.yaml"
+      isolation:
+        - "apps/worker/src/worktree/**"
+        - "packages/git-adapter/**"
+        - ".atlas/projects.yaml"
+      allowed_commands:
+        - "apps/worker/src/allowlist/**"
+        - ".atlas/projects.yaml"
+      atlas_configuration:
+        - ".atlas/**"
+      architecture_decisions:
+        - "docs/adr/**"
+
+    # União materializada das áreas acima; o futuro validador deve verificar
+    # consistência entre semantic_areas e effective_globs.
+    effective_globs:
+      - "apps/coordinator/src/auth/**"
+      - "apps/coordinator/src/audit/**"
+      - "apps/**/src/secrets/**"
+      - "apps/worker/**"
+      - "apps/worker/src/allowlist/**"
+      - "apps/worker/src/worktree/**"
+      - "packages/shared/src/auth/**"
+      - "packages/**/src/secrets/**"
+      - "packages/policies/**"
+      - "packages/supervisor/**"
+      - "packages/audit/**"
+      - "packages/codex-adapter/**"
+      - "packages/git-adapter/**"
+      - "agents/engineering/supervisor.md"
+      - "specifications/permissions.md"
+      - ".atlas/**"
+      - ".atlas/policies.yaml"
+      - ".atlas/projects.yaml"
+      - ".env*"
+      - ".github/workflows/**"
+      - "Dockerfile*"
+      - "docker-compose*.yml"
+      - "docker-compose*.yaml"
+      - "render.yaml"
+      - "docs/adr/**"

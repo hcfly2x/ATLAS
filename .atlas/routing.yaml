@@ -1,0 +1,32 @@
+routing:
+  simple:
+    agents:
+      - project_context
+      - engineering_supervisor
+
+  moderate:
+    agents:
+      - project_context
+      - architect
+      - qa
+      - engineering_supervisor
+
+  critical:
+    agents:
+      - product
+      - project_context
+      - architect
+      - security
+      - qa
+      - engineering_supervisor
+
+critical_triggers:
+  - authentication
+  - payment
+  - database_migration
+  - production
+  - infrastructure
+  - destructive_change
+  - tracking
+  - advertising_budget
+  - atlas_self_modification

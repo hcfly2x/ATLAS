@@ -1,0 +1,25 @@
+# Conselho canônico da Trilha 2. Na Trilha 1 apenas o supervisor atua.
+# Papéis futuros (não registrar antes da necessidade): backend, frontend, dados, devops.
+teams:
+  engineering_council:
+    supervisor: engineering_supervisor
+    agents:
+      - product
+      - project_context
+      - architect
+      - security
+      - qa
+
+agents:
+  product:
+    file: agents/engineering/product.md
+  project_context:
+    file: agents/engineering/project-context.md
+  architect:
+    file: agents/engineering/architect.md
+  security:
+    file: agents/engineering/security.md
+  qa:
+    file: agents/engineering/qa.md
+  engineering_supervisor:
+    file: agents/engineering/supervisor.md

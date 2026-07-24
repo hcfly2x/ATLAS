@@ -1,0 +1,7 @@
+task:
+  project_id:
+  source: telegram
+  user_message:
+  attachments: []
+  requested_mode:
+  urgency:

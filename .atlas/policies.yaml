@@ -1,0 +1,17 @@
+policies:
+  require_human_approval:
+    - deploy
+    - merge_main
+    - destructive_migration
+    - delete_data
+    - payment_change
+    - tracking_change
+    - production_secret_change
+    - advertising_budget_increase
+    - atlas_protected_area_change
+
+  prohibited_in_mvp:
+    - unrestricted_production_access
+    - autonomous_merge
+    - autonomous_deploy
+    - unrestricted_ad_spend
