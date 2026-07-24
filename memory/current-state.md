@@ -12,6 +12,9 @@ como próxima fase.
   e registro oficial sem autorização automática de implementação.
 - Primeira ideia triada registrada no escopo da Fase 10; ADR-013 permanece
   Proposto até a chegada dessa fase.
+- Dependência do futuro dashboard de fluxo multiagente registrada no Epic 07:
+  cada parecer de agente e cada rodada de deliberação deve emitir `AuditEvent`
+  correlacionado à Task, sem aguardar apenas a decisão final do supervisor.
 - Correção remanescente do aceite da Fase 1: workspace Vitest morto removido.
 - Compatibilidade pnpm 11.9: a base já usa `allowBuilds`; a Fase 2 ampliou a
   allowlist booleana mínima para Prisma, pois `onlyBuiltDependencies` foi
