@@ -16,6 +16,8 @@ import { loadProtectedGlobs } from "./worker/config.js";
 import { WorkerService } from "./worker/service.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
 import { PrismaMemoryService } from "./memory/service.js";
+import { DashboardService } from "./dashboard/service.js";
+import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 
 const prisma = new PrismaClient();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -32,6 +34,11 @@ const projectConfigStore = setupWizardEnabled
   : undefined;
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
+const dashboardToken = process.env.DASHBOARD_TOKEN;
+const dashboardService =
+  dashboardToken === undefined || dashboardToken.trim().length === 0
+    ? undefined
+    : new DashboardService(prisma);
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -81,6 +88,9 @@ const workerAppOptions =
     ? { workerBootstrapToken, workerService }
     : {};
 const app = createCoordinatorApp({
+  ...(dashboardService === undefined || dashboardToken === undefined
+    ? {}
+    : { dashboardService, dashboardToken }),
   internalAuthToken,
   logger: true,
   memoryService,
@@ -112,6 +122,25 @@ const polling =
     : undefined;
 app.addHook("onClose", () => {
   polling?.stop();
+});
+
+const progressPublisher =
+  telegramClient === undefined
+    ? undefined
+    : new TelegramProgressPublisher(new PrismaTelegramProgressStore(prisma), telegramClient);
+const telegramProgressTimer =
+  progressPublisher === undefined
+    ? undefined
+    : setInterval(
+        () => {
+          void progressPublisher.poll().catch((error: unknown) => {
+            app.log.error({ error }, "telegram progress publication failed");
+          });
+        },
+        Number(process.env.TELEGRAM_PROGRESS_INTERVAL_MS ?? "2000"),
+      );
+app.addHook("onClose", () => {
+  if (telegramProgressTimer !== undefined) clearInterval(telegramProgressTimer);
 });
 
 try {

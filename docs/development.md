@@ -160,10 +160,45 @@ MVP. O token do bot deve existir somente na variável de ambiente. O modo pollin
 usa `getUpdates` e a mesma camada de serviço do webhook, sem registrar webhook
 público.
 
+O comando `/verbose 0|1|2` persiste a preferência na sessão:
+
+- `0`: nenhuma atualização assíncrona além do resultado final;
+- `1`: resultado final e marcos de mudança de estado;
+- `2`: resultado final, marcos e chunks de log já persistidos pelo worker.
+
+Durante estados de execução longa, o bot envia `sendChatAction` periodicamente.
+Os logs do nível 2 são enviados em lotes limitados, com cursor persistente por
+Task; reinício do coordinator não volta a transmitir chunks já entregues.
+`TELEGRAM_PROGRESS_INTERVAL_MS` controla o intervalo do publicador (default 2 s).
+
 Como alternativa futura de teste do webhook, um túnel HTTPS pode encaminhar para
 `127.0.0.1:3000`, mas a criação do túnel e a chamada `setWebhook` são operações
 manuais fora do repositório. Nenhum endpoint público ou configuração de produção
 é criado por este kit.
+
+## Dashboard local somente-leitura
+
+Defina um token local descartável em `.env.local` e inicie o coordinator:
+
+```bash
+DASHBOARD_TOKEN=valor-local-descartavel
+pnpm coordinator:local
+```
+
+Abra [http://localhost:3000/dashboard](http://localhost:3000/dashboard) e informe
+o token. Ele fica no fragmento da URL do navegador e é enviado às APIs apenas no
+header `Authorization`; não entra na query string nem nos logs HTTP.
+
+O shell e todas as APIs do dashboard recusam conexões fora do loopback. Dados
+são expostos exclusivamente por rotas GET autenticadas. Não existem POST, PUT,
+PATCH ou DELETE sob `/dashboard`. A interface mostra estados canônicos, detalhes
+de Task com Specifications/Approvals/Executions, AuditEvent por projeto, custos
+de LLM/Codex com tetos de US$ 25/US$ 75 e memória do projeto. Ela não cria nem
+edita projetos, agentes, times ou configuração.
+
+O shell inicial contém apenas a tela de desbloqueio; nenhum dado operacional é
+carregado antes da validação do token. Este painel operacional somente-leitura é
+independente da decisão futura do ADR-013 sobre edição de agentes na Fase 10.
 
 ## Worker local
 

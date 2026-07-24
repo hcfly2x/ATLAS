@@ -6,6 +6,7 @@ export interface TelegramClient {
   answerCallback(callbackId: string): Promise<void>;
   getUpdates(offset?: number): Promise<readonly unknown[]>;
   sendResponses(chatId: bigint, responses: readonly TelegramResponse[]): Promise<void>;
+  sendActivity(chatId: bigint): Promise<void>;
 }
 
 function replyMarkup(
@@ -54,6 +55,10 @@ export class TelegramBotApiClient implements TelegramClient {
         ...(response.buttons === undefined ? {} : { reply_markup: replyMarkup(response.buttons) }),
       });
     }
+  }
+
+  async sendActivity(chatId: bigint): Promise<void> {
+    await this.call("sendChatAction", { action: "typing", chat_id: chatId.toString() });
   }
 
   private async call(method: string, body: unknown): Promise<unknown> {

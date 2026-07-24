@@ -239,6 +239,13 @@ describe("Prisma core persistence", () => {
     });
     await telegramStore.selectProject(42n, 100n, projectId);
     expect(await telegramStore.getSelectedProject(42n)).toMatchObject({ id: projectId });
+    await telegramStore.setVerboseLevel(42n, 100n, 2);
+    expect(
+      await prisma.telegramSession.findUnique({
+        where: { userId: 42n },
+        select: { verboseLevel: true },
+      }),
+    ).toEqual({ verboseLevel: 2 });
 
     const responses = [{ text: "persisted response" }];
     await telegramStore.recordProcessedUpdate({

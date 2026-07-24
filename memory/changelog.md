@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.12
+
+- Preferência `/verbose 0|1|2` persistida em `TelegramSession`.
+- Publicador Telegram idempotente adicionado para atividade, marcos, chunks
+  persistidos com throttling e resultado final.
+- Dashboard operacional somente-leitura criado em `/dashboard`, restrito ao
+  loopback e com APIs protegidas por token.
+- Painel passou a exibir estados canônicos, detalhe completo de Task, AuditEvent,
+  custos LLM/Codex e memória por projeto.
+- Sexta migração adicionou nível de verbosidade e cursores de entrega Telegram.
+- Independência entre o dashboard somente-leitura e o ADR-013 registrada.
+
 ## 0.0.11
 
 - Pilot Setup Wizard simplificado para repositório e comandos de teste no fluxo

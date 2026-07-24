@@ -120,6 +120,7 @@ model Project {
   llmCalls              LlmCall[]
   codexUsages           CodexUsage[]
   memoryItems           MemoryItem[]
+  telegramDeliveries    TelegramTaskDelivery[]
 
   @@map("projects")
 }
@@ -147,6 +148,7 @@ model Task {
   llmCalls              LlmCall[]
   codexUsages           CodexUsage[]
   memoryItems           MemoryItem[]
+  telegramDelivery      TelegramTaskDelivery?
 
   @@index([projectId, state])
   @@map("tasks")
@@ -349,11 +351,31 @@ model TelegramSession {
   userId            BigInt   @id @map("user_id")
   chatId            BigInt   @map("chat_id")
   selectedProjectId String?  @map("selected_project_id")
+  verboseLevel      Int      @default(0) @map("verbose_level")
   updatedAt         DateTime @updatedAt @map("updated_at")
   selectedProject   Project? @relation(fields: [selectedProjectId], references: [id], onDelete: Restrict)
 
   @@index([selectedProjectId])
   @@map("telegram_sessions")
+}
+
+model TelegramTaskDelivery {
+  taskId            String    @id @map("task_id")
+  projectId         String    @map("project_id")
+  userId            BigInt    @map("user_id")
+  chatId            BigInt    @map("chat_id")
+  lastTaskVersion   Int       @default(-1) @map("last_task_version")
+  lastLogSequence   Int       @default(-1) @map("last_log_sequence")
+  lastLogOffset     Int       @default(0) @map("last_log_offset")
+  lastActivityAt    DateTime? @map("last_activity_at")
+  finalDeliveredAt  DateTime? @map("final_delivered_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, updatedAt])
+  @@map("telegram_task_deliveries")
 }
 
 model TelegramUpdate {

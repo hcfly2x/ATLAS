@@ -17,6 +17,7 @@ const commandSchema = z.object({
   argument: z.string().optional(),
 });
 const optionalTaskIdSchema = z.string().uuid().optional();
+const verboseLevelSchema = z.coerce.number().int().min(0).max(2);
 
 export class TelegramUnauthorizedError extends Error {
   constructor() {
@@ -181,6 +182,16 @@ export class TelegramGateway {
         },
       ];
     }
+    if (command?.command === "verbose") {
+      const level = verboseLevelSchema.parse(command.argument);
+      await this.options.store.setVerboseLevel(userId, BigInt(message.chat.id), level as 0 | 1 | 2);
+      const descriptions = [
+        "somente o resultado final",
+        "resultado final e marcos de execução",
+        "resultado final, marcos e logs do worker",
+      ] as const;
+      return [{ text: `Verbosity ${String(level)}: ${descriptions[level]}.` }];
+    }
     if (command?.command === "status") {
       const taskId = optionalTaskIdSchema.parse(command.argument);
       const status = await this.options.store.findTaskStatus(userId, taskId);
@@ -220,7 +231,9 @@ export class TelegramGateway {
       ];
     }
     if (command !== undefined) {
-      return [{ text: "Comando não suportado. Use /projects, /status ou /cancel." }];
+      return [
+        { text: "Comando não suportado. Use /projects, /status, /cancel ou /verbose 0|1|2." },
+      ];
     }
 
     const project = await this.options.store.getSelectedProject(userId);
