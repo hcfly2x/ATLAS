@@ -7,6 +7,7 @@ import {
   ApprovalTargetType,
   ApprovalType,
   ExecutionStatus,
+  MemoryType,
   TaskState,
   WorkerStatus,
 } from "@prisma/client";
@@ -871,6 +872,15 @@ export class WorkerService {
     if (execution.status !== ExecutionStatus.FINALIZING) {
       throw new WorkerConflictError("execution is not ready for finalization");
     }
+    const result = workerResultSchema.parse(execution.resultPayload);
+    const summaryContent = result.summary.slice(0, 8_000);
+    const summaryIdempotencyKey = `task-summary:${execution.id}`;
+    const summaryPayloadHash = canonicalPayloadHash({
+      content: summaryContent,
+      projectId: execution.task.projectId,
+      taskId: execution.taskId,
+      type: "summary",
+    });
     const transitioned = await this.options.prisma.$transaction(async (transaction) => {
       const completedTransition = await transaction.task.updateMany({
         where: {
@@ -922,6 +932,32 @@ export class WorkerService {
       await transaction.worker.update({
         where: { id: input.workerId },
         data: { status: WorkerStatus.IDLE },
+      });
+      const memory = await transaction.memoryItem.create({
+        data: {
+          content: summaryContent,
+          idempotencyKey: summaryIdempotencyKey,
+          payloadHash: summaryPayloadHash,
+          projectId: execution.task.projectId,
+          taskId: execution.taskId,
+          type: MemoryType.SUMMARY,
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "memory.task_summary.created",
+          actor: "SYSTEM",
+          correlationId: input.idempotencyKey,
+          idempotencyKey: `audit:${summaryIdempotencyKey}`,
+          payload: json({
+            executionId: execution.id,
+            payloadHash: summaryPayloadHash,
+          }),
+          projectId: execution.task.projectId,
+          targetId: memory.id,
+          targetType: "memory_item",
+          taskId: execution.taskId,
+        },
       });
       await transaction.auditEvent.create({
         data: {

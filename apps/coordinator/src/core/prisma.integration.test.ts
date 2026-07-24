@@ -283,9 +283,10 @@ describe("Prisma core persistence", () => {
         type: "PRE_EXECUTION",
       },
     });
+    const callbackId = `integration-callback-${randomUUID()}`;
     const decided = await telegramStore.decideApproval({
       approvalId: approval.id,
-      callbackId: "integration-callback",
+      callbackId,
       correlationId: "integration-telegram",
       decision: "APPROVED",
       userId: 42n,
@@ -298,7 +299,7 @@ describe("Prisma core persistence", () => {
     });
     expect(
       await prisma.auditEvent.findUnique({
-        where: { idempotencyKey: "telegram:callback:integration-callback:approval" },
+        where: { idempotencyKey: `telegram:callback:${callbackId}:approval` },
       }),
     ).not.toBeNull();
   });

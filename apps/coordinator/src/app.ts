@@ -12,6 +12,8 @@ import {
   type TaskCoreStore,
 } from "@atlas/core";
 import {
+  createMemoryItemSchema,
+  memoryTypeSchema,
   taskTransitionCommandSchema,
   workerCapabilitiesSchema,
   workerResultSchema,
@@ -38,6 +40,12 @@ import {
   type ProjectConfigStore,
 } from "./setup/project-config.js";
 import { registerSetupRoutes } from "./setup/routes.js";
+import {
+  MemoryConflictError,
+  MemoryProjectNotFoundError,
+  MemoryTaskScopeError,
+  type MemoryService,
+} from "./memory/service.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -69,6 +77,7 @@ const leaseSchema = z.object({
 export interface CoordinatorAppOptions {
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
+  readonly memoryService?: MemoryService;
   readonly projectConfigStore?: ProjectConfigStore;
   readonly supervisorService?: Pick<SupervisorService, "processTask">;
   readonly taskStore?: TaskCoreStore;
@@ -117,25 +126,29 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     registerSetupRoutes(app, options.projectConfigStore);
   }
 
-  if (options.taskStore !== undefined) {
-    if (options.internalAuthToken === undefined || options.internalAuthToken.length === 0) {
-      throw new Error("internalAuthToken is required when internal routes are enabled");
+  const internalRoutesEnabled =
+    options.taskStore !== undefined || options.memoryService !== undefined;
+  if (
+    internalRoutesEnabled &&
+    (options.internalAuthToken === undefined || options.internalAuthToken.length === 0)
+  ) {
+    throw new Error("internalAuthToken is required when internal routes are enabled");
+  }
+  const requireInternalAuth = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    if (request.headers.authorization !== `Bearer ${options.internalAuthToken ?? ""}`) {
+      await reply.code(401).send({
+        code: "UNAUTHORIZED",
+        correlationId: request.id,
+      });
     }
-    const taskStore = options.taskStore;
-    const internalAuthToken = options.internalAuthToken;
-    const stateMachine = new TaskStateMachine(taskStore);
+  };
 
-    const requireInternalAuth = async (
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ): Promise<void> => {
-      if (request.headers.authorization !== `Bearer ${internalAuthToken}`) {
-        await reply.code(401).send({
-          code: "UNAUTHORIZED",
-          correlationId: request.id,
-        });
-      }
-    };
+  if (options.taskStore !== undefined) {
+    const taskStore = options.taskStore;
+    const stateMachine = new TaskStateMachine(taskStore);
 
     app.post("/internal/tasks", { preHandler: requireInternalAuth }, async (request, reply) => {
       const input = createTaskSchema.parse(request.body);
@@ -193,6 +206,54 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
         },
       );
     }
+  }
+
+  if (options.memoryService !== undefined) {
+    const memoryService = options.memoryService;
+    const projectParamsSchema = z.object({ projectId: z.string().min(1).max(128) });
+    const memoryQuerySchema = z.object({
+      before: z.coerce.date().optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      taskId: z.string().uuid().optional(),
+      type: memoryTypeSchema.optional(),
+    });
+    app.get(
+      "/internal/projects/:projectId/memory",
+      { preHandler: requireInternalAuth },
+      async (request) => {
+        const { projectId } = projectParamsSchema.parse(request.params);
+        const query = memoryQuerySchema.parse(request.query);
+        return memoryService.list({
+          limit: query.limit,
+          projectId,
+          ...(query.before === undefined ? {} : { before: query.before }),
+          ...(query.taskId === undefined ? {} : { taskId: query.taskId }),
+          ...(query.type === undefined ? {} : { type: query.type }),
+        });
+      },
+    );
+    app.get(
+      "/internal/projects/:projectId/memory/context",
+      { preHandler: requireInternalAuth },
+      async (request) => {
+        const { projectId } = projectParamsSchema.parse(request.params);
+        const query = z.object({ taskId: z.string().uuid().optional() }).parse(request.query);
+        return memoryService.getContext(projectId, query.taskId);
+      },
+    );
+    app.post(
+      "/internal/projects/:projectId/memory",
+      { preHandler: requireInternalAuth },
+      async (request, reply) => {
+        const { projectId } = projectParamsSchema.parse(request.params);
+        const result = await memoryService.create(
+          projectId,
+          createMemoryItemSchema.parse(request.body),
+          request.id,
+        );
+        return reply.code(result.replayed ? 200 : 201).send(result);
+      },
+    );
   }
 
   if (options.telegramGateway !== undefined && options.telegramClient !== undefined) {
@@ -415,6 +476,27 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     if (error instanceof ProjectConfigConflictError) {
       return reply.code(409).send({
         code: "PROJECT_CONFIG_CONFLICT",
+        correlationId: request.id,
+        message: error.message,
+      });
+    }
+    if (error instanceof MemoryConflictError) {
+      return reply.code(409).send({
+        code: error.code,
+        correlationId: request.id,
+        message: error.message,
+      });
+    }
+    if (error instanceof MemoryProjectNotFoundError) {
+      return reply.code(404).send({
+        code: error.code,
+        correlationId: request.id,
+        message: error.message,
+      });
+    }
+    if (error instanceof MemoryTaskScopeError) {
+      return reply.code(422).send({
+        code: error.code,
         correlationId: request.id,
         message: error.message,
       });

@@ -103,3 +103,10 @@
   Wizard local em `/setup`; `.atlas/projects.yaml` permanece a fonte versionada
   e protegida, a gravação exige ação humana explícita e deve ser revisada por
   diff. O assistente não é o dashboard da Fase 10 e não autoriza a Fase 6.
+- A memória da Fase 6 é append-only e sempre vinculada a `project_id`; aceita
+  `decision|note|summary`, sendo summary obrigatoriamente ligado a Task.
+- O context builder usa seleção determinística e limitada (20 itens/12.000
+  caracteres por default), prioriza a Task atual e decisões e falha fechado se
+  receber memória de outro projeto.
+- Conclusão de Execution gera resumo de Task na mesma transação da finalização;
+  criação manual e automática são idempotentes e auditadas.

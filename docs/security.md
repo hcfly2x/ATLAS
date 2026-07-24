@@ -54,6 +54,16 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
 - eventos de auditoria append-only não expiram no MVP;
 - exclusão deve considerar também cópias de backup conforme a janela operacional do provedor.
 
+## Memória
+
+- todo item persistente exige `project_id`;
+- Task associada deve pertencer ao mesmo projeto;
+- o context builder falha fechado diante de mistura de projetos e aplica limite
+  de itens/caracteres;
+- secrets não podem ser registrados em notas, decisões ou resumos;
+- criação e conflito de idempotência geram AuditEvent;
+- edição e exclusão não são expostas na Fase 6.
+
 ## Dados financeiros
 
 - não registrar conteúdo integral de extratos;

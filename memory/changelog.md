@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.10
+
+- Fase 6 — memória por projeto implementada.
+- `MemoryItem` adicionado ao Prisma com Project obrigatório, Task/agente
+  opcionais, hash e idempotência.
+- API interna autenticada criada para memória manual, listagem e contexto.
+- Context builder determinístico, limitado e fail-closed extraído em
+  `@atlas/memory`.
+- Supervisor passou a receber somente a memória do Project da Task.
+- Finalização do worker passou a criar resumo de Task auditado atomicamente.
+- Quinta migração, contratos, Epic 06 e testes de isolamento adicionados.
+- Teste de integração Telegram deixou de reutilizar callback fixo entre runs.
+
 ## 0.0.9
 
 - Pilot Setup Wizard local adicionado em `/setup`, sem antecipar o dashboard.

@@ -108,6 +108,21 @@ visível. O retry seguinte, com a mesma chave e payload, recebe o replay do efei
 já persistido. Clientes devem tratar esse `409` como resultado retryable e não
 gerar uma nova chave.
 
+## Memória por projeto
+
+As rotas internas de memória usam o mesmo Bearer token:
+
+```text
+POST /internal/projects/:projectId/memory
+GET  /internal/projects/:projectId/memory
+GET  /internal/projects/:projectId/memory/context
+```
+
+O POST aceita `type`, `content`, `idempotencyKey` e, opcionalmente, `taskId` e
+`agentId`. `summary` exige Task. Não há update/delete na Fase 6. O context
+builder limita o conteúdo e o supervisor consulta exclusivamente o projeto da
+Task; detalhes em `specifications/project-memory.md`.
+
 ## Telegram local
 
 O webhook está implementado em `POST /telegram/webhook` e pode ser exercitado

@@ -2,9 +2,8 @@
 
 ## Fase
 
-Fase 5 — Worker + Codex + Git integrada na `main` e publicada como `v0.0.8`.
-A Trilha 1 está completa. O Pilot Setup Wizard foi concluído em branch própria
-e aguarda revisão; a Fase 6 não está autorizada.
+Pilot Setup Wizard integrado na `main` v0.0.9. Fase 6 — Memória por projeto
+concluída em branch própria e pendente de revisão; a Fase 7 não está autorizada.
 
 ## Implementado
 
@@ -37,12 +36,23 @@ e aguarda revisão; a Fase 6 não está autorizada.
   principal nem depende do Prisma Client gerado.
 - Comandos permitidos configurados como executável e argumentos separados; o
   seed aceita o mesmo contrato estruturado consumido pelo worker.
+- Memória `decision|note|summary` append-only e isolada obrigatoriamente por
+  Project, com idempotência, hash e AuditEvent.
+- API interna autenticada para criação manual, listagem paginada e context
+  builder.
+- Contexto determinístico limitado a 20 itens/12.000 caracteres, com prioridade
+  da Task/decisões e bloqueio de mistura entre projetos.
+- Supervisor recebe contexto somente do Project da Task.
+- Finalização do worker persiste resumo da Task na mesma transação.
+- Quinta migração para `memory_items`.
 
 ## Testes e validações
 
 - Instalação e lockfile: aprovados.
 - Formatação, Prisma generate/validate, lint, typecheck e build: aprovados.
-- Testes unitários/API/contrato: 49 aprovados, sendo 6 novos do wizard.
+- Testes unitários/API/contrato incluem context builder, API autenticada e
+  injeção de memória no supervisor.
+- Suite unitária/API/contrato: 55 testes aprovados.
 - Testes do wizard cobrem defaults sem mutação, validação de ativação, gravação
   atômica/preservação de campos, proteção da escrita HTTP e restrição loopback.
 - Interface verificada no navegador local com carregamento dos quatro projetos
@@ -51,8 +61,8 @@ e aguarda revisão; a Fase 6 não está autorizada.
 - Git testado em repositório temporário; Codex testado com binário falso.
 - Quatro migrações aplicadas do zero em PostgreSQL 17 efêmero.
 - Seed executado com sucesso.
-- Testes de integração PostgreSQL: 6 aprovados, incluindo corrida entre
-  resultado e `CANCEL_REQUESTED`.
+- Oito integrações PostgreSQL aprovadas em execuções consecutivas, incluindo
+  corrida com `CANCEL_REQUESTED`, isolamento, replay/conflito e resumo automático.
 - Nenhum push, PR real de projeto-alvo, Codex real, deploy ou credencial real nos
   testes.
 
@@ -67,16 +77,14 @@ e aguarda revisão; a Fase 6 não está autorizada.
 
 ## Próximo passo
 
-Revisar e integrar o PR do Pilot Setup Wizard. Depois, configurar um projeto
-real, executar migrações/seed e iniciar o piloto controlado com credenciais
-locais fora do repositório. Qualquer trabalho da Fase 6 depende de autorização
+Revisar o PR da Fase 6. Não integrar nem iniciar a Fase 7 sem autorização
 explícita.
 
 ## Restrições ativas
 
-- não iniciar a Fase 6;
+- não iniciar a Fase 7;
 - não executar Codex real ou mudanças em repositórios externos como teste;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não implementar dashboard, conselho multiagente ou memória por projeto;
+- não implementar dashboard ou conselho multiagente;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–015;
 - não executar deploy nem integrar credenciais reais.

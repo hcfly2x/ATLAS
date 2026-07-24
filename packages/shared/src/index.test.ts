@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalPayloadHash,
+  createMemoryItemSchema,
   createStructuredLog,
   createWorkerResult,
   workerResultSchema,
@@ -51,6 +52,25 @@ describe("canonicalPayloadHash", () => {
   it("rejects values outside the JSON data model", () => {
     expect(() => canonicalPayloadHash({ invalid: undefined })).toThrow(TypeError);
     expect(() => canonicalPayloadHash({ invalid: Number.NaN })).toThrow(TypeError);
+  });
+});
+
+describe("createMemoryItemSchema", () => {
+  it("requires taskId for summaries but not for manual decisions", () => {
+    expect(
+      createMemoryItemSchema.safeParse({
+        content: "completed",
+        idempotencyKey: "summary-without-task",
+        type: "summary",
+      }).success,
+    ).toBe(false);
+    expect(
+      createMemoryItemSchema.safeParse({
+        content: "keep PostgreSQL",
+        idempotencyKey: "decision-1",
+        type: "decision",
+      }).success,
+    ).toBe(true);
   });
 });
 

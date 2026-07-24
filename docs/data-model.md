@@ -25,7 +25,10 @@ Execution.
 **CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
 início, fim e timestamp de registro. É separado de `LlmCall`.
 
-**MemoryItem** — id, project_id, tipo (`decision|summary|note`), conteúdo, task_id origem?, agent_id?, criado_em. O escopo é sempre por projeto (ADR-004); não existe memória global persistente no MVP.
+**MemoryItem** — id, project_id, tipo (`decision|summary|note`), conteúdo,
+task_id origem?, agent_id?, idempotency_key, payload_hash, criado_em. O escopo é
+sempre por projeto (ADR-004); `summary` exige Task e não existe memória global
+persistente no MVP. Itens são append-only nesta fase.
 
 **AuditEvent** — id, project_id, task_id?, target_type?, target_id?, correlation_id, ator (`user|agent|worker|system`), ação, payload, criado_em. Append-only, nunca editado.
 

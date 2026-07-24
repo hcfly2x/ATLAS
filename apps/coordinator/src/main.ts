@@ -15,6 +15,7 @@ import { PrismaTelegramStore } from "./telegram/store.js";
 import { loadProtectedGlobs } from "./worker/config.js";
 import { WorkerService } from "./worker/service.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
+import { PrismaMemoryService } from "./memory/service.js";
 
 const prisma = new PrismaClient();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -30,6 +31,7 @@ const projectConfigStore = setupWizardEnabled
     )
   : undefined;
 const taskStore = new PrismaTaskCoreStore(prisma);
+const memoryService = new PrismaMemoryService(prisma);
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -59,6 +61,7 @@ const supervisorService =
     : new SupervisorService({
         alwaysHuman: await loadAlwaysHumanActions(process.env.ATLAS_POLICIES_PATH),
         monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
+        memoryContextProvider: memoryService,
         runtime: new OpenAIAgentRuntime(openaiApiKey),
         store: new PrismaSupervisorStore(prisma),
         taskStore,
@@ -80,6 +83,7 @@ const workerAppOptions =
 const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
+  memoryService,
   ...(projectConfigStore === undefined ? {} : { projectConfigStore }),
   ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,

@@ -11,8 +11,10 @@ import type {
   TaskSnapshot,
   TaskTransitionResult,
 } from "@atlas/core";
+import type { MemoryItem } from "@atlas/shared";
 
 import { createCoordinatorApp } from "./app.js";
+import type { MemoryService } from "./memory/service.js";
 
 class InMemoryTaskCoreStore implements TaskCoreStore {
   readonly tasks = new Map<string, TaskSnapshot>();
@@ -251,6 +253,65 @@ describe("coordinator core API", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ state: "QUEUED" });
     expect(calls).toEqual([{ correlationId: "supervisor-api-correlation", taskId }]);
+  });
+
+  it("creates and lists project memory through the authenticated internal boundary", async () => {
+    const items: MemoryItem[] = [];
+    const memoryService: MemoryService = {
+      create: (projectId, input) => {
+        const item: MemoryItem = {
+          content: input.content,
+          createdAt: new Date().toISOString(),
+          id: randomUUID(),
+          projectId,
+          type: input.type,
+          ...(input.agentId === undefined ? {} : { agentId: input.agentId }),
+          ...(input.taskId === undefined ? {} : { taskId: input.taskId }),
+        };
+        items.push(item);
+        return Promise.resolve({ item, replayed: false });
+      },
+      getContext: (projectId) =>
+        Promise.resolve({
+          entries: items.filter((item) => item.projectId === projectId),
+          text: "context",
+          truncated: false,
+        }),
+      list: ({ projectId }) =>
+        Promise.resolve(items.filter((item) => item.projectId === projectId)),
+    };
+    const app = createCoordinatorApp({
+      internalAuthToken,
+      logger: false,
+      memoryService,
+    });
+    apps.push(app);
+
+    const unauthorized = await app.inject({
+      method: "GET",
+      url: "/internal/projects/atlas/memory",
+    });
+    const created = await app.inject({
+      method: "POST",
+      url: "/internal/projects/atlas/memory",
+      headers: internalAuthHeader,
+      payload: {
+        content: "Keep memory isolated",
+        idempotencyKey: "memory-api-1",
+        type: "decision",
+      },
+    });
+    const listed = await app.inject({
+      method: "GET",
+      url: "/internal/projects/atlas/memory",
+      headers: internalAuthHeader,
+    });
+
+    expect(unauthorized.statusCode).toBe(401);
+    expect(created.statusCode).toBe(201);
+    expect(listed.json()).toEqual([
+      expect.objectContaining({ content: "Keep memory isolated", projectId: "atlas" }),
+    ]);
   });
 });
 

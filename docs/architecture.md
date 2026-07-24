@@ -70,7 +70,12 @@ finalização repetível; merge continua exclusivamente humano.
 
 ### Memory Service
 
-Mantém memória persistente sempre vinculada a um projeto (ADR-004), podendo associá-la também a agente e tarefa. Contexto comum ao sistema é configuração estática versionada, não memória global persistente.
+O package `@atlas/memory` monta contexto limitado e determinístico, falhando
+fechado se receber item de outro projeto. O coordinator persiste decisões,
+notas e resumos sempre vinculados a um Project (ADR-004), opcionalmente também a
+agente e Task. Resumos de conclusão são criados atomicamente com a finalização
+do worker. Contexto comum ao sistema é configuração estática versionada, não
+memória global persistente.
 
 ### Audit Service
 
