@@ -36,6 +36,8 @@ Critério: uma Task percorre estados via API interna, com auditoria.
 
 ### Fase 3 — Telegram MVP
 
+**Status:** concluída.
+
 - Webhook + autorização por Telegram ID único.
 - Texto → Task; seleção de projeto; botões de aprovação; comando de status; cancelamento.
 

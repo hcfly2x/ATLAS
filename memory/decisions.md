@@ -61,3 +61,8 @@
   produção permanece sempre humana.
 - A estratégia de ambientes proposta usa staging e produção no Render a partir
   da mesma `main`, sem branch `develop`, conforme ADR-015 Proposto.
+- Na Fase 3, long-polling com `getUpdates` é o modo de desenvolvimento do
+  Telegram enquanto não há URL HTTPS pública nem deploy autorizado; webhook e
+  polling compartilham o mesmo serviço.
+- A autorização Telegram do MVP aceita exatamente um `TELEGRAM_ALLOWED_USER_ID`.
+- Rotas `/internal/*` exigem Bearer token configurado por variável de ambiente.

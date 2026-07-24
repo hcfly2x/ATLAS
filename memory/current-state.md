@@ -2,10 +2,10 @@
 
 ## Fase
 
-Fase 2 — Core mínimo do Coordinator concluída, aceita e integrada. O fluxo
-documental `idea-intake` está registrado. A Fase 3 — Telegram MVP está autorizada
-e segue isolada no PR #5. Esta branch documenta propostas de autonomia e
-ambientes sem modificar a implementação da Fase 3.
+Fase 3 — Telegram MVP concluída, aceita e integrada na `main`. A Fase 4 não está
+autorizada e exige confirmação explícita separada. Esta entrega documenta
+propostas de autonomia e ambientes sem implementar enforcement ou
+infraestrutura.
 
 ## Implementado
 
@@ -14,6 +14,15 @@ ambientes sem modificar a implementação da Fase 3.
 - Nível de autonomia 2 registrado como padrão decidido de todos os projetos.
 - Modelo conceitual, políticas e configuração preparados documentalmente para
   autonomia por projeto, staging automático e produção manual.
+- Gateway Telegram com webhook injetável e long-polling de desenvolvimento.
+- Webhook só é registrado com secret não vazio; polling opera sem expor a rota.
+- Replay idempotente não reenvia mensagens e ainda reconhece callbacks repetidos.
+- Autorização por um único Telegram ID, seleção de projeto e texto para Task.
+- Status, botões de aprovação ligados a alvo/version/hash e cancelamento
+  cooperativo por `CANCEL_REQUESTED`.
+- Idempotência persistida para updates e callbacks.
+- Bearer token obrigatório nas rotas internas.
+- Sessões Telegram e respostas processadas persistidas via Prisma.
 - Fluxo documental de ideias definido: Issue com template `idea`, triagem externa
   e registro oficial sem autorização automática de implementação.
 - Primeira ideia triada registrada no escopo da Fase 10; ADR-013 permanece
@@ -42,12 +51,12 @@ ambientes sem modificar a implementação da Fase 3.
 - Formatação: aprovada.
 - Lint: 9/9 tarefas aprovadas.
 - Typecheck: 15/15 tarefas aprovadas.
-- Testes unitários/API/contrato estático: 13 aprovados.
+- Testes unitários/API/contrato estático: 22 aprovados.
 - Build: 9/9 tarefas aprovadas.
 - Migração inicial aplicada com sucesso no PostgreSQL 17 de desenvolvimento.
 - Seed de projetos executado com sucesso.
-- Testes de integração PostgreSQL: 2 aprovados.
-- Nenhum deploy, credencial real ou feature das Fases 3–5 foi implementado.
+- Testes de integração PostgreSQL: 3 aprovados.
+- Nenhum deploy, credencial real ou feature das Fases 4–5 foi implementado.
 - O Compose do ATLAS foi encerrado após os testes; o volume de desenvolvimento foi preservado.
 
 ## Decisões vigentes
@@ -62,8 +71,8 @@ ambientes sem modificar a implementação da Fase 3.
 
 ## Próximo passo
 
-Auditar separadamente o PR #5 da Fase 3 e este PR documental. A ordem de
-integração será decidida após as duas auditorias.
+Validar e integrar esta entrega documental. A Fase 4 só pode começar após
+autorização explícita separada.
 
 ## Restrições ativas
 
@@ -71,6 +80,8 @@ integração será decidida após as duas auditorias.
 - não implementar enforcement de autonomia nesta branch;
 - não provisionar staging/produção, criar bot, webhook ou `render.yaml`;
 - não implementar features das Fases 4–5;
+- não iniciar a Fase 4;
+- não implementar LLM, supervisor ou execução do worker;
 - não fazer deploy;
 - não integrar credenciais reais;
 - não configurar produção.

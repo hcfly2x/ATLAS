@@ -1,20 +1,19 @@
 # Pendências
 
-## Fase 3
-
-- Implementar autenticação dos endpoints internos antes de qualquer exposição de
-  rede.
-- Documentar em `docs/development.md` a semântica de replay sob concorrência:
-  duas requisições simultâneas com a mesma idempotency key podem fazer a segunda
-  receber 409; no retry seguinte, ela recebe o replay.
-
 ## Fase 4
 
 - Implementar o cálculo e a validação do hash canônico de Specification
   (`payload_hash`), hoje garantido apenas por constraints de persistência.
+- Validar `target_hash` contra o hash canônico vigente da Specification no
+  momento da decisão de aprovação.
 - Avaliar `autonomy_level`, criticidade e ações `always_human` ao decidir se a
   Specification exige `WAITING_APPROVAL`; aprovação automática deve persistir
   Approval `actor=system` com alvo versionado, hashes e AuditEvent.
+
+## Fases 4–5
+
+- Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na
+  sessão.
 
 ## Fase 5
 
@@ -32,6 +31,11 @@
   AuditEvent; falha deve bloquear promoção.
 - Validar o webhook real do Telegram em staging.
 - Manter produção com promoção manual e sem hibernação.
+
+## Telegram — melhoria de erro
+
+- Retornar mensagem útil para Approval já decidida, em vez de erro interno
+  genérico.
 
 ## Antes de ativar cada projeto
 

@@ -2,6 +2,14 @@
 
 ## Componentes
 
+### Gateway Telegram
+
+O módulo Telegram vive no coordinator e separa transporte de comportamento. O
+mesmo serviço recebe updates entregues pelo webhook Fastify ou obtidos por
+long-polling. O webhook não é registrado automaticamente. Sessão de projeto e
+respostas processadas são persistidas no PostgreSQL para autorização e replay
+idempotente.
+
 ### Telegram Gateway
 
 Responsável apenas por receber e enviar mensagens, arquivos e callbacks.
