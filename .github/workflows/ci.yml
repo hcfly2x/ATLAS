@@ -13,6 +13,22 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas
+          POSTGRES_PASSWORD: atlas_local_only
+          POSTGRES_USER: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atlas:atlas_local_only@127.0.0.1:5432/atlas
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -25,3 +41,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm validate
+      - run: pnpm --filter @atlas/coordinator exec prisma migrate deploy
+      - run: pnpm --filter @atlas/coordinator db:seed
+      - run: pnpm test:integration

@@ -1,7 +1,7 @@
 {
   "name": "ATLAS Project Starter Kit",
-  "version": "0.0.4",
-  "status": "phase_1_complete",
+  "version": "0.0.5",
+  "status": "phase_2_complete",
   "entrypoints": [
     "README.md",
     "AGENTS.md",

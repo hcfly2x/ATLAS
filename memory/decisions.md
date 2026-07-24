@@ -38,3 +38,15 @@
 - ADR-012 aceito na opção 1: idempotency keys, lease renovável e fencing token.
 - O schema da Fase 2 deve incluir colunas de chaves de idempotência, lease e fencing token; essa modelagem não será postergada para a Fase 5.
 - A Fase 1 — Foundation mínima foi autorizada explicitamente em 23/07/2026; a Fase 2 exige autorização separada.
+- A Fase 1 foi aceita com ressalvas não bloqueadoras; a Fase 2 — Core mínimo do Coordinator foi autorizada explicitamente em 23/07/2026.
+- A persistência do Core usa concorrência otimista por `Task.version`; transição de estado e AuditEvent aceito são atômicos.
+- AuditEvent é append-only e Specification é imutável também por triggers PostgreSQL.
+- PostgreSQL local do ATLAS usa a porta 5433 por padrão, configurável, para evitar colisão com outros projetos; internamente o container permanece na 5432.
+- O repositório canônico é o GitHub privado `hcfly2x/ATLAS`; mudanças seguem o
+  fluxo de branch + pull request. A proteção obrigatória da `main` permanece
+  desejada, mas não está ativa porque o plano atual não permite branch
+  protection em repositório privado.
+- CI e desenvolvimento usam Node.js >=22.13, requisito do pnpm 11.9.0.
+- A Fase 2 foi aceita sem correções de código; a Fase 3 — Telegram MVP foi
+  autorizada explicitamente, mas deve partir da `main` após a integração
+  sequencial das Fases 1, 2 e da entrega documental `idea-intake`.

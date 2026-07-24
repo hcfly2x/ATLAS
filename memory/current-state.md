@@ -2,44 +2,60 @@
 
 ## Fase
 
-Fase 1 — Foundation mínima concluída em 23/07/2026 na branch `phase-1-foundation`. A Fase 2 não está autorizada e exige confirmação explícita separada.
+Fase 2 — Core mínimo do Coordinator concluída e aceita sem correções de código.
+A Fase 3 foi autorizada, mas só começa após a integração sequencial da Fase 2 e
+da entrega documental `idea-intake` na `main`.
 
 ## Implementado
 
-- Monorepo pnpm 11.9.0 + Turborepo.
-- TypeScript estrito compartilhado.
-- Apps `coordinator` e `worker`.
-- Packages `shared`, `queue`, `codex-adapter`, `git-adapter`, `agent-runtime` e `audit`.
-- Coordinator Fastify com healthcheck técnico e correlation ID.
-- Interfaces mínimas dos adapters, sem execução de negócio.
-- Logging estruturado básico.
-- PostgreSQL 17 em Docker Compose somente para desenvolvimento do coordinator.
-- ESLint, Prettier, Vitest, build TypeScript e GitHub Actions.
+- Correção remanescente do aceite da Fase 1: workspace Vitest morto removido.
+- Compatibilidade pnpm 11.9: a base já usa `allowBuilds`; a Fase 2 ampliou a
+  allowlist booleana mínima para Prisma, pois `onlyBuiltDependencies` foi
+  removido nessa versão.
+- Logging real do Fastify/Pino com correlation ID; `/health` não embute objeto de log.
+- Package `core` independente de Fastify/Prisma com máquina de estados canônica.
+- API interna para criar Task e executar transições.
+- Rejeição estruturada de transições inválidas, conflitos de versão e FAILED sem `failureStage`.
+- Prisma schema e migração inicial para Project, Task, Specification, Approval, Execution, Worker e AuditEvent.
+- Idempotency keys, lease renovável e fencing token desde a primeira migração.
+- Specification imutável e AuditEvent append-only com triggers PostgreSQL.
+- Approval ligada a alvo versionado/hash e Execution ligada a `specification_id`.
+- Seed validado de `.atlas/projects.yaml`, sem UI.
+- Testes unitários, de API, de contrato da migração e de integração PostgreSQL.
 
 ## Testes e validações
 
-- `pnpm format:check`: aprovado.
-- `pnpm lint`: 8/8 projetos aprovados.
-- `pnpm typecheck`: 13/13 tarefas aprovadas, incluindo builds de dependências.
-- `pnpm test`: 13/13 tarefas aprovadas; 3 testes passando.
-- `pnpm build`: 8/8 projetos compilados.
-- Nenhum container, banco, deploy ou credencial real foi utilizado.
+- Prisma generate/validate: aprovado.
+- Formatação: aprovada.
+- Lint: 9/9 tarefas aprovadas.
+- Typecheck: 15/15 tarefas aprovadas.
+- Testes unitários/API/contrato estático: 13 aprovados.
+- Build: 9/9 tarefas aprovadas.
+- Migração inicial aplicada com sucesso no PostgreSQL 17 de desenvolvimento.
+- Seed de projetos executado com sucesso.
+- Testes de integração PostgreSQL: 2 aprovados.
+- Nenhum deploy, credencial real ou feature das Fases 3–5 foi implementado.
+- O Compose do ATLAS foi encerrado após os testes; o volume de desenvolvimento foi preservado.
 
 ## Decisões vigentes
 
 - ADRs 001–012 aceitos.
-- O schema da Fase 2 deverá incluir desde a primeira migração os campos de idempotência, lease renovável e fencing token do ADR-012.
-- Worker permanece sem Docker/banco e com concorrência padrão 1.
+- Transição aceita e AuditEvent são persistidos atomicamente.
+- Task usa versão otimista para impedir atualização concorrente silenciosa.
+- PostgreSQL local usa `127.0.0.1:5433` por padrão; o worker permanece sem Docker/banco.
+- Repositório remoto canônico: GitHub privado `hcfly2x/ATLAS`, com fluxo de
+  branch + PR. A proteção da `main` não está ativa por limitação do plano.
+- PR #1 da Fase 1 está com CI verde após alinhar Node 22.13 e pnpm 11.9.
 
 ## Próximo passo
 
-O usuário revisará o resumo, `memory/current-state.md` e a pipeline. Somente após autorização explícita separada poderá começar a Fase 2 — Core mínimo do Coordinator.
+Integrar a Fase 2 e `docs/idea-intake` com CI verde sobre bases atualizadas.
+Depois disso, iniciar a Fase 3 — Telegram MVP em branch/worktree próprios.
 
 ## Restrições ativas
 
-- não iniciar a Fase 2;
-- não implementar feature de negócio;
+- não iniciar a Fase 3 antes de concluir a sequência de integração;
+- não implementar Telegram, supervisor, worker funcional ou fila ativa;
 - não fazer deploy ou merge;
 - não integrar credenciais reais;
-- não iniciar Docker ou PostgreSQL no worker;
 - não configurar produção.

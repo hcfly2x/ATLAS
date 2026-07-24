@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  FUTURE
+  ARCHIVED
+}
+
+enum TaskState {
+  NEW
+  NORMALIZING
+  ROUTING
+  SPECIFYING
+  WAITING_APPROVAL
+  QUEUED
+  RUNNING
+  TESTING
+  WAITING_RESULT_APPROVAL
+  FINALIZING
+  CANCEL_REQUESTED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TaskComplexity {
+  SIMPLE
+  MODERATE
+  CRITICAL
+}
+
+enum ApprovalType {
+  PRE_EXECUTION
+  RESULT
+  SENSITIVE_ACTION
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ApprovalTargetType {
+  SPECIFICATION
+  EXECUTION_RESULT
+  SENSITIVE_ACTION
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  TESTING
+  AWAITING_RESULT_APPROVAL
+  FINALIZING
+  SUCCEEDED
+  FAILED
+  CANCEL_REQUESTED
+  CANCELLED
+}
+
+enum WorkerStatus {
+  OFFLINE
+  IDLE
+  BUSY
+  DISABLED
+}
+
+enum AuditActor {
+  USER
+  AGENT
+  WORKER
+  SYSTEM
+}
+
+model Project {
+  id                    String        @id
+  name                  String
+  risk                  String
+  dataClassification    String        @map("data_classification")
+  policy                String
+  repository            String?
+  protectedPathsProfile String        @map("protected_paths_profile")
+  allowedCommands       Json          @map("allowed_commands")
+  requiredTools         Json          @map("required_tools")
+  taskCostLimitUsd      Decimal?      @map("task_cost_limit_usd") @db.Decimal(10, 2)
+  retention             Json
+  status                ProjectStatus @default(DRAFT)
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  tasks                 Task[]
+  auditEvents           AuditEvent[]
+
+  @@map("projects")
+}
+
+model Task {
+  id                    String          @id @default(uuid())
+  projectId             String          @map("project_id")
+  origin                String
+  originalMessage       String          @map("original_message")
+  normalizedDemand      Json?           @map("normalized_demand")
+  complexity            TaskComplexity?
+  state                 TaskState       @default(NEW)
+  failureStage          String?         @map("failure_stage")
+  version               Int             @default(0)
+  idempotencyKey        String          @unique @map("idempotency_key")
+  activeSpecificationId String?         @unique @map("active_specification_id")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  project               Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  activeSpecification   Specification?  @relation("ActiveSpecification", fields: [activeSpecificationId], references: [id], onDelete: Restrict)
+  specifications        Specification[] @relation("TaskSpecifications")
+  approvals             Approval[]
+  executions            Execution[]
+  auditEvents           AuditEvent[]
+
+  @@index([projectId, state])
+  @@map("tasks")
+}
+
+model Specification {
+  id            String      @id @default(uuid())
+  taskId        String      @map("task_id")
+  version       Int
+  payload       Json
+  payloadHash   String      @map("payload_hash")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  task          Task        @relation("TaskSpecifications", fields: [taskId], references: [id], onDelete: Restrict)
+  activeForTask Task?       @relation("ActiveSpecification")
+  executions    Execution[]
+
+  @@unique([taskId, version])
+  @@unique([taskId, payloadHash])
+  @@map("specifications")
+}
+
+model Approval {
+  id               String             @id @default(uuid())
+  taskId           String             @map("task_id")
+  type             ApprovalType
+  status           ApprovalStatus     @default(PENDING)
+  targetType       ApprovalTargetType @map("target_type")
+  targetId         String             @map("target_id")
+  targetVersion    Int?               @map("target_version")
+  targetHash       String             @map("target_hash")
+  presentedPayload Json               @map("presented_payload")
+  requestedBy      String             @map("requested_by")
+  decidedBy        String?            @map("decided_by")
+  requestedAt      DateTime           @default(now()) @map("requested_at")
+  respondedAt      DateTime?          @map("responded_at")
+  expiresAt        DateTime?          @map("expires_at")
+  channel          String
+  idempotencyKey   String             @unique @map("idempotency_key")
+  task             Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([taskId, status])
+  @@index([targetType, targetId])
+  @@map("approvals")
+}
+
+model Execution {
+  id                   String          @id @default(uuid())
+  taskId               String          @map("task_id")
+  specificationId      String          @map("specification_id")
+  workerId             String?         @map("worker_id")
+  attempt              Int
+  status               ExecutionStatus @default(QUEUED)
+  branch               String?
+  worktree             String?
+  commands             Json?
+  exitCodes            Json?           @map("exit_codes")
+  logsRef              String?         @map("logs_ref")
+  diffSummary          Json?           @map("diff_summary")
+  diffHash             String?         @map("diff_hash")
+  testResult           Json?           @map("test_result")
+  failureStage         String?         @map("failure_stage")
+  idempotencyKey       String          @unique @map("idempotency_key")
+  leaseId              String?         @unique @map("lease_id")
+  leaseExpiresAt       DateTime?       @map("lease_expires_at")
+  fencingToken         BigInt          @default(0) @map("fencing_token")
+  claimIdempotencyKey  String?         @unique @map("claim_idempotency_key")
+  resultIdempotencyKey String?         @unique @map("result_idempotency_key")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  task                 Task            @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  specification        Specification   @relation(fields: [specificationId], references: [id], onDelete: Restrict)
+  worker               Worker?         @relation(fields: [workerId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, attempt])
+  @@index([status, leaseExpiresAt])
+  @@map("executions")
+}
+
+model Worker {
+  id               String       @id @default(uuid())
+  name             String
+  tokenHash        String       @unique @map("token_hash")
+  projectScopes    Json         @map("project_scopes")
+  capabilities     Json
+  concurrencyLimit Int          @default(1) @map("concurrency_limit")
+  lastHeartbeatAt  DateTime?    @map("last_heartbeat_at")
+  status           WorkerStatus @default(OFFLINE)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  executions       Execution[]
+
+  @@map("workers")
+}
+
+model AuditEvent {
+  id             String     @id @default(uuid())
+  projectId      String     @map("project_id")
+  taskId         String?    @map("task_id")
+  targetType     String?    @map("target_type")
+  targetId       String?    @map("target_id")
+  correlationId  String     @map("correlation_id")
+  actor          AuditActor
+  action         String
+  payload        Json
+  idempotencyKey String     @unique @map("idempotency_key")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  task           Task?      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+  @@index([taskId, createdAt])
+  @@map("audit_events")
+}
