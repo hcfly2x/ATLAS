@@ -21,6 +21,10 @@
 - aumento de orçamento de anúncios;
 - alteração de áreas protegidas pelo ADR-010.
 
+Alterar o valor de um secret de produção no painel do provedor e alterar paths
+versionados de secrets protegidos pelo ADR-010 são controles complementares;
+nenhum substitui o outro.
+
 O nível de autonomia pode dispensar aprovações síncronas para ações reversíveis,
 mas a lista `always_human` não varia por nível. Deploy em staging é distinto de
 deploy em produção: a partir do nível 2, staging pode ser automático somente

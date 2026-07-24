@@ -81,6 +81,12 @@ Independentemente do nível:
 - aumento de orçamento de anúncios;
 - alteração em áreas protegidas pelo ADR-010.
 
+`production_secret_change` e `protected_area_change` são controles
+complementares, não redundantes: o primeiro cobre a alteração do valor de um
+secret de produção no painel do provedor, fora do repositório; o segundo cobre
+os caminhos versionados do ADR-010 (`.env*`, `apps/**/src/secrets/**`). Nenhum
+dos dois substitui o outro.
+
 Deploy em staging (`deploy_staging`) não faz parte da lista `always_human`: a
 partir do nível 2, pode ocorrer automaticamente depois do merge humano na `main`
 e de CI verde, conforme o ADR-015 proposto.
