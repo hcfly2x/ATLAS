@@ -2,6 +2,7 @@ policies:
   always_human:
     - merge_main
     - deploy_production
+    - production_secret_change
     - destructive_migration
     - delete_data
     - payment_change

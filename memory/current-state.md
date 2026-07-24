@@ -14,6 +14,8 @@ infraestrutura.
 - Nível de autonomia 2 registrado como padrão decidido de todos os projetos.
 - Modelo conceitual, políticas e configuração preparados documentalmente para
   autonomia por projeto, staging automático e produção manual.
+- Alteração de secret de produção restaurada como ação `always_human`, inclusive
+  quando realizada fora do repositório no painel do provedor.
 - Gateway Telegram com webhook injetável e long-polling de desenvolvimento.
 - Webhook só é registrado com secret não vazio; polling opera sem expor a rota.
 - Replay idempotente não reenvia mensagens e ainda reconhece callbacks repetidos.
@@ -71,8 +73,7 @@ infraestrutura.
 
 ## Próximo passo
 
-Validar e integrar esta entrega documental. A Fase 4 só pode começar após
-autorização explícita separada.
+Aguardar autorização explícita para a Fase 4.
 
 ## Restrições ativas
 
