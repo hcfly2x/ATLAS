@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — correção pós-piloto
+
+- Disparo automático de supervisão para Tasks Telegram e falha LLM terminal
+  passaram a ser tratados na branch de correção, ainda sem integração.
+- Supervisor passou a limitar comandos da Specification à allowlist persistida
+  do Project.
+- Worker ganhou recuperação com backoff exponencial para indisponibilidade
+  transitória do coordinator e término explícito em erros permanentes.
+- Codex adapter passou a iniciar em sandbox `workspace-write` limitado à
+  worktree, sem bypass.
+- Procedimento de piloto passou a exigir rebuild dos packages antes de validar o
+  worker manualmente.
+
 ## 0.0.14
 
 - Fase 7 — Conselho multiagente implementada em branch própria.

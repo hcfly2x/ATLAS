@@ -16,6 +16,13 @@ const renewalSchema = z.object({
   terminalFailure: z.boolean(),
 });
 
+export class WorkerCoordinatorRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`Coordinator request failed: ${String(status)}`);
+    this.name = "WorkerCoordinatorRequestError";
+  }
+}
+
 export class WorkerCoordinatorClient {
   constructor(
     private readonly baseUrl: string,
@@ -133,7 +140,7 @@ export class WorkerCoordinatorClient {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`Coordinator request failed: ${String(response.status)}`);
+      throw new WorkerCoordinatorRequestError(response.status);
     }
     return schema.parse(await response.json());
   }

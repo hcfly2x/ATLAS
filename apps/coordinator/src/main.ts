@@ -49,19 +49,7 @@ const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramAllowedUserId = process.env.TELEGRAM_ALLOWED_USER_ID;
 const telegramEnabled = telegramToken !== undefined && telegramAllowedUserId !== undefined;
 const telegramClient = telegramEnabled ? new TelegramBotApiClient(telegramToken) : undefined;
-const telegramGateway = telegramEnabled
-  ? new TelegramGateway({
-      allowedUserId: BigInt(telegramAllowedUserId),
-      store: new PrismaTelegramStore(prisma),
-      taskStore,
-    })
-  : undefined;
 const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-const telegramWebhookEnabled =
-  telegramClient !== undefined &&
-  telegramGateway !== undefined &&
-  telegramWebhookSecret !== undefined &&
-  telegramWebhookSecret.trim().length > 0;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const council =
   openaiApiKey === undefined || openaiApiKey.trim().length === 0
@@ -87,6 +75,49 @@ const supervisorService =
         store: new PrismaSupervisorStore(prisma),
         taskStore,
       });
+function logAutomaticSupervisionError(
+  level: "error" | "warn",
+  details: Record<string, unknown>,
+  message: string,
+): void {
+  process.stderr.write(
+    `${JSON.stringify({ ...details, level, message, service: "coordinator" })}\n`,
+  );
+}
+
+const telegramGateway = telegramEnabled
+  ? new TelegramGateway({
+      allowedUserId: BigInt(telegramAllowedUserId),
+      onTaskCreated: (taskId, correlationId) => {
+        if (supervisorService === undefined) {
+          logAutomaticSupervisionError(
+            "warn",
+            { correlationId, taskId },
+            "task created without supervisor runtime",
+          );
+          return;
+        }
+        void supervisorService.processTask(taskId, correlationId).catch((error: unknown) => {
+          logAutomaticSupervisionError(
+            "error",
+            {
+              correlationId,
+              error: error instanceof Error ? error.message : "unknown error",
+              taskId,
+            },
+            "automatic task supervision failed",
+          );
+        });
+      },
+      store: new PrismaTelegramStore(prisma),
+      taskStore,
+    })
+  : undefined;
+const telegramWebhookEnabled =
+  telegramClient !== undefined &&
+  telegramGateway !== undefined &&
+  telegramWebhookSecret !== undefined &&
+  telegramWebhookSecret.trim().length > 0;
 const workerBootstrapToken = process.env.ATLAS_WORKER_TOKEN;
 const workerService =
   workerBootstrapToken === undefined || workerBootstrapToken.trim().length === 0

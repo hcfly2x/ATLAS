@@ -55,6 +55,7 @@ class FakeAgentRuntime implements AgentRuntime {
     private readonly complexity: TaskComplexity,
     private readonly requestedActions: readonly string[] = [],
     private readonly materialDivergence = false,
+    private readonly allowedCommands: readonly string[] = ["pnpm test"],
   ) {}
 
   run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
@@ -103,7 +104,10 @@ class FakeAgentRuntime implements AgentRuntime {
                     material_divergences: [],
                     revision_requests: [],
                   })
-                : specificationContentSchema.parse(specificationContent);
+                : specificationContentSchema.parse({
+                    ...specificationContent,
+                    allowed_commands: this.allowedCommands,
+                  });
     return Promise.resolve({
       estimatedCostUsd: 0.01,
       inputTokens: 10,
@@ -152,6 +156,7 @@ class InMemorySupervisorStore implements SupervisorStore, TaskCoreStore {
   commitTransition(input: CommitTransitionInput): Promise<TaskTransitionResult> {
     this.task = {
       ...this.task,
+      ...(input.failureStage === undefined ? {} : { failureStage: input.failureStage }),
       state: input.toState,
       version: input.expectedVersion + 1,
     };
@@ -251,6 +256,7 @@ class InMemorySupervisorStore implements SupervisorStore, TaskCoreStore {
 
 function task(autonomyLevel = 2): SupervisionTask {
   return {
+    allowedCommands: ["pnpm test"],
     autonomyLevel,
     id: randomUUID(),
     originalMessage: "Create the requested change",
@@ -411,5 +417,40 @@ describe("SupervisorService", () => {
 
     expect(runtime.inputs[0]).toContain("[decision] Keep PostgreSQL");
     expect(runtime.inputs.some((value) => value.includes("[decision] Keep PostgreSQL"))).toBe(true);
+  });
+
+  it("transitions the Task to FAILED when the LLM fails after supervision starts", async () => {
+    const store = new InMemorySupervisorStore(task());
+    const runtime: AgentRuntime = {
+      run: () => Promise.reject(new Error("provider unavailable")),
+    };
+
+    await expect(
+      service(store, runtime).processTask(store.task.id, "provider-failure"),
+    ).rejects.toThrow("provider unavailable");
+
+    expect(store.task).toMatchObject({
+      failureStage: "normalizing",
+      state: "FAILED",
+      version: 2,
+    });
+  });
+
+  it("fails closed when the Specification expands the project command allowlist", async () => {
+    const store = new InMemorySupervisorStore(task());
+
+    await expect(
+      service(
+        store,
+        new FakeAgentRuntime("moderate", [], false, ["git status --short"]),
+      ).processTask(store.task.id, "command-policy"),
+    ).rejects.toMatchObject({
+      code: "SPECIFICATION_COMMAND_OUTSIDE_ALLOWLIST",
+    });
+
+    expect(store.task).toMatchObject({
+      failureStage: "specifying",
+      state: "FAILED",
+    });
   });
 });
