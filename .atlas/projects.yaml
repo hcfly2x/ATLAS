@@ -10,13 +10,8 @@ schema:
 
   activation_required_fields:
     - repository
-    - data_classification
-    - policy
-    - autonomy_level
-    - protected_paths_profile
     - allowed_commands
-    - required_tools
-    - task_cost_limit_usd
+    - data_classification
     - retention
 
   defaults:
@@ -30,11 +25,11 @@ schema:
       git: null
       codex_cli: null
       gnu_tools: []
-    task_cost_limit_usd: null
+    task_cost_limit_usd: 2
     retention:
       logs_days: 30
       files_days: 30
-      sensitive_days: null
+      sensitive_days: 7
       audit_events_expire: false
 
 projects:
@@ -53,7 +48,7 @@ projects:
       git: null
       codex_cli: null
       gnu_tools: []
-    task_cost_limit_usd: null
+    task_cost_limit_usd: 2
     retention:
       logs_days: 30
       files_days: 30

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.11
+
+- Pilot Setup Wizard simplificado para repositório e comandos de teste no fluxo
+  principal, com opções avançadas recolhidas.
+- Defaults alterados para US$ 2 por tarefa e retenção sensível de 7 dias.
+- Versões mínimas em `required_tools` deixaram de bloquear a ativação.
+- Autodetecção segura adicionada para nome/ID e comando editável a partir de
+  `package.json`, `pyproject.toml` ou `Makefile`.
+- Fase 6 registrada como integrada na `main` v0.0.10.
+
 ## 0.0.10
 
 - Fase 6 — memória por projeto implementada.

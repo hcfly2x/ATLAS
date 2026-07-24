@@ -2,7 +2,7 @@
 
 ## Entidades
 
-**Project** — id, nome, risco, classificação de dados, política, `autonomy_level` (`0|1|2|3|4`), repositório, paths protegidos, comandos permitidos, requisitos de ferramentas, teto de custo por tarefa, política de retenção e status. Os campos mínimos e defaults estão definidos em `.atlas/projects.yaml`; um projeto incompleto permanece `draft` e não pode receber tarefas.
+**Project** — id, nome, risco, classificação de dados, política, `autonomy_level` (`0|1|2|3|4`), repositório, paths protegidos, comandos permitidos, requisitos opcionais de versão das ferramentas, teto de custo por tarefa, política de retenção e status. Os campos mínimos e defaults estão definidos em `.atlas/projects.yaml`; ausência de versão mínima não elimina o registro da versão real pelo preflight. Um projeto incompleto permanece `draft` e não pode receber tarefas.
 
 **Task** — id, project_id, origem (telegram), mensagem original, demanda normalizada, complexidade (`simple|moderate|critical`), estado, `failure_stage?`, timestamps. Uma Task é a unidade central: tudo se liga a ela.
 

@@ -1,6 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import { editableProjectSchema, type ProjectConfigStore } from "./project-config.js";
+import {
+  editableProjectSchema,
+  repositorySuggestionRequestSchema,
+  type ProjectConfigStore,
+} from "./project-config.js";
 import { setupPage } from "./page.js";
 
 function loopback(address: string): boolean {
@@ -45,6 +49,10 @@ export function registerSetupRoutes(app: FastifyInstance, store: ProjectConfigSt
   });
 
   app.get("/setup/api/projects", { preHandler: requireLocal }, () => store.list());
+
+  app.post("/setup/api/projects/detect", { preHandler: requireSetupWrite }, (request) =>
+    store.suggest(repositorySuggestionRequestSchema.parse(request.body).repository),
+  );
 
   app.post("/setup/api/projects/validate", { preHandler: requireSetupWrite }, (request) =>
     store.validate(editableProjectSchema.parse(request.body)),

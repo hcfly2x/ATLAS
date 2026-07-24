@@ -49,11 +49,20 @@ pnpm pilot
 Abra [http://localhost:3000/setup](http://localhost:3000/setup). O formulário:
 
 - aplica os defaults canônicos antes de exibir cada projeto;
-- valida caminho Git absoluto, ferramentas mínimas, comandos permitidos, teto
-  por tarefa e retenção;
+- pede inicialmente apenas o caminho Git absoluto e comandos de teste permitidos;
+- mantém identidade, política, ferramentas opcionais, limites e retenção em
+  **Opções avançadas**, recolhidas por padrão;
+- sugere nome/ID pelo diretório e um comando editável ao reconhecer
+  `package.json`, `pyproject.toml` ou `Makefile`, sem executar código do projeto;
+- usa teto de US$ 2 por tarefa e retenção sensível de 7 dias como defaults;
+- trata ausência de versões em `required_tools` como “sem versão mínima”; o
+  preflight continua registrando as versões reais encontradas;
 - impede a ativação enquanto houver pendências;
 - representa comandos como executável e argumentos separados, sem shell;
 - preserva campos desconhecidos do arquivo e salva de forma atômica.
+
+O assistente configura exclusivamente **projetos**. Ele não cria nem edita
+agentes ou times e não antecipa o dashboard da Fase 10.
 
 O arquivo continua versionado e protegido pelo ADR-010. Depois de salvar,
 revise `git diff -- .atlas/projects.yaml` antes de commitar. Para usar outro

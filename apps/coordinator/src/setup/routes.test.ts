@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -34,11 +34,11 @@ async function appFixture() {
           protected_paths_profile: "project_default",
           allowed_commands: [],
           required_tools: { node: null, git: null, codex_cli: null, gnu_tools: [] },
-          task_cost_limit_usd: null,
+          task_cost_limit_usd: 2,
           retention: {
             logs_days: 30,
             files_days: 30,
-            sensitive_days: null,
+            sensitive_days: 7,
             audit_events_expire: false,
           },
         },
@@ -56,12 +56,12 @@ async function appFixture() {
   );
   const app = createSetupApp(new ProjectConfigStore(path), { logger: false });
   apps.push(app);
-  return app;
+  return { app, root };
 }
 
 describe("Pilot Setup Wizard routes", () => {
   it("serves the local setup page with restrictive browser headers", async () => {
-    const app = await appFixture();
+    const { app } = await appFixture();
     const response = await app.inject({ method: "GET", url: "/setup" });
 
     expect(response.statusCode).toBe(200);
@@ -69,10 +69,12 @@ describe("Pilot Setup Wizard routes", () => {
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect(response.body).toContain("Configuração do piloto");
+    expect(response.body).toContain("Este assistente configura projetos, não agentes.");
+    expect(response.body).toContain("<summary>Opções avançadas</summary>");
   });
 
   it("lists projects but refuses writes without the setup confirmation header", async () => {
-    const app = await appFixture();
+    const { app } = await appFixture();
     const listed = await app.inject({ method: "GET", url: "/setup/api/projects" });
     const listedProjects = editableProjectSchema.array().parse(listed.json());
     const listedProject = editableProjectSchema.parse(listedProjects[0]);
@@ -90,7 +92,7 @@ describe("Pilot Setup Wizard routes", () => {
   });
 
   it("is unavailable to non-loopback clients", async () => {
-    const app = await appFixture();
+    const { app } = await appFixture();
     const response = await app.inject({
       method: "GET",
       url: "/setup",
@@ -99,5 +101,30 @@ describe("Pilot Setup Wizard routes", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: "SETUP_LOCAL_ONLY" });
+  });
+
+  it("autodetects an editable project suggestion behind the write-intent header", async () => {
+    const { app, root } = await appFixture();
+    const repository = join(root, "detected-project");
+    await mkdir(join(repository, ".git"), { recursive: true });
+    await writeFile(
+      join(repository, "package.json"),
+      JSON.stringify({ scripts: { test: "node --test" } }),
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/setup/api/projects/detect",
+      headers: { "x-atlas-setup": "1" },
+      payload: { repository },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      command: { executable: "npm", args: ["test"] },
+      id: "detected-project",
+      name: "detected-project",
+      source: "package.json",
+    });
   });
 });
