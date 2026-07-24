@@ -19,6 +19,7 @@ import { ProjectConfigStore } from "./setup/project-config.js";
 import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
+import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 
 const prisma = new PrismaClient();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -186,6 +187,22 @@ const telegramProgressTimer =
       );
 app.addHook("onClose", () => {
   if (telegramProgressTimer !== undefined) clearInterval(telegramProgressTimer);
+});
+
+const resultPublisher = new TelegramResultPublisher(
+  new PrismaTelegramResultStore(prisma),
+  telegramClient,
+);
+const telegramResultTimer = setInterval(
+  () => {
+    void resultPublisher.poll().catch((error: unknown) => {
+      app.log.error({ error }, "telegram result publication failed");
+    });
+  },
+  Number(process.env.TELEGRAM_RESULT_INTERVAL_MS ?? "2000"),
+);
+app.addHook("onClose", () => {
+  clearInterval(telegramResultTimer);
 });
 
 try {

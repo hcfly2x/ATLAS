@@ -3,8 +3,9 @@
 ## Fase
 
 Bloco C e Fase 7 — Conselho multiagente — estão integrados na `main` como
-v0.0.14. A Fase 8 não está autorizada. Uma correção pós-piloto está em revisão
-na branch `fix/pilot-blockers`, sem PR ou merge.
+v0.0.14. A Fase 8 não está autorizada. A correção pós-piloto foi integrada; a
+entrega de resultado terminal ao autor Telegram está em implementação na branch
+`fix/task-result-telegram`, sem autorização de merge.
 
 ## Implementado
 
@@ -27,6 +28,10 @@ na branch `fix/pilot-blockers`, sem PR ou merge.
   worker, e revelou bloqueios operacionais em tratamento: disparo automático do
   supervisor, falha LLM terminal, reconexão do worker e sandbox de escrita do
   Codex.
+- O coordinator passa a publicar o resultado terminal de uma Task Telegram no
+  chat codificado em sua origem: resumo, paths alterados, PR quando existir e
+  `failure_stage` em falhas. A chave de entrega é persistida antes do envio para
+  impedir duplicação após reinício; ausência de canal também gera AuditEvent.
 
 ## Testes e validações
 
@@ -62,8 +67,8 @@ na branch `fix/pilot-blockers`, sem PR ou merge.
 
 ## Próximo passo
 
-Concluir a revisão e validação empírica da correção pós-piloto; não iniciar a
-Fase 8 sem autorização explícita.
+Revisar a entrega de resultado terminal Telegram; não iniciar a Fase 8 nem as
+fases de estabilização sem autorização explícita.
 
 ## Restrições ativas
 

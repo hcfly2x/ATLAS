@@ -28,6 +28,11 @@ append-only.
 sanitizado, hash do payload, idempotency_key e timestamp. Sequência é única por
 Execution.
 
+**TelegramTaskDelivery** — cursores e chaves idempotentes de publicação ligados
+a uma Task Telegram. A entrega terminal guarda a chave derivada de `task_id` e
+estado antes do envio; o destino vem exclusivamente de `Task.origin`
+(`telegram:user_id:chat_id`), nunca da Specification, worker ou demanda.
+
 **CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
 início, fim e timestamp de registro. É separado de `LlmCall`.
 

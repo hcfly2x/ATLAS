@@ -29,6 +29,13 @@
 - Retornar mensagem útil para Approval já decidida, em vez de erro interno
   genérico.
 
+## Telegram — saída de resultado
+
+- A entrega terminal ao autor existe somente para a própria Task e o `chat_id`
+  de sua origem. Manter bloqueados envio genérico, destinos arbitrários e
+  mensagens iniciadas fora do ciclo de conclusão; qualquer ampliação exige
+  política e autorização explícitas.
+
 ## Visibilidade Telegram — melhorias não bloqueadoras
 
 - A publicação de progresso é `at-least-once`: envio ao Telegram e avanço do

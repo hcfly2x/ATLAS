@@ -139,3 +139,7 @@
   modelo de parecer pode ser configurado separadamente.
 - Deliberations e AgentOpinions são rastreáveis por Task; cada parecer é
   append-only e cada parecer/rodada gera AuditEvent correlacionado.
+- O coordinator entrega o resultado terminal ao autor de uma Task Telegram. O
+  destino é somente o `chat_id` codificado em `Task.origin`, nunca conteúdo de
+  LLM, Specification ou worker; a entrega é idempotente e auditada. Não existe
+  ferramenta genérica de envio de mensagens ou destino arbitrário.

@@ -245,7 +245,7 @@ export class TelegramGateway {
     const created = await this.options.taskStore.createTask({
       correlationId,
       idempotencyKey: `telegram:update:${String(update.update_id)}:task`,
-      origin: `telegram:${userId.toString()}`,
+      origin: `telegram:${userId.toString()}:${message.chat.id.toString()}`,
       originalMessage: message.text,
       projectId: project.id,
     });

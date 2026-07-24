@@ -25,8 +25,10 @@ class InMemoryTaskStore implements TaskCoreStore {
   readonly creations = new Map<string, CreateTaskResult>();
   readonly transitions = new Map<string, TaskTransitionResult>();
   createCalls = 0;
+  lastCreateInput: CreateTaskInput | undefined;
 
   createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
+    this.lastCreateInput = input;
     const existing = this.creations.get(input.idempotencyKey);
     if (existing !== undefined) {
       return Promise.resolve({ ...existing, idempotentReplay: true });
@@ -183,6 +185,7 @@ describe("TelegramGateway", () => {
     expect(created.responses[0]?.text).toContain("Task criada");
     expect(replay.replayed).toBe(true);
     expect(taskStore.createCalls).toBe(1);
+    expect(taskStore.lastCreateInput?.origin).toBe("telegram:42:100");
     expect(supervised).toEqual([[...taskStore.tasks.keys()][0]]);
     await expect(
       gateway.handle(messageUpdate(3, "negado", 99), "correlation-forbidden"),

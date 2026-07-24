@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — entrega de resultado Telegram
+
+- Coordinator publica o resumo terminal no chat Telegram de origem, incluindo
+  estado, paths, PR e estágio de falha quando aplicável.
+- A publicação recebe chave persistida por Task/estado e AuditEvents para claim,
+  envio, falha ou ausência de canal; envio genérico permanece bloqueado.
+
 ## Unreleased — correção pós-piloto
 
 - Disparo automático de supervisão para Tasks Telegram e falha LLM terminal
