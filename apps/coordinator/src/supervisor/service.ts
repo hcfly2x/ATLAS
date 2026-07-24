@@ -80,6 +80,10 @@ export interface SupervisorStore {
   }>;
 }
 
+export interface ProjectMemoryContextProvider {
+  getContext(projectId: string, taskId?: string): Promise<{ text: string; truncated: boolean }>;
+}
+
 export class LlmMonthlyBudgetExceededError extends Error {
   readonly code = "LLM_MONTHLY_BUDGET_EXCEEDED";
 
@@ -133,6 +137,7 @@ export class SupervisorService {
     private readonly options: {
       alwaysHuman: ReadonlySet<string>;
       monthlyBudgetUsd: number;
+      memoryContextProvider?: ProjectMemoryContextProvider;
       runtime: AgentRuntime;
       store: SupervisorStore;
       taskStore: TaskCoreStore;
@@ -169,6 +174,10 @@ export class SupervisorService {
       });
       throw new LlmMonthlyBudgetExceededError(this.options.monthlyBudgetUsd, spentUsd);
     }
+    const memoryContext = await this.options.memoryContextProvider?.getContext(
+      task.projectId,
+      taskId,
+    );
 
     let snapshot = (
       await this.stateMachine.transition({
@@ -184,7 +193,11 @@ export class SupervisorService {
     const normalized = await this.runAndRecord<NormalizedDemand>({
       agentId: "normalizer",
       correlationId,
-      input: task.originalMessage,
+      input: JSON.stringify({
+        project_memory: memoryContext?.text ?? "",
+        project_memory_truncated: memoryContext?.truncated ?? false,
+        user_request: task.originalMessage,
+      }),
       instructions:
         "Normalize the request without adding scope. Return objective, relevant context, constraints, and requested policy actions using stable snake_case action names.",
       model: OPENAI_MODELS.normalizer,
@@ -243,7 +256,12 @@ export class SupervisorService {
     const content = await this.runAndRecord<SpecificationContent>({
       agentId: "engineering_supervisor",
       correlationId,
-      input: JSON.stringify({ complexity: classification, normalized }),
+      input: JSON.stringify({
+        complexity: classification,
+        normalized,
+        project_memory: memoryContext?.text ?? "",
+        project_memory_truncated: memoryContext?.truncated ?? false,
+      }),
       instructions:
         "Produce one executable specification. Keep scope bounded, use authorized_scope semantics, list tests, commands, expected delivery, and policy actions requiring approval. Do not invoke a multi-agent council.",
       model: OPENAI_MODELS.supervisor,

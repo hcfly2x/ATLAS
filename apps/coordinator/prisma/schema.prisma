@@ -92,6 +92,12 @@ enum AuditActor {
   SYSTEM
 }
 
+enum MemoryType {
+  DECISION
+  SUMMARY
+  NOTE
+}
+
 model Project {
   id                    String            @id
   name                  String
@@ -113,6 +119,7 @@ model Project {
   telegramSessions      TelegramSession[]
   llmCalls              LlmCall[]
   codexUsages           CodexUsage[]
+  memoryItems           MemoryItem[]
 
   @@map("projects")
 }
@@ -139,6 +146,7 @@ model Task {
   auditEvents           AuditEvent[]
   llmCalls              LlmCall[]
   codexUsages           CodexUsage[]
+  memoryItems           MemoryItem[]
 
   @@index([projectId, state])
   @@map("tasks")
@@ -316,6 +324,25 @@ model AuditEvent {
   @@index([projectId, createdAt])
   @@index([taskId, createdAt])
   @@map("audit_events")
+}
+
+model MemoryItem {
+  id             String     @id @default(uuid())
+  projectId      String     @map("project_id")
+  type           MemoryType
+  content        String
+  taskId         String?    @map("task_id")
+  agentId        String?    @map("agent_id")
+  idempotencyKey String     @unique @map("idempotency_key")
+  payloadHash    String     @map("payload_hash")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  task           Task?      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, type, createdAt])
+  @@index([taskId, createdAt])
+  @@map("memory_items")
 }
 
 model TelegramSession {

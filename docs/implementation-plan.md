@@ -83,7 +83,11 @@ Esta preparação operacional não cria uma nova fase e não autoriza a Fase 6.
 
 ### Fase 6 — Memória por projeto
 
-Memória manual, decisões, resumos de tarefa, context builder com isolamento por projeto (ADR-004).
+**Status:** concluída em branch própria; aguarda revisão.
+
+Memória manual, decisões, resumos de tarefa, context builder com isolamento por
+projeto (ADR-004). Contrato e aceite detalhados em
+`backlog/epic-06-memory.md` e `specifications/project-memory.md`.
 
 ### Fase 7 — Conselho multiagente
 

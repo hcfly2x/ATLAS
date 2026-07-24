@@ -44,6 +44,7 @@ const specificationContent = {
 
 class FakeAgentRuntime implements AgentRuntime {
   calls = 0;
+  readonly inputs: string[] = [];
 
   constructor(
     private readonly complexity: TaskComplexity,
@@ -52,6 +53,7 @@ class FakeAgentRuntime implements AgentRuntime {
 
   run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
     this.calls += 1;
+    this.inputs.push(request.input);
     const fixture =
       request.agentId === "normalizer"
         ? normalizedDemandSchema.parse({
@@ -194,10 +196,15 @@ function task(autonomyLevel = 2): SupervisionTask {
   };
 }
 
-function service(store: InMemorySupervisorStore, runtime: AgentRuntime): SupervisorService {
+function service(
+  store: InMemorySupervisorStore,
+  runtime: AgentRuntime,
+  memoryContextProvider?: { getContext: () => Promise<{ text: string; truncated: boolean }> },
+): SupervisorService {
   return new SupervisorService({
     alwaysHuman: new Set(["production_secret_change"]),
     monthlyBudgetUsd: 25,
+    ...(memoryContextProvider === undefined ? {} : { memoryContextProvider }),
     runtime,
     store,
     taskStore: store,
@@ -264,5 +271,17 @@ describe("SupervisorService", () => {
     expect(store.budgetBlocked).toBe(true);
     expect(runtime.calls).toBe(0);
     expect(store.task.state).toBe("NEW");
+  });
+
+  it("adds only the selected project memory context to deliberation inputs", async () => {
+    const store = new InMemorySupervisorStore(task());
+    const runtime = new FakeAgentRuntime("moderate");
+
+    await service(store, runtime, {
+      getContext: () => Promise.resolve({ text: "[decision] Keep PostgreSQL", truncated: false }),
+    }).processTask(store.task.id, "memory-correlation");
+
+    expect(runtime.inputs[0]).toContain("[decision] Keep PostgreSQL");
+    expect(runtime.inputs[2]).toContain("[decision] Keep PostgreSQL");
   });
 });

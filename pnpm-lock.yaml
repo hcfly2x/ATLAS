@@ -44,6 +44,9 @@ importers:
       '@atlas/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@atlas/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@atlas/queue':
         specifier: workspace:*
         version: link:../../packages/queue
@@ -122,6 +125,12 @@ importers:
         version: link:../shared
 
   packages/git-adapter: {}
+
+  packages/memory:
+    dependencies:
+      '@atlas/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/queue:
     dependencies:

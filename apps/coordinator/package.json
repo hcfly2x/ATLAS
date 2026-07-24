@@ -15,13 +15,14 @@
     "lint": "eslint . --max-warnings 0",
     "start": "node dist/src/main.js",
     "test": "vitest run --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run src/core/prisma.integration.test.ts",
+    "test:integration": "vitest run src/core/prisma.integration.test.ts src/memory/prisma-memory.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@atlas/agent-runtime": "workspace:*",
     "@atlas/audit": "workspace:*",
     "@atlas/core": "workspace:*",
+    "@atlas/memory": "workspace:*",
     "@atlas/queue": "workspace:*",
     "@atlas/shared": "workspace:*",
     "@prisma/client": "6.12.0",

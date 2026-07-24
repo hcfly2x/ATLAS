@@ -34,6 +34,39 @@ export type AuditActor = z.infer<typeof auditActorSchema>;
 export const taskComplexitySchema = z.enum(["simple", "moderate", "critical"]);
 export type TaskComplexity = z.infer<typeof taskComplexitySchema>;
 
+export const memoryTypeSchema = z.enum(["decision", "summary", "note"]);
+export type MemoryType = z.infer<typeof memoryTypeSchema>;
+
+export const memoryItemSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().min(1).max(128),
+  type: memoryTypeSchema,
+  content: z.string().min(1).max(8_000),
+  taskId: z.string().uuid().optional(),
+  agentId: z.string().min(1).max(128).optional(),
+  createdAt: z.string().datetime({ offset: true }),
+});
+export type MemoryItem = z.infer<typeof memoryItemSchema>;
+
+export const createMemoryItemSchema = z
+  .object({
+    type: memoryTypeSchema,
+    content: z.string().trim().min(1).max(8_000),
+    taskId: z.string().uuid().optional(),
+    agentId: z.string().min(1).max(128).optional(),
+    idempotencyKey: z.string().min(1).max(255),
+  })
+  .superRefine((value, context) => {
+    if (value.type === "summary" && value.taskId === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Task summaries require taskId",
+        path: ["taskId"],
+      });
+    }
+  });
+export type CreateMemoryItem = z.infer<typeof createMemoryItemSchema>;
+
 export const normalizedDemandSchema = z.object({
   objective: z.string().min(1),
   context: z.array(z.string()),
