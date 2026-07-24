@@ -14,6 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
+    "pilot": "pnpm --filter @atlas/coordinator dev:pilot",
+    "coordinator:local": "pnpm --filter @atlas/coordinator dev:local",
     "test": "turbo run test",
     "test:integration": "pnpm --filter @atlas/coordinator test:integration",
     "typecheck": "turbo run typecheck",

@@ -22,4 +22,8 @@
 
 ## Antes de ativar cada projeto
 
-- Preencher repositório, versões mínimas das ferramentas, allowlist de comandos, teto por tarefa e prazo de retenção de dados sensíveis em `.atlas/projects.yaml`.
+- Usar o Pilot Setup Wizard ou editar manualmente `.atlas/projects.yaml` para
+  preencher repositório, versões mínimas das ferramentas, allowlist de comandos,
+  teto por tarefa e prazo de retenção de dados sensíveis.
+- Revisar o diff do arquivo protegido, iniciar o PostgreSQL, executar migrações e
+  seed antes da primeira tarefa real.

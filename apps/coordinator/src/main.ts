@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { fileURLToPath } from "node:url";
 
 import { OpenAIAgentRuntime } from "@atlas/agent-runtime";
 
@@ -13,8 +14,21 @@ import { TelegramGateway } from "./telegram/service.js";
 import { PrismaTelegramStore } from "./telegram/store.js";
 import { loadProtectedGlobs } from "./worker/config.js";
 import { WorkerService } from "./worker/service.js";
+import { ProjectConfigStore } from "./setup/project-config.js";
 
 const prisma = new PrismaClient();
+const port = Number.parseInt(process.env.PORT ?? "3000", 10);
+const host = process.env.HOST ?? "127.0.0.1";
+const setupWizardEnabled = process.env.SETUP_WIZARD_ENABLED === "true";
+if (setupWizardEnabled && host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
+  throw new Error("Pilot Setup Wizard requires HOST=127.0.0.1");
+}
+const projectConfigStore = setupWizardEnabled
+  ? new ProjectConfigStore(
+      process.env.ATLAS_PROJECTS_PATH ??
+        fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
+    )
+  : undefined;
 const taskStore = new PrismaTaskCoreStore(prisma);
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
@@ -66,13 +80,12 @@ const workerAppOptions =
 const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
+  ...(projectConfigStore === undefined ? {} : { projectConfigStore }),
   ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,
   ...workerAppOptions,
   ...(telegramWebhookEnabled ? { telegramClient, telegramGateway, telegramWebhookSecret } : {}),
 });
-const port = Number.parseInt(process.env.PORT ?? "3000", 10);
-const host = process.env.HOST ?? "127.0.0.1";
 
 app.addHook("onClose", async () => prisma.$disconnect());
 const technicalRetryTimer =

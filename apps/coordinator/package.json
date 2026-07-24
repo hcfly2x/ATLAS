@@ -10,6 +10,8 @@
     "db:seed": "prisma db seed",
     "db:validate": "prisma validate",
     "dev": "tsx watch src/main.ts",
+    "dev:local": "node --env-file=../../.env.local --import tsx src/main.ts",
+    "dev:pilot": "node --env-file-if-exists=../../.env.local --import tsx src/setup-main.ts",
     "lint": "eslint . --max-warnings 0",
     "start": "node dist/src/main.js",
     "test": "vitest run --exclude '**/*.integration.test.ts'",

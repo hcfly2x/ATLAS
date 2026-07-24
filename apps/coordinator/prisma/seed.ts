@@ -3,55 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { PrismaClient, ProjectStatus } from "@prisma/client";
 import { parse } from "yaml";
-import { z } from "zod";
 
-const requiredToolsSchema = z.object({
-  node: z.string().nullable(),
-  git: z.string().nullable(),
-  codex_cli: z.string().nullable(),
-  gnu_tools: z.array(z.string()),
-});
-
-const retentionSchema = z.object({
-  logs_days: z.number().int().positive(),
-  files_days: z.number().int().positive(),
-  sensitive_days: z.number().int().positive().nullable(),
-  audit_events_expire: z.literal(false),
-});
-
-const projectDefaultsSchema = z.object({
-  status: z.string(),
-  policy: z.string(),
-  autonomy_level: z.number().int().min(0).max(4),
-  protected_paths_profile: z.string(),
-  allowed_commands: z.array(z.string()),
-  required_tools: requiredToolsSchema,
-  task_cost_limit_usd: z.number().nonnegative().nullable(),
-  retention: retentionSchema,
-});
-
-const projectSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  status: z.string().optional(),
-  risk: z.string().min(1),
-  data_classification: z.string().min(1),
-  policy: z.string().optional(),
-  autonomy_level: z.number().int().min(0).max(4).optional(),
-  repository: z.string().nullable(),
-  protected_paths_profile: z.string().optional(),
-  allowed_commands: z.array(z.string()).optional(),
-  required_tools: requiredToolsSchema.optional(),
-  task_cost_limit_usd: z.number().nonnegative().nullable().optional(),
-  retention: retentionSchema.optional(),
-});
-
-const configSchema = z.object({
-  schema: z.object({
-    defaults: projectDefaultsSchema,
-  }),
-  projects: z.array(projectSchema),
-});
+import { projectConfigSchema } from "../src/setup/project-config.js";
 
 const statusMap: Record<string, ProjectStatus> = {
   active: ProjectStatus.ACTIVE,
@@ -72,7 +25,7 @@ const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
   const configPath = fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url));
-  const config = configSchema.parse(parse(await readFile(configPath, "utf8")));
+  const config = projectConfigSchema.parse(parse(await readFile(configPath, "utf8")));
 
   for (const project of config.projects) {
     const data = {

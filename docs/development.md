@@ -35,13 +35,51 @@ pnpm test:integration
 
 Nenhuma credencial real deve ser adicionada ao `.env`. O arquivo `.env.example` contém apenas valores locais de desenvolvimento.
 
+## Pilot Setup Wizard
+
+O assistente local configura projetos sem exigir edição manual do YAML. Ele não
+é o dashboard da Fase 10: roda somente no loopback, não usa banco ou credenciais
+e altera exclusivamente `.atlas/projects.yaml` após uma ação explícita do
+usuário.
+
+```bash
+pnpm pilot
+```
+
+Abra [http://localhost:3000/setup](http://localhost:3000/setup). O formulário:
+
+- aplica os defaults canônicos antes de exibir cada projeto;
+- valida caminho Git absoluto, ferramentas mínimas, comandos permitidos, teto
+  por tarefa e retenção;
+- impede a ativação enquanto houver pendências;
+- representa comandos como executável e argumentos separados, sem shell;
+- preserva campos desconhecidos do arquivo e salva de forma atômica.
+
+O arquivo continua versionado e protegido pelo ADR-010. Depois de salvar,
+revise `git diff -- .atlas/projects.yaml` antes de commitar. Para usar outro
+arquivo em teste, defina `ATLAS_PROJECTS_PATH` com um caminho absoluto.
+
+Depois de configurar um projeto e iniciar o PostgreSQL, aplique as migrações e
+o seed:
+
+```bash
+pnpm --filter @atlas/coordinator exec prisma migrate deploy
+pnpm --filter @atlas/coordinator db:seed
+```
+
+Para iniciar o coordinator completo carregando o `.env.local` ignorado pelo Git:
+
+```bash
+pnpm coordinator:local
+```
+
 ## Supervisor local
 
 O supervisor só é registrado quando `OPENAI_API_KEY` contém um valor não vazio.
 A chave deve existir apenas no ambiente local do coordinator (por exemplo,
-`.env.local`, que é ignorado pelo Git) ou no secret store do ambiente; o ATLAS
-não carrega nem copia esse arquivo automaticamente. Exporte as variáveis no
-processo antes de iniciar:
+`.env.local`, que é ignorado pelo Git) ou no secret store do ambiente. O comando
+`pnpm coordinator:local` carrega esse arquivo explicitamente; `pnpm dev` continua
+dependendo das variáveis exportadas no processo:
 
 ```bash
 export INTERNAL_API_TOKEN=valor-local-descartavel
