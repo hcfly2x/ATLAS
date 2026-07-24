@@ -1,7 +1,7 @@
 {
   "name": "ATLAS Project Starter Kit",
   "version": "0.0.12",
-  "status": "block_b_visibility_pending_review",
+  "status": "pilot_ready_blocks_a_b_integrated",
   "entrypoints": [
     "README.md",
     "AGENTS.md",

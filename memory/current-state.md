@@ -2,9 +2,9 @@
 
 ## Fase
 
-Fase 6 — Memória por projeto integrada na `main` v0.0.10. Bloco A concluído em
-PR próprio e Bloco B — Visibilidade concluído em branch empilhada sobre o Bloco
-A, ambos sem merge. A Fase 7 não está autorizada.
+Fase 6 — Memória por projeto integrada na `main` v0.0.10. Blocos A —
+destravamento do piloto — e B — visibilidade — concluídos e integrados
+sequencialmente na `main` v0.0.12. A Fase 7 não está autorizada.
 
 ## Implementado
 
@@ -26,6 +26,8 @@ A, ambos sem merge. A Fase 7 não está autorizada.
 - Dashboard somente-leitura registrado como independente do ADR-013 Proposto.
 - Sexta migração adiciona `telegram_sessions.verbose_level` e
   `telegram_task_deliveries`.
+- Garantia de publicação Telegram documentada honestamente como `at-least-once`;
+  uma queda entre envio e cursor pode gerar duplicação inofensiva no MVP.
 
 ## Testes e validações
 
@@ -44,16 +46,15 @@ A, ambos sem merge. A Fase 7 não está autorizada.
 - ADRs 001–012 aceitos; ADRs 013–015 permanecem Propostos.
 - Dashboard do Bloco B é estritamente de inspeção e não antecipa edição de
   agentes/times/configuração da Fase 10.
-- Nenhum merge dos Blocos A ou B foi autorizado.
+- Blocos A e B integrados após auditoria e autorização explícita do usuário.
 
 ## Próximo passo
 
-Finalizar validação, publicar o PR empilhado do Bloco B com CI verde e aguardar a
-revisão conjunta solicitada pelo usuário. Não iniciar o Bloco C nem a Fase 7.
+Executar o piloto real com um projeto configurado e registrar fricções de uso.
+O Bloco C e a Fase 7 continuam dependentes de autorização separada.
 
 ## Restrições ativas
 
-- não fazer merge;
 - não iniciar a Fase 7 ou conselho multiagente;
 - não executar o Bloco C nesta entrega;
 - não provisionar staging/produção nem criar `render.yaml`;

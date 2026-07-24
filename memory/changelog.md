@@ -11,6 +11,8 @@
   custos LLM/Codex e memória por projeto.
 - Sexta migração adicionou nível de verbosidade e cursores de entrega Telegram.
 - Independência entre o dashboard somente-leitura e o ADR-013 registrada.
+- Auditoria registrou a semântica `at-least-once` da publicação Telegram e a
+  futura otimização da consulta de chunks como pendências não bloqueadoras.
 
 ## 0.0.11
 
