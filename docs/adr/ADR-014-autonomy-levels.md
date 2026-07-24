@@ -73,6 +73,7 @@ Independentemente do nível:
 
 - merge na `main`;
 - deploy em produção (`deploy_production`);
+- alteração de secret de produção (`production_secret_change`);
 - migração destrutiva;
 - exclusão de dados;
 - mudança de pagamento;

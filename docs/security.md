@@ -13,6 +13,7 @@
 
 - merge na branch principal;
 - deploy em produção;
+- alteração de secret de produção;
 - exclusão de dados;
 - migração destrutiva;
 - mudança de pagamentos;
