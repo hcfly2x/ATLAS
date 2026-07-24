@@ -211,6 +211,13 @@ export class WorkerRunner {
         diff.changedPaths,
         assignment.protected_globs,
       );
+      // Streaming callbacks may finish out of order even though each receives a
+      // monotonically increasing sequence. The result contract requires its
+      // references to be ordered, while the database remains the authority for
+      // the chunks themselves.
+      const orderedLogReferences = [...logReferences].sort(
+        (left, right) => left.sequence - right.sequence,
+      );
       const succeeded = codex.exitCode === 0 && tests.every((test) => test.status === "passed");
       result = createWorkerResult({
         changed_paths: [...diff.changedPaths],
@@ -230,7 +237,7 @@ export class WorkerRunner {
         failure_stage: succeeded ? null : "testing",
         finished_at: new Date().toISOString(),
         idempotency_key: `execution:${assignment.execution_id}:result`,
-        log_chunks: logReferences,
+        log_chunks: orderedLogReferences,
         logs_truncated: logsTruncated,
         pending_items: [...codex.summary.pendingItems],
         protected_path_matches: [...protectedMatches],
@@ -286,6 +293,9 @@ export class WorkerRunner {
       if (!worktreeCreated) throw error;
       const diff = await this.options.git.diff(worktreePath);
       const cancelled = lifecycle.cancelRequested;
+      const orderedLogReferences = [...logReferences].sort(
+        (left, right) => left.sequence - right.sequence,
+      );
       result = createWorkerResult({
         changed_paths: [...diff.changedPaths],
         codex_estimated_cost_usd: this.options.codexEstimatedCostUsdPerExecution,
@@ -307,7 +317,7 @@ export class WorkerRunner {
         failure_stage: cancelled ? null : abortController.signal.aborted ? "timeout" : "worker",
         finished_at: new Date().toISOString(),
         idempotency_key: `execution:${assignment.execution_id}:result`,
-        log_chunks: logReferences,
+        log_chunks: orderedLogReferences,
         logs_truncated: logsTruncated,
         pending_items: [],
         protected_path_matches: [
