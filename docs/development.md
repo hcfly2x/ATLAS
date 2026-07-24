@@ -51,8 +51,14 @@ gerar uma nova chave.
 ## Telegram local
 
 O webhook está implementado em `POST /telegram/webhook` e pode ser exercitado
-localmente por injeção Fastify nos testes. Quando `TELEGRAM_WEBHOOK_SECRET` está
-definido, a rota exige o header `X-Telegram-Bot-Api-Secret-Token`.
+localmente por injeção Fastify nos testes. A rota só é registrada quando
+`TELEGRAM_WEBHOOK_SECRET` possui valor não vazio e sempre exige o header
+`X-Telegram-Bot-Api-Secret-Token` correspondente. A criação do app recusa uma
+configuração de webhook sem secret; no modo polling, o secret pode permanecer
+vazio porque nenhuma rota Telegram é exposta.
+
+Replays idempotentes não reenviam mensagens ao chat. Callbacks repetidos ainda
+são respondidos com `answerCallbackQuery` para encerrar o estado visual do botão.
 
 Como não há deploy nem URL HTTPS pública autorizados na Fase 3, o modo escolhido
 para desenvolvimento manual é long-polling:

@@ -8,6 +8,8 @@ autorizada e exige confirmação explícita separada.
 ## Implementado
 
 - Gateway Telegram com webhook injetável e long-polling de desenvolvimento.
+- Webhook só é registrado com secret não vazio; polling opera sem expor a rota.
+- Replay idempotente não reenvia mensagens e ainda reconhece callbacks repetidos.
 - Autorização por um único Telegram ID, seleção de projeto e texto para Task.
 - Status, botões de aprovação ligados a alvo/version/hash e cancelamento
   cooperativo por `CANCEL_REQUESTED`.
@@ -42,7 +44,7 @@ autorizada e exige confirmação explícita separada.
 - Formatação: aprovada.
 - Lint: 9/9 tarefas aprovadas.
 - Typecheck: 15/15 tarefas aprovadas.
-- Testes unitários/API/contrato estático: 20 aprovados.
+- Testes unitários/API/contrato estático: 22 aprovados.
 - Build: 9/9 tarefas aprovadas.
 - Migração inicial aplicada com sucesso no PostgreSQL 17 de desenvolvimento.
 - Seed de projetos executado com sucesso.
@@ -62,8 +64,9 @@ autorizada e exige confirmação explícita separada.
 
 ## Próximo passo
 
-Auditar e revisar o PR da Fase 3. A Fase 4 só pode começar após autorização
-explícita separada.
+Confirmar o CI do PR da Fase 3 após as correções da auditoria e aguardar
+autorização de merge. A Fase 4 só pode começar após autorização explícita
+separada.
 
 ## Restrições ativas
 

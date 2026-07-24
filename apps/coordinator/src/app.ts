@@ -46,6 +46,16 @@ function headerCorrelationId(header: string | string[] | undefined): string | un
 }
 
 export function createCoordinatorApp(options: CoordinatorAppOptions = {}): FastifyInstance {
+  const telegramWebhookEnabled =
+    options.telegramGateway !== undefined && options.telegramClient !== undefined;
+  if (
+    telegramWebhookEnabled &&
+    (options.telegramWebhookSecret === undefined ||
+      options.telegramWebhookSecret.trim().length === 0)
+  ) {
+    throw new Error("telegramWebhookSecret is required when the Telegram webhook is enabled");
+  }
+
   const app = Fastify({
     logger: options.logger ?? true,
     genReqId: (request) => headerCorrelationId(request.headers["x-correlation-id"]) ?? randomUUID(),
@@ -111,11 +121,9 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
   if (options.telegramGateway !== undefined && options.telegramClient !== undefined) {
     const telegramGateway = options.telegramGateway;
     const telegramClient = options.telegramClient;
+    const telegramWebhookSecret = options.telegramWebhookSecret;
     app.post("/telegram/webhook", async (request, reply) => {
-      if (
-        options.telegramWebhookSecret !== undefined &&
-        request.headers["x-telegram-bot-api-secret-token"] !== options.telegramWebhookSecret
-      ) {
+      if (request.headers["x-telegram-bot-api-secret-token"] !== telegramWebhookSecret) {
         return reply.code(401).send({
           code: "INVALID_WEBHOOK_SECRET",
           correlationId: request.id,

@@ -25,15 +25,17 @@ const telegramGateway = telegramEnabled
       taskStore,
     })
   : undefined;
+const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+const telegramWebhookEnabled =
+  telegramClient !== undefined &&
+  telegramGateway !== undefined &&
+  telegramWebhookSecret !== undefined &&
+  telegramWebhookSecret.trim().length > 0;
 const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
   taskStore,
-  ...(telegramClient === undefined ? {} : { telegramClient }),
-  ...(telegramGateway === undefined ? {} : { telegramGateway }),
-  ...(process.env.TELEGRAM_WEBHOOK_SECRET === undefined
-    ? {}
-    : { telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET }),
+  ...(telegramWebhookEnabled ? { telegramClient, telegramGateway, telegramWebhookSecret } : {}),
 });
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
 const host = process.env.HOST ?? "127.0.0.1";

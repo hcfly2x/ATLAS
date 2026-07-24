@@ -84,7 +84,9 @@ export async function dispatchTelegram(
   client: TelegramClient,
   dispatch: TelegramDispatch,
 ): Promise<void> {
-  await client.sendResponses(dispatch.chatId, dispatch.responses);
+  if (!dispatch.replayed) {
+    await client.sendResponses(dispatch.chatId, dispatch.responses);
+  }
   if (dispatch.callbackId !== undefined) {
     await client.answerCallback(dispatch.callbackId);
   }

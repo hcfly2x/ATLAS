@@ -31,9 +31,11 @@ const unusedTaskStore = {
 } satisfies TaskCoreStore;
 
 class RecordingTelegramClient implements TelegramClient {
+  readonly answeredCallbacks: string[] = [];
   readonly sent: { chatId: bigint; responses: readonly TelegramResponse[] }[] = [];
 
-  answerCallback(): Promise<void> {
+  answerCallback(callbackId: string): Promise<void> {
+    this.answeredCallbacks.push(callbackId);
     return Promise.resolve();
   }
 
@@ -55,6 +57,31 @@ afterEach(async () => {
 });
 
 describe("Telegram webhook", () => {
+  it("refuses to enable the webhook without a non-empty secret", () => {
+    const client = new RecordingTelegramClient();
+    const gateway = new TelegramGateway({
+      allowedUserId: 42n,
+      store: telegramStore,
+      taskStore: unusedTaskStore,
+    });
+
+    expect(() =>
+      createCoordinatorApp({
+        logger: false,
+        telegramClient: client,
+        telegramGateway: gateway,
+      }),
+    ).toThrowError("telegramWebhookSecret is required when the Telegram webhook is enabled");
+    expect(() =>
+      createCoordinatorApp({
+        logger: false,
+        telegramClient: client,
+        telegramGateway: gateway,
+        telegramWebhookSecret: " ",
+      }),
+    ).toThrowError("telegramWebhookSecret is required when the Telegram webhook is enabled");
+  });
+
   it("validates the webhook secret and dispatches an injected update locally", async () => {
     const client = new RecordingTelegramClient();
     const gateway = new TelegramGateway({
@@ -95,5 +122,49 @@ describe("Telegram webhook", () => {
     expect(accepted.statusCode).toBe(200);
     expect(accepted.json()).toMatchObject({ ok: true, replayed: false });
     expect(client.sent[0]?.responses[0]?.text).toContain("ATLAS pronto");
+  });
+
+  it("does not resend responses for a replayed callback but still acknowledges it", async () => {
+    const client = new RecordingTelegramClient();
+    const callbackStore = {
+      ...telegramStore,
+      selectProject: (_userId: bigint, _chatId: bigint, projectId: string) =>
+        Promise.resolve({ id: projectId, name: "ATLAS" }),
+    } satisfies TelegramStore;
+    const gateway = new TelegramGateway({
+      allowedUserId: 42n,
+      store: callbackStore,
+      taskStore: unusedTaskStore,
+    });
+    const app = createCoordinatorApp({
+      logger: false,
+      telegramClient: client,
+      telegramGateway: gateway,
+      telegramWebhookSecret: "test-webhook-secret",
+    });
+    apps.push(app);
+    const payload = {
+      callback_query: {
+        data: "project:atlas",
+        from: { id: 42 },
+        id: "callback-replay",
+        message: { chat: { id: 100 }, message_id: 2 },
+      },
+      update_id: 1001,
+    };
+    const request = {
+      method: "POST" as const,
+      url: "/telegram/webhook",
+      headers: { "x-telegram-bot-api-secret-token": "test-webhook-secret" },
+      payload,
+    };
+
+    const accepted = await app.inject(request);
+    const replay = await app.inject(request);
+
+    expect(accepted.statusCode).toBe(200);
+    expect(replay.json()).toMatchObject({ ok: true, replayed: true });
+    expect(client.sent).toHaveLength(1);
+    expect(client.answeredCallbacks).toEqual(["callback-replay", "callback-replay"]);
   });
 });

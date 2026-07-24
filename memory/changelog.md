@@ -3,6 +3,10 @@
 ## 0.0.6
 
 - Fase 3 — Telegram MVP concluída.
+- Webhook passou a exigir secret não vazio para ser registrado; polling continua
+  disponível sem expor a rota.
+- Replay idempotente deixou de reenviar mensagens, preservando o
+  `answerCallbackQuery` de callbacks repetidos.
 - Webhook validado por handler Fastify injetável e long-polling escolhido para
   desenvolvimento sem URL pública.
 - Autorização restrita a um único Telegram ID.

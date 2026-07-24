@@ -11,8 +11,10 @@ Task, seleção de projeto, aprovações versionadas e cancelamento cooperativo.
 - Webhook e polling usam o mesmo `TelegramGateway`, independente do transporte.
 - Long-polling com `getUpdates` é o modo de desenvolvimento manual enquanto não
   existe URL HTTPS pública nem autorização de deploy.
-- Webhook permanece testável localmente por injeção Fastify e aceita secret token
-  do Telegram quando configurado.
+- Webhook permanece testável localmente por injeção Fastify, só é registrado com
+  secret não vazio e sempre valida o secret token do Telegram.
+- Replay idempotente não reenvia mensagens; callbacks repetidos continuam sendo
+  reconhecidos para encerrar o estado visual do botão.
 - Updates e callbacks são persistidos para replay idempotente.
 - Botões carregam apenas o ID opaco da Approval; tipo, ID, versão e hash do alvo
   são recuperados e auditados no servidor.
@@ -32,7 +34,7 @@ Task, seleção de projeto, aprovações versionadas e cancelamento cooperativo.
 ## Testes executados
 
 - Pipeline completa: formatação, Prisma generate/validate, lint (9/9),
-  typecheck (15/15), 20 testes unitários/API/contrato e build (9/9).
+  typecheck (15/15), 22 testes unitários/API/contrato e build (9/9).
 - Três testes de integração contra PostgreSQL 17.
 - usuário autorizado e bloqueio de usuário divergente;
 - seleção de projeto e texto para Task sem duplicação;
@@ -52,6 +54,8 @@ Task, seleção de projeto, aprovações versionadas e cancelamento cooperativo.
 - Aprovações são consumidas pelo Telegram, mas serão produzidas pelo supervisor
   somente na Fase 4.
 - O hash canônico de Specification continua como obrigação da Fase 4.
+- `/status` e `/cancel` sem argumento ainda não filtram pelo projeto selecionado.
+- Approval já decidida ainda pode resultar em mensagem interna genérica.
 
 ## Próxima tarefa recomendada
 
