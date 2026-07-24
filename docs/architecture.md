@@ -51,13 +51,22 @@ Gerencia tarefas, prioridade, retry, timeout e cancelamento. Implementação: pg
 
 Executa tarefas em Mac mini ou MacBook M1 com 8 GB de RAM e macOS Tahoe 26.4. Mantém uma execução concorrente por padrão, conforme ADR-011. Não executa Docker nem banco de dados; requer somente Node.js, Git, Codex CLI e os repositórios dos projetos.
 
+O worker registra capacidades reais em preflight, faz long-polling HTTPS e
+mantém heartbeat separado da renovação do lease. Cada execução valida
+Specification, lease e fencing token, opera em worktree isolada, transmite
+chunks sanitizados com backpressure e produz o contrato Zod de resultado.
+
 ### Codex Adapter
 
-Isola a integração com Codex SDK/CLI.
+Isola `codex exec` não interativo, sem shell, com saída incremental e resumo JSON
+estruturado. Cancelamento encerra o grupo de processos com grace period antes de
+forçar término.
 
 ### Git Adapter
 
-Cria worktree, branch, commit, push e PR.
+Cria worktree e branch por Execution, calcula diff, commita, faz push e abre PR
+draft quando a política permite. PR é consultado antes da criação para tornar a
+finalização repetível; merge continua exclusivamente humano.
 
 ### Memory Service
 
@@ -103,6 +112,7 @@ packages/ (até a Fase 2)
 - Approval distingue ator `USER|SYSTEM` e canal `TELEGRAM|DASHBOARD|POLICY`.
 - Cada chamada deliberativa registra agente, modelo, tokens, custo estimado e
   latência em `llm_calls`.
+- Chunks do worker e consumo lógico Codex são persistidos separadamente.
 - Idempotency keys nas fronteiras persistidas.
 - Execution possui `lease_id`, `lease_expires_at`, fencing token e chaves separadas de claim/resultado desde a primeira migração (ADR-012).
 - Atualização de estado e AuditEvent aceito ocorrem na mesma transação.

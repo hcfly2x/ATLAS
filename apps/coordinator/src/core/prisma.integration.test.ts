@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaClient, ProjectStatus } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { InvalidTaskTransitionError, TaskStateMachine } from "@atlas/core";
 import {
   canonicalPayloadHash,
   complexityClassificationSchema,
+  createWorkerResult,
   executableSpecificationPayloadSchema,
   normalizedDemandSchema,
   specificationContentSchema,
@@ -17,6 +18,12 @@ import { PrismaTaskCoreStore } from "./prisma-task-core-store.js";
 import { PrismaSupervisorStore } from "../supervisor/prisma-supervisor-store.js";
 import { SupervisorService } from "../supervisor/service.js";
 import { ApprovalTargetHashMismatchError, PrismaTelegramStore } from "../telegram/store.js";
+import {
+  CodexMonthlyBudgetExceededError,
+  WorkerConflictError,
+  WorkerLeaseError,
+  WorkerService,
+} from "../worker/service.js";
 
 const prisma = new PrismaClient();
 const store = new PrismaTaskCoreStore(prisma);
@@ -422,5 +429,340 @@ describe("Prisma core persistence", () => {
         executableSpecificationPayloadSchema.parse(activeSpecification?.payload),
       ),
     );
+  });
+
+  it("enforces worker lease, fencing, replay and automatic result policy", async () => {
+    const projectId = `worker-${randomUUID()}`;
+    const taskId = randomUUID();
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        autonomyLevel: 2,
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Worker Integration Test",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        repository: "/tmp/atlas-worker-integration",
+        requiredTools: { codex_cli: null, git: null, gnu_tools: [], node: null },
+        retention: { audit_events_expire: false, files_days: 1, logs_days: 1 },
+        risk: "low",
+        status: "ACTIVE",
+      },
+    });
+    await prisma.task.create({
+      data: {
+        id: taskId,
+        idempotencyKey: `worker-task-${taskId}`,
+        origin: "integration-test",
+        originalMessage: "execute a bounded change",
+        projectId,
+        state: "QUEUED",
+      },
+    });
+    const payload = specificationPayload(taskId, projectId);
+    const specification = await prisma.specification.create({
+      data: {
+        payload,
+        payloadHash: canonicalPayloadHash(payload),
+        taskId,
+        version: 1,
+      },
+    });
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { activeSpecificationId: specification.id },
+    });
+    const service = new WorkerService({
+      codexMonthlyBudgetUsd: 75,
+      leaseDurationMs: 60_000,
+      prisma,
+      protectedGlobsByProject: new Map([[projectId, [".env*"]]]),
+    });
+    const token = `worker-token-${randomUUID()}`;
+    const registration = await service.register({
+      capabilities: {
+        architecture: "arm64",
+        codex_version: "codex 1.0.0",
+        git_version: "git version 2.0.0",
+        node_version: "v22.13.0",
+        platform: "darwin",
+        tools: {},
+      },
+      concurrencyLimit: 1,
+      name: "integration-worker",
+      projectScopes: [projectId],
+      token,
+    });
+    const identity = await service.authenticate(token);
+    const assignment = await service.claim(identity, `claim-${randomUUID()}`);
+    expect(assignment).not.toBeNull();
+    if (assignment === null) throw new Error("assignment expected");
+
+    await expect(
+      service.renewLease({
+        executionId: assignment.execution_id,
+        fencingToken: 0n,
+        idempotencyKey: "stale-renewal",
+        leaseId: assignment.lease_id,
+        workerId: registration.workerId,
+      }),
+    ).rejects.toBeInstanceOf(WorkerLeaseError);
+
+    const chunkContent = "sanitized output";
+    const chunkChecksum = `sha256:${createHash("sha256").update(chunkContent).digest("hex")}`;
+    const chunk = {
+      checksum: chunkChecksum,
+      content: chunkContent,
+      executionId: assignment.execution_id,
+      fencingToken: 1n,
+      idempotencyKey: `log-${randomUUID()}`,
+      leaseId: assignment.lease_id,
+      sequence: 0,
+      workerId: registration.workerId,
+    };
+    expect(await service.appendLog(chunk)).toEqual({ replayed: false });
+    expect(await service.appendLog(chunk)).toEqual({ replayed: true });
+    const changedContent = "changed";
+    await expect(
+      service.appendLog({
+        ...chunk,
+        checksum: `sha256:${createHash("sha256").update(changedContent).digest("hex")}`,
+        content: changedContent,
+      }),
+    ).rejects.toBeInstanceOf(WorkerConflictError);
+
+    const result = createWorkerResult({
+      changed_paths: ["docs/readme.md"],
+      codex_estimated_cost_usd: 1,
+      commands: [
+        {
+          args: ["test"],
+          executable: "/usr/local/bin/pnpm",
+          exit_code: 0,
+          finished_at: "2026-07-24T13:00:30.000Z",
+          started_at: "2026-07-24T13:00:00.000Z",
+          status: "passed",
+        },
+      ],
+      contract_version: "1.0",
+      diff_hash: `sha256:${"d".repeat(64)}`,
+      diff_ref: `execution:${assignment.execution_id}:diff`,
+      diff_summary: {
+        deletions: 0,
+        description: "one file",
+        files_changed: 1,
+        insertions: 1,
+      },
+      error: null,
+      execution_id: assignment.execution_id,
+      failure_stage: null,
+      finished_at: "2026-07-24T13:01:00.000Z",
+      idempotency_key: `result-${randomUUID()}`,
+      log_chunks: [
+        {
+          checksum: chunkChecksum,
+          created_at: "2026-07-24T13:00:15.000Z",
+          sequence: 0,
+          size_bytes: Buffer.byteLength(chunkContent),
+        },
+      ],
+      logs_truncated: false,
+      pending_items: [],
+      protected_path_matches: [],
+      redaction_applied: true,
+      risks: [],
+      sequence: 1,
+      specification_hash: assignment.specification_hash,
+      specification_id: assignment.specification_id,
+      specification_version: assignment.specification_version,
+      started_at: "2026-07-24T13:00:00.000Z",
+      status: "succeeded",
+      summary: "done",
+      task_id: assignment.task_id,
+      tests: [
+        {
+          command_index: 0,
+          duration_ms: 30_000,
+          name: "pnpm test",
+          status: "passed",
+          summary: "passed",
+        },
+      ],
+      worker_id: registration.workerId,
+    });
+    expect(
+      await service.submitResult({
+        fencingToken: 1n,
+        leaseId: assignment.lease_id,
+        result,
+        workerId: registration.workerId,
+      }),
+    ).toEqual({ replayed: false, state: "FINALIZING" });
+    const persisted = await prisma.execution.findUniqueOrThrow({
+      where: { id: assignment.execution_id },
+      include: { codexUsage: true, task: { include: { approvals: true } } },
+    });
+    expect(persisted.status).toBe("FINALIZING");
+    expect(Number(persisted.codexUsage?.estimatedCostUsd)).toBe(1);
+    expect(persisted.task.approvals).toEqual([
+      expect.objectContaining({ actor: "SYSTEM", channel: "POLICY", status: "APPROVED" }),
+    ]);
+    await prisma.project.update({ where: { id: projectId }, data: { autonomyLevel: 3 } });
+    await prisma.execution.update({
+      where: { id: assignment.execution_id },
+      data: {
+        failureStage: "timeout",
+        leaseExpiresAt: null,
+        leaseId: null,
+        status: "FAILED",
+      },
+    });
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { failureStage: "timeout", state: "FAILED" },
+    });
+
+    expect(await service.retryEligibleTechnicalFailures()).toBe(1);
+    const attempts = await prisma.execution.findMany({
+      where: { taskId },
+      orderBy: { attempt: "asc" },
+    });
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toMatchObject({ fencingToken: 2n, status: "QUEUED" });
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      failureStage: null,
+      state: "QUEUED",
+    });
+    await prisma.codexUsage.update({
+      where: { executionId: assignment.execution_id },
+      data: { estimatedCostUsd: 75 },
+    });
+    await expect(service.claim(identity, `budget-claim-${randomUUID()}`)).rejects.toBeInstanceOf(
+      CodexMonthlyBudgetExceededError,
+    );
+    expect(
+      await prisma.auditEvent.findFirst({
+        where: { action: "codex.budget_blocked", projectId },
+      }),
+    ).not.toBeNull();
+    await prisma.codexUsage.update({
+      where: { executionId: assignment.execution_id },
+      data: { estimatedCostUsd: 1 },
+    });
+    const retryAssignment = await service.claim(identity, `retry-claim-${randomUUID()}`);
+    expect(retryAssignment).not.toBeNull();
+    if (retryAssignment === null) throw new Error("retry assignment expected");
+    expect(retryAssignment.fencing_token).toBe("2");
+    await expect(
+      service.appendLog({
+        checksum: `sha256:${createHash("sha256").update("late").digest("hex")}`,
+        content: "late",
+        executionId: retryAssignment.execution_id,
+        fencingToken: 1n,
+        idempotencyKey: `late-log-${randomUUID()}`,
+        leaseId: retryAssignment.lease_id,
+        sequence: 0,
+        workerId: registration.workerId,
+      }),
+    ).rejects.toBeInstanceOf(WorkerLeaseError);
+    const { result_hash: _previousHash, ...previousResultContent } = result;
+    expect(_previousHash).toMatch(/^sha256:/);
+    const protectedResult = createWorkerResult({
+      ...previousResultContent,
+      execution_id: retryAssignment.execution_id,
+      idempotency_key: `protected-result-${randomUUID()}`,
+      log_chunks: [],
+      protected_path_matches: [".env.local"],
+      sequence: 1,
+      worker_id: registration.workerId,
+    });
+    expect(
+      await service.submitResult({
+        fencingToken: 2n,
+        leaseId: retryAssignment.lease_id,
+        result: protectedResult,
+        workerId: registration.workerId,
+      }),
+    ).toEqual({ replayed: false, state: "WAITING_RESULT_APPROVAL" });
+
+    const cancelledTaskId = randomUUID();
+    await prisma.task.create({
+      data: {
+        id: cancelledTaskId,
+        idempotencyKey: `cancel-race-task-${cancelledTaskId}`,
+        origin: "integration-test",
+        originalMessage: "cancel while result is in flight",
+        projectId,
+        state: "QUEUED",
+      },
+    });
+    const cancelledPayload = specificationPayload(cancelledTaskId, projectId);
+    const cancelledSpecification = await prisma.specification.create({
+      data: {
+        payload: cancelledPayload,
+        payloadHash: canonicalPayloadHash(cancelledPayload),
+        taskId: cancelledTaskId,
+        version: 1,
+      },
+    });
+    await prisma.task.update({
+      where: { id: cancelledTaskId },
+      data: { activeSpecificationId: cancelledSpecification.id },
+    });
+    const secondToken = `worker-token-${randomUUID()}`;
+    const secondRegistration = await service.register({
+      capabilities: {
+        architecture: "arm64",
+        codex_version: "codex 1.0.0",
+        git_version: "git version 2.0.0",
+        node_version: "v22.13.0",
+        platform: "darwin",
+        tools: {},
+      },
+      concurrencyLimit: 1,
+      name: "cancel-race-worker",
+      projectScopes: [projectId],
+      token: secondToken,
+    });
+    const cancelAssignment = await service.claim(
+      await service.authenticate(secondToken),
+      `cancel-race-claim-${randomUUID()}`,
+    );
+    expect(cancelAssignment).not.toBeNull();
+    if (cancelAssignment === null) throw new Error("cancel assignment expected");
+    await prisma.task.update({
+      where: { id: cancelledTaskId },
+      data: { state: "CANCEL_REQUESTED", version: { increment: 1 } },
+    });
+    const cancelledRaceResult = createWorkerResult({
+      ...previousResultContent,
+      execution_id: cancelAssignment.execution_id,
+      idempotency_key: `cancel-race-result-${randomUUID()}`,
+      log_chunks: [],
+      specification_hash: cancelAssignment.specification_hash,
+      specification_id: cancelAssignment.specification_id,
+      specification_version: cancelAssignment.specification_version,
+      task_id: cancelAssignment.task_id,
+      worker_id: secondRegistration.workerId,
+    });
+    await expect(
+      service.submitResult({
+        fencingToken: BigInt(cancelAssignment.fencing_token),
+        leaseId: cancelAssignment.lease_id,
+        result: cancelledRaceResult,
+        workerId: secondRegistration.workerId,
+      }),
+    ).rejects.toBeInstanceOf(WorkerConflictError);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: cancelledTaskId } })).toMatchObject({
+      state: "CANCEL_REQUESTED",
+    });
+    expect(
+      await prisma.auditEvent.findUnique({
+        where: {
+          idempotencyKey: `audit:${cancelledRaceResult.idempotency_key}:transition-rejected`,
+        },
+      }),
+    ).toMatchObject({ action: "task.transition.rejected" });
   });
 });

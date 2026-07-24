@@ -112,6 +112,7 @@ model Project {
   auditEvents           AuditEvent[]
   telegramSessions      TelegramSession[]
   llmCalls              LlmCall[]
+  codexUsages           CodexUsage[]
 
   @@map("projects")
 }
@@ -137,6 +138,7 @@ model Task {
   executions            Execution[]
   auditEvents           AuditEvent[]
   llmCalls              LlmCall[]
+  codexUsages           CodexUsage[]
 
   @@index([projectId, state])
   @@map("tasks")
@@ -226,11 +228,19 @@ model Execution {
   fencingToken         BigInt          @default(0) @map("fencing_token")
   claimIdempotencyKey  String?         @unique @map("claim_idempotency_key")
   resultIdempotencyKey String?         @unique @map("result_idempotency_key")
+  resultHash           String?         @map("result_hash")
+  resultPayload        Json?           @map("result_payload")
+  resultSequence       Int?            @map("result_sequence")
+  finalizationIdempotencyKey String?   @unique @map("finalization_idempotency_key")
+  finalizationHash     String?         @map("finalization_hash")
+  reconciledAt         DateTime?       @map("reconciled_at")
   createdAt            DateTime        @default(now()) @map("created_at")
   updatedAt            DateTime        @updatedAt @map("updated_at")
   task                 Task            @relation(fields: [taskId], references: [id], onDelete: Restrict)
   specification        Specification   @relation(fields: [specificationId], references: [id], onDelete: Restrict)
   worker               Worker?         @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  logChunks            WorkerLogChunk[]
+  codexUsage           CodexUsage?
 
   @@unique([taskId, attempt])
   @@index([status, leaseExpiresAt])
@@ -251,6 +261,41 @@ model Worker {
   executions       Execution[]
 
   @@map("workers")
+}
+
+model WorkerLogChunk {
+  id             String    @id @default(uuid())
+  executionId    String    @map("execution_id")
+  sequence       Int
+  checksum       String
+  sizeBytes      Int       @map("size_bytes")
+  content        String
+  payloadHash    String    @map("payload_hash")
+  idempotencyKey String    @unique @map("idempotency_key")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  execution      Execution @relation(fields: [executionId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, sequence])
+  @@index([executionId, createdAt])
+  @@map("worker_log_chunks")
+}
+
+model CodexUsage {
+  id               String    @id @default(uuid())
+  projectId        String    @map("project_id")
+  taskId           String    @map("task_id")
+  executionId      String    @unique @map("execution_id")
+  estimatedCostUsd Decimal   @map("estimated_cost_usd") @db.Decimal(12, 8)
+  startedAt        DateTime  @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  execution        Execution @relation(fields: [executionId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([projectId, createdAt])
+  @@map("codex_usages")
 }
 
 model AuditEvent {

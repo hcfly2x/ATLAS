@@ -14,9 +14,13 @@
   "dependencies": {
     "@atlas/codex-adapter": "workspace:*",
     "@atlas/git-adapter": "workspace:*",
-    "@atlas/shared": "workspace:*"
+    "@atlas/shared": "workspace:*",
+    "minimatch": "^10.2.5",
+    "semver": "^7.8.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/semver": "^7.7.1",
     "tsx": "^4.20.3"
   }
 }

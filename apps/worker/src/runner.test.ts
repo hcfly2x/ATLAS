@@ -1,0 +1,274 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import type { CodexAdapter } from "@atlas/codex-adapter";
+import type { GitAdapter } from "@atlas/git-adapter";
+import { canonicalPayloadHash, type WorkerAssignment } from "@atlas/shared";
+
+import { WorkerRunner, type WorkerApi } from "./runner.js";
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((path) => rm(path, { force: true, recursive: true })),
+  );
+});
+
+function assignment(repositoryPath: string): WorkerAssignment {
+  const specification = {
+    acceptance_criteria: ["done"],
+    allowed_commands: [],
+    approval_required_for: [],
+    authorized_scope: ["docs/**"],
+    constraints: [],
+    context: [],
+    expected_delivery: "PR",
+    implementation_strategy: ["edit"],
+    objective: "bounded test",
+    out_of_scope: [],
+    project_id: "atlas",
+    required_tests: ["unit"],
+    risk_level: "moderate" as const,
+    task_id: "10000000-0000-4000-8000-000000000001",
+    version: 1,
+  };
+  return {
+    allowed_commands: [],
+    autonomy_level: 2,
+    execution_id: "10000000-0000-4000-8000-000000000002",
+    fencing_token: "1",
+    lease_expires_at: "2026-07-24T14:00:00.000Z",
+    lease_id: "10000000-0000-4000-8000-000000000003",
+    project_id: "atlas",
+    protected_globs: [".env*"],
+    repository_path: repositoryPath,
+    required_tools: { codex_cli: null, git: null, gnu_tools: [], node: null },
+    specification,
+    specification_hash: canonicalPayloadHash(specification),
+    specification_id: "10000000-0000-4000-8000-000000000004",
+    specification_version: 1,
+    task_id: specification.task_id,
+  };
+}
+
+describe("WorkerRunner", () => {
+  it("uses fake Codex, finalizes only after policy approval and always cleans the worktree", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-test-"));
+    temporaryDirectories.push(root);
+    const calls: string[] = [];
+    const git: GitAdapter = {
+      createWorktree: () => {
+        calls.push("create");
+        return Promise.resolve();
+      },
+      diff: () =>
+        Promise.resolve({
+          changedPaths: ["docs/readme.md"],
+          content: "diff",
+          deletions: 0,
+          filesChanged: 1,
+          insertions: 1,
+        }),
+      finalize: () => {
+        calls.push("finalize");
+        return Promise.resolve({
+          commitSha: "abcdef123456",
+          pullRequestUrl: "https://github.com/example/repo/pull/1",
+        });
+      },
+      removeWorktree: () => {
+        calls.push("cleanup");
+        return Promise.resolve();
+      },
+    };
+    const codex: CodexAdapter = {
+      execute: async (request) => {
+        await request.onChunk("safe output");
+        return {
+          exitCode: 0,
+          summary: { pendingItems: [], risks: [], summary: "done" },
+        };
+      },
+    };
+    const api: WorkerApi = {
+      appendLog: () => Promise.resolve(),
+      finalize: () => {
+        calls.push("coordinator-finalize");
+        return Promise.resolve();
+      },
+      renew: () =>
+        Promise.resolve({
+          cancelRequested: false,
+          leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+          readyToFinalize: true,
+          terminalFailure: false,
+        }),
+      submitResult: () => Promise.resolve({ replayed: false, state: "FINALIZING" }),
+    };
+    const runner = new WorkerRunner({
+      api,
+      codex,
+      codexEstimatedCostUsdPerExecution: 0,
+      git,
+      githubToken: "fake",
+      leaseRenewalMs: 10,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    const result = await runner.execute(assignment(root));
+
+    expect(result.status).toBe("succeeded");
+    expect(calls).toEqual(["create", "finalize", "coordinator-finalize", "cleanup"]);
+  });
+
+  it("submits failure and cleans up when Codex fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-failure-"));
+    temporaryDirectories.push(root);
+    let submittedStatus: string | undefined;
+    let cleaned = false;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => Promise.resolve(),
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: false,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submittedStatus = result.status;
+          return Promise.resolve({ replayed: false, state: "FAILED" });
+        },
+      },
+      codex: { execute: () => Promise.reject(new Error("fake failure")) },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => Promise.reject(new Error("must not finalize")),
+        removeWorktree: () => {
+          cleaned = true;
+          return Promise.resolve();
+        },
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 10,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    expect((await runner.execute(assignment(root))).status).toBe("failed");
+    expect(submittedStatus).toBe("failed");
+    expect(cleaned).toBe(true);
+  });
+
+  it("turns cooperative cancellation into a cancelled result and cleanup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-cancel-"));
+    temporaryDirectories.push(root);
+    let submittedStatus: string | undefined;
+    let cleaned = false;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => Promise.reject(new Error("must not finalize")),
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: true,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: false,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submittedStatus = result.status;
+          return Promise.resolve({ replayed: false, state: "CANCELLED" });
+        },
+      },
+      codex: {
+        execute: (request) =>
+          new Promise((_resolve, reject) => {
+            request.abortSignal.addEventListener(
+              "abort",
+              () => {
+                reject(new Error("cancelled"));
+              },
+              {
+                once: true,
+              },
+            );
+          }),
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => Promise.reject(new Error("must not finalize")),
+        removeWorktree: () => {
+          cleaned = true;
+          return Promise.resolve();
+        },
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 5,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    expect((await runner.execute(assignment(root))).status).toBe("cancelled");
+    expect(submittedStatus).toBe("cancelled");
+    expect(cleaned).toBe(true);
+  });
+});

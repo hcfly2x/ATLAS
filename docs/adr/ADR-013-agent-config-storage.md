@@ -15,6 +15,11 @@ de edição da configuração de agentes precisa preservar aprovação humana e
 auditabilidade. Antes de implementar a interface, será necessário decidir qual
 será a fonte de verdade desses dados.
 
+Até a chegada da Fase 10, a configuração de agentes permanece em
+`.atlas/agents.yaml`, versionada e sujeita às proteções vigentes. A experiência
+operacional prolongada com esse modelo em arquivo será insumo para avaliar as
+opções deste ADR; esse contexto não antecipa uma escolha.
+
 Esta decisão será tomada quando a Fase 10 for iniciada. O registro desta ideia e
 deste ADR não autoriza implementação antecipada.
 

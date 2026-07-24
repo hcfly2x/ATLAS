@@ -11,6 +11,8 @@ import { TelegramBotApiClient } from "./telegram/client.js";
 import { startTelegramPolling } from "./telegram/polling.js";
 import { TelegramGateway } from "./telegram/service.js";
 import { PrismaTelegramStore } from "./telegram/store.js";
+import { loadProtectedGlobs } from "./worker/config.js";
+import { WorkerService } from "./worker/service.js";
 
 const prisma = new PrismaClient();
 const taskStore = new PrismaTaskCoreStore(prisma);
@@ -47,17 +49,43 @@ const supervisorService =
         store: new PrismaSupervisorStore(prisma),
         taskStore,
       });
+const workerBootstrapToken = process.env.ATLAS_WORKER_TOKEN;
+const workerService =
+  workerBootstrapToken === undefined || workerBootstrapToken.trim().length === 0
+    ? undefined
+    : new WorkerService({
+        codexMonthlyBudgetUsd: Number(process.env.CODEX_MONTHLY_BUDGET_USD ?? "75"),
+        leaseDurationMs: Number(process.env.ATLAS_LEASE_DURATION_MS ?? "30000"),
+        prisma,
+        protectedGlobsByProject: await loadProtectedGlobs(process.env.ATLAS_PROTECTED_PATHS_PATH),
+      });
+const workerAppOptions =
+  workerService !== undefined && workerBootstrapToken !== undefined
+    ? { workerBootstrapToken, workerService }
+    : {};
 const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
   ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,
+  ...workerAppOptions,
   ...(telegramWebhookEnabled ? { telegramClient, telegramGateway, telegramWebhookSecret } : {}),
 });
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 
 app.addHook("onClose", async () => prisma.$disconnect());
+const technicalRetryTimer =
+  workerService === undefined
+    ? undefined
+    : setInterval(() => {
+        void workerService.retryEligibleTechnicalFailures().catch((error: unknown) => {
+          app.log.error({ error }, "technical retry reconciliation failed");
+        });
+      }, 15_000);
+app.addHook("onClose", () => {
+  if (technicalRetryTimer !== undefined) clearInterval(technicalRetryTimer);
+});
 
 const polling =
   process.env.TELEGRAM_MODE === "polling" &&

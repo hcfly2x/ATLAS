@@ -79,3 +79,23 @@
 - O teto mensal deliberativo do ATLAS bloqueia novas Tasks antes da primeira
   chamada quando o consumo agregado registrado atinge o limite configurado; não
   interrompe Task deliberativa já iniciada.
+- No MVP, o Telegram é a interface operacional móvel para captura de demanda,
+  seleção de projeto, acompanhamento, aprovações e cancelamento. O dashboard da
+  Fase 10 será a interface visual para inspeção, auditoria, configuração de
+  agentes e times e operações que exigem contexto amplo. As duas interfaces não
+  devem duplicar integralmente as mesmas funções sem necessidade demonstrada.
+- Até a Fase 10 existir, a configuração de agentes permanece versionada em
+  `.atlas/agents.yaml`.
+- O worker MVP aceita somente projetos ativos e dentro do escopo do seu token;
+  projeto sem repositório, requisitos ou mapeamento de paths protegidos não é
+  executável.
+- Heartbeat do worker e renovação de lease são fluxos independentes. Toda
+  mutação da Execution exige lease e fencing token vigentes.
+- O Codex recebe somente a Specification validada e roda por `codex exec` sem
+  shell, em worktree/branch exclusivas da Execution.
+- No nível 2, testes verdes e ausência de paths protegidos geram Approval
+  `SYSTEM/POLICY` e permitem commit/push/PR draft; merge permanece humano.
+- Retry automático nível 3 só ocorre para falha técnica classificada depois de
+  término reconciliado; lease expirado ambíguo nunca autoriza reexecução.
+- O consumo Codex é registrado por Execution e bloqueia claims novos ao atingir
+  o teto lógico mensal configurável de US$ 75.

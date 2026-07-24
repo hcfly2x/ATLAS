@@ -45,7 +45,7 @@ Critério: criar, aprovar e acompanhar uma tarefa pelo Telegram.
 
 ### Fase 4 — Supervisor mínimo (sem conselho)
 
-**Status:** concluída em branch própria; aguarda revisão e merge.
+**Status:** concluída, aceita e integrada na `main`.
 
 - `agent-runtime` com interface de LLM (ADR-008), teto de custo por tarefa.
 - Normalização da demanda + supervisor gera Specification validada (Zod).
@@ -54,6 +54,8 @@ Critério: criar, aprovar e acompanhar uma tarefa pelo Telegram.
 Critério: demanda vira especificação executável rastreável e auditada.
 
 ### Fase 5 — Worker + Codex + Git
+
+**Status:** concluída em branch própria; aguarda revisão e merge.
 
 - Registro do worker, token Bearer, long-polling, heartbeat (ADR-007), preflight e concorrência 1 (ADR-011).
 - Worktree + branch por tarefa, cleanup, diff.

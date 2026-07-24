@@ -23,6 +23,7 @@ tests: []
 log_chunks: []
 logs_truncated: false
 redaction_applied: true
+codex_estimated_cost_usd:
 result_hash:
 idempotency_key:
 sequence:

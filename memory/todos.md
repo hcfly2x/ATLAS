@@ -5,13 +5,6 @@
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na
   sessão.
 
-## Fase 5
-
-- Condicionar commit e abertura automática de PR a testes verdes e ausência de
-  paths protegidos.
-- Implementar retry automático exclusivamente técnico no nível 3, protegido por
-  fencing token e sem reexecutar Codex sobre lease ambíguo.
-
 ## Epic de infraestrutura — após o fechamento da Fase 3
 
 - Provisionar staging no Render com banco e secrets próprios.

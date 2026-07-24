@@ -325,6 +325,53 @@ export class PrismaTelegramStore implements TelegramStore {
             recordedHash: approval.targetHash,
           };
         }
+      } else if (approval.targetType === "EXECUTION_RESULT") {
+        const execution = await transaction.execution.findUnique({
+          where: { id: approval.targetId },
+        });
+        const presented = z
+          .object({ diffHash: z.string(), resultHash: z.string() })
+          .safeParse(approval.presentedPayload);
+        const expectedHash = execution?.resultHash ?? null;
+        const targetIsCurrent =
+          execution !== null &&
+          execution.taskId === approval.taskId &&
+          execution.attempt === approval.targetVersion &&
+          execution.resultHash !== null &&
+          execution.diffHash !== null &&
+          approval.targetHash === execution.resultHash &&
+          presented.success &&
+          presented.data.resultHash === execution.resultHash &&
+          presented.data.diffHash === execution.diffHash;
+        if (!targetIsCurrent) {
+          await transaction.auditEvent.upsert({
+            where: { idempotencyKey: `${idempotencyKey}:hash-mismatch` },
+            create: {
+              action: "approval.target_hash_mismatch",
+              actor: "USER",
+              correlationId: input.correlationId,
+              idempotencyKey: `${idempotencyKey}:hash-mismatch`,
+              payload: json({
+                approvalId: approval.id,
+                expectedHash,
+                recordedHash: approval.targetHash,
+                targetId: approval.targetId,
+                targetVersion: approval.targetVersion,
+              }),
+              projectId: approval.task.projectId,
+              targetId: approval.targetId,
+              targetType: approval.targetType,
+              taskId: approval.taskId,
+            },
+            update: {},
+          });
+          return {
+            approvalId: approval.id,
+            expectedHash,
+            kind: "hash_mismatch" as const,
+            recordedHash: approval.targetHash,
+          };
+        }
       }
       const updated = await transaction.approval.updateMany({
         where: { id: approval.id, status: ApprovalStatus.PENDING },
@@ -336,6 +383,40 @@ export class PrismaTelegramStore implements TelegramStore {
       });
       if (updated.count !== 1) {
         throw new Error("Approval is no longer pending");
+      }
+      let decidedTask = approval.task;
+      if (
+        approval.targetType === "EXECUTION_RESULT" &&
+        approval.task.state === "WAITING_RESULT_APPROVAL"
+      ) {
+        const nextState = input.decision === "APPROVED" ? "FINALIZING" : "SPECIFYING";
+        decidedTask = await transaction.task.update({
+          where: { id: approval.taskId },
+          data: { state: nextState, version: { increment: 1 } },
+        });
+        await transaction.execution.update({
+          where: { id: approval.targetId },
+          data: {
+            status: input.decision === "APPROVED" ? "FINALIZING" : "FAILED",
+            ...(input.decision === "REJECTED" ? { failureStage: "result_review" } : {}),
+          },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            action: "task.transitioned",
+            actor: "USER",
+            correlationId: input.correlationId,
+            idempotencyKey: `${idempotencyKey}:task-transition`,
+            payload: json({
+              fromState: "WAITING_RESULT_APPROVAL",
+              toState: nextState,
+            }),
+            projectId: approval.task.projectId,
+            targetId: approval.taskId,
+            targetType: "TASK",
+            taskId: approval.taskId,
+          },
+        });
       }
       const payload = {
         approvalId: approval.id,
@@ -364,7 +445,7 @@ export class PrismaTelegramStore implements TelegramStore {
           approval: approvalView(approval),
           decision: input.decision,
           idempotentReplay: false,
-          task: snapshot(approval.task),
+          task: snapshot(decidedTask),
         },
       };
     });

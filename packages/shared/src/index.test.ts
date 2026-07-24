@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalPayloadHash, createStructuredLog } from "./index.js";
+import {
+  canonicalPayloadHash,
+  createStructuredLog,
+  createWorkerResult,
+  workerResultSchema,
+} from "./index.js";
 
 describe("createStructuredLog", () => {
   it("keeps the correlation id in every structured record", () => {
@@ -46,5 +51,49 @@ describe("canonicalPayloadHash", () => {
   it("rejects values outside the JSON data model", () => {
     expect(() => canonicalPayloadHash({ invalid: undefined })).toThrow(TypeError);
     expect(() => canonicalPayloadHash({ invalid: Number.NaN })).toThrow(TypeError);
+  });
+});
+
+describe("workerResultSchema", () => {
+  it("creates a result whose hash covers the complete validated content", () => {
+    const result = createWorkerResult({
+      changed_paths: [],
+      codex_estimated_cost_usd: 0,
+      commands: [],
+      contract_version: "1.0",
+      diff_hash: `sha256:${"a".repeat(64)}`,
+      diff_ref: "diff:test",
+      diff_summary: {
+        deletions: 0,
+        description: "no changes",
+        files_changed: 0,
+        insertions: 0,
+      },
+      error: null,
+      execution_id: "10000000-0000-4000-8000-000000000001",
+      failure_stage: null,
+      finished_at: "2026-07-24T12:01:00.000Z",
+      idempotency_key: "result:test",
+      log_chunks: [],
+      logs_truncated: false,
+      pending_items: [],
+      protected_path_matches: [],
+      redaction_applied: true,
+      risks: [],
+      sequence: 1,
+      specification_hash: `sha256:${"b".repeat(64)}`,
+      specification_id: "10000000-0000-4000-8000-000000000002",
+      specification_version: 1,
+      started_at: "2026-07-24T12:00:00.000Z",
+      status: "succeeded",
+      summary: "done",
+      task_id: "10000000-0000-4000-8000-000000000003",
+      tests: [],
+      worker_id: "10000000-0000-4000-8000-000000000004",
+    });
+    const { result_hash: _hash, ...content } = workerResultSchema.parse(result);
+
+    expect(_hash).toBe(result.result_hash);
+    expect(result.result_hash).toBe(canonicalPayloadHash(content));
   });
 });
