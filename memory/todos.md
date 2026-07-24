@@ -1,15 +1,5 @@
 # Pendências
 
-## Fase 4
-
-- Implementar o cálculo e a validação do hash canônico de Specification
-  (`payload_hash`), hoje garantido apenas por constraints de persistência.
-- Validar `target_hash` contra o hash canônico vigente da Specification no
-  momento da decisão de aprovação.
-- Avaliar `autonomy_level`, criticidade e ações `always_human` ao decidir se a
-  Specification exige `WAITING_APPROVAL`; aprovação automática deve persistir
-  Approval `actor=system` com alvo versionado, hashes e AuditEvent.
-
 ## Fases 4–5
 
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na

@@ -65,6 +65,7 @@ describe("TaskStateMachine", () => {
   it("implements the canonical transition graph", () => {
     expect(canTransition("NEW", "NORMALIZING")).toBe(true);
     expect(canTransition("WAITING_RESULT_APPROVAL", "SPECIFYING")).toBe(true);
+    expect(canTransition("TESTING", "FINALIZING")).toBe(true);
     expect(canTransition("FINALIZING", "COMPLETED")).toBe(true);
     expect(canTransition("COMPLETED", "NEW")).toBe(false);
   });

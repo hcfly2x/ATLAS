@@ -1,6 +1,6 @@
 # Changelog
 
-## Não publicado — autonomia e ambientes
+## 0.0.7
 
 - ADR-014 criado como Proposto para níveis de autonomia 0–4 por projeto.
 - Nível 2 registrado como padrão decidido para todos os projetos.
@@ -14,6 +14,19 @@
 - ADR-015 criado como Proposto para staging e produção separados no Render.
 - Enforcement distribuído como obrigação das Fases 4–5 e infraestrutura
   pós-Fase 3, sem implementação ou provisionamento.
+- Fase 4 — Supervisor mínimo concluída em branch própria.
+- Interface `AgentRuntime` e implementação OpenAI adicionadas com Luna para
+  normalização/classificação e Terra para Specification.
+- Fluxo NEW → NORMALIZING → ROUTING → SPECIFYING implementado com auditabilidade.
+- Specification passou a usar schema Zod, versão e hash canônico determinístico.
+- Política de nível 2 aplicada com Approval explícita de sistema quando a
+  aprovação prévia é dispensada.
+- Decisão Telegram valida o `target_hash` canônico vigente e audita divergências.
+- Migração adicionou autonomia do Project, ator/canal da Approval e consumo de
+  LLM por chamada.
+- Teto deliberativo mensal configurável bloqueia novas deliberações ao atingir o
+  limite, sem interromper tarefas iniciadas.
+- Grafo de código alinhado com `TESTING → FINALIZING`.
 
 ## 0.0.6
 

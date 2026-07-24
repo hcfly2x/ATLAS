@@ -9,7 +9,11 @@ import {
 import { z } from "zod";
 
 import type { TaskSnapshot } from "@atlas/core";
-import { taskStateSchema } from "@atlas/shared";
+import {
+  canonicalPayloadHash,
+  executableSpecificationPayloadSchema,
+  taskStateSchema,
+} from "@atlas/shared";
 
 import type { TelegramResponse } from "./types.js";
 
@@ -65,6 +69,19 @@ export interface ApprovalDecisionResult {
 export interface RecordTelegramUpdateResult {
   readonly idempotentReplay: boolean;
   readonly responses: readonly TelegramResponse[];
+}
+
+export class ApprovalTargetHashMismatchError extends Error {
+  readonly code = "APPROVAL_TARGET_HASH_MISMATCH";
+
+  constructor(
+    readonly approvalId: string,
+    readonly expectedHash: string | null,
+    readonly recordedHash: string,
+  ) {
+    super(`Approval target hash mismatch for ${approvalId}`);
+    this.name = "ApprovalTargetHashMismatchError";
+  }
 }
 
 export interface TelegramStore {
@@ -230,7 +247,7 @@ export class PrismaTelegramStore implements TelegramStore {
     userId: bigint;
   }): Promise<ApprovalDecisionResult> {
     const idempotencyKey = `telegram:callback:${input.callbackId}:approval`;
-    return this.prisma.$transaction(async (transaction) => {
+    const outcome = await this.prisma.$transaction(async (transaction) => {
       const existingAudit = await transaction.auditEvent.findUnique({
         where: { idempotencyKey },
       });
@@ -243,10 +260,13 @@ export class PrismaTelegramStore implements TelegramStore {
           where: { id: approval.taskId },
         });
         return {
-          approval: approvalView(approval),
-          decision: replay.decision,
-          idempotentReplay: true,
-          task: snapshot(task),
+          kind: "success" as const,
+          result: {
+            approval: approvalView(approval),
+            decision: replay.decision,
+            idempotentReplay: true,
+            task: snapshot(task),
+          },
         };
       }
 
@@ -257,6 +277,55 @@ export class PrismaTelegramStore implements TelegramStore {
         },
         include: { task: true },
       });
+      if (approval.targetType === "SPECIFICATION") {
+        const specification = await transaction.specification.findUnique({
+          where: { id: approval.targetId },
+        });
+        const parsedPayload =
+          specification === null
+            ? undefined
+            : executableSpecificationPayloadSchema.safeParse(specification.payload);
+        const expectedHash =
+          specification === null || parsedPayload?.success !== true
+            ? null
+            : canonicalPayloadHash(parsedPayload.data);
+        const targetIsCurrent =
+          specification !== null &&
+          specification.taskId === approval.taskId &&
+          approval.task.activeSpecificationId === specification.id &&
+          approval.targetVersion === specification.version &&
+          specification.payloadHash === expectedHash &&
+          approval.targetHash === expectedHash;
+        if (!targetIsCurrent) {
+          await transaction.auditEvent.upsert({
+            where: { idempotencyKey: `${idempotencyKey}:hash-mismatch` },
+            create: {
+              action: "approval.target_hash_mismatch",
+              actor: "USER",
+              correlationId: input.correlationId,
+              idempotencyKey: `${idempotencyKey}:hash-mismatch`,
+              payload: json({
+                approvalId: approval.id,
+                expectedHash,
+                recordedHash: approval.targetHash,
+                targetId: approval.targetId,
+                targetVersion: approval.targetVersion,
+              }),
+              projectId: approval.task.projectId,
+              targetId: approval.targetId,
+              targetType: approval.targetType,
+              taskId: approval.taskId,
+            },
+            update: {},
+          });
+          return {
+            approvalId: approval.id,
+            expectedHash,
+            kind: "hash_mismatch" as const,
+            recordedHash: approval.targetHash,
+          };
+        }
+      }
       const updated = await transaction.approval.updateMany({
         where: { id: approval.id, status: ApprovalStatus.PENDING },
         data: {
@@ -290,11 +359,22 @@ export class PrismaTelegramStore implements TelegramStore {
         },
       });
       return {
-        approval: approvalView(approval),
-        decision: input.decision,
-        idempotentReplay: false,
-        task: snapshot(approval.task),
+        kind: "success" as const,
+        result: {
+          approval: approvalView(approval),
+          decision: input.decision,
+          idempotentReplay: false,
+          task: snapshot(approval.task),
+        },
       };
     });
+    if (outcome.kind === "hash_mismatch") {
+      throw new ApprovalTargetHashMismatchError(
+        outcome.approvalId,
+        outcome.expectedHash,
+        outcome.recordedHash,
+      );
+    }
+    return outcome.result;
   }
 }

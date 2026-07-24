@@ -50,6 +50,16 @@ enum ApprovalStatus {
   EXPIRED
 }
 
+enum ApprovalActor {
+  USER
+  SYSTEM
+}
+
+enum ApprovalChannel {
+  TELEGRAM
+  POLICY
+}
+
 enum ApprovalTargetType {
   SPECIFICATION
   EXECUTION_RESULT
@@ -88,6 +98,7 @@ model Project {
   risk                  String
   dataClassification    String            @map("data_classification")
   policy                String
+  autonomyLevel         Int               @default(2) @map("autonomy_level")
   repository            String?
   protectedPathsProfile String            @map("protected_paths_profile")
   allowedCommands       Json              @map("allowed_commands")
@@ -100,6 +111,7 @@ model Project {
   tasks                 Task[]
   auditEvents           AuditEvent[]
   telegramSessions      TelegramSession[]
+  llmCalls              LlmCall[]
 
   @@map("projects")
 }
@@ -124,6 +136,7 @@ model Task {
   approvals             Approval[]
   executions            Execution[]
   auditEvents           AuditEvent[]
+  llmCalls              LlmCall[]
 
   @@index([projectId, state])
   @@map("tasks")
@@ -150,6 +163,7 @@ model Approval {
   taskId           String             @map("task_id")
   type             ApprovalType
   status           ApprovalStatus     @default(PENDING)
+  actor            ApprovalActor      @default(USER)
   targetType       ApprovalTargetType @map("target_type")
   targetId         String             @map("target_id")
   targetVersion    Int?               @map("target_version")
@@ -160,13 +174,34 @@ model Approval {
   requestedAt      DateTime           @default(now()) @map("requested_at")
   respondedAt      DateTime?          @map("responded_at")
   expiresAt        DateTime?          @map("expires_at")
-  channel          String
+  channel          ApprovalChannel
   idempotencyKey   String             @unique @map("idempotency_key")
   task             Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
 
   @@index([taskId, status])
   @@index([targetType, targetId])
   @@map("approvals")
+}
+
+model LlmCall {
+  id               String   @id @default(uuid())
+  projectId        String   @map("project_id")
+  taskId           String   @map("task_id")
+  agentId          String   @map("agent_id")
+  model            String
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  estimatedCostUsd Decimal  @map("estimated_cost_usd") @db.Decimal(12, 8)
+  latencyMs        Int      @map("latency_ms")
+  correlationId    String   @map("correlation_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([projectId, createdAt])
+  @@index([taskId, createdAt])
+  @@map("llm_calls")
 }
 
 model Execution {

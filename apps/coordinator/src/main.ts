@@ -1,7 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 
+import { OpenAIAgentRuntime } from "@atlas/agent-runtime";
+
 import { createCoordinatorApp } from "./app.js";
 import { PrismaTaskCoreStore } from "./core/prisma-task-core-store.js";
+import { loadAlwaysHumanActions, parseMonthlyBudgetUsd } from "./supervisor/config.js";
+import { PrismaSupervisorStore } from "./supervisor/prisma-supervisor-store.js";
+import { SupervisorService } from "./supervisor/service.js";
 import { TelegramBotApiClient } from "./telegram/client.js";
 import { startTelegramPolling } from "./telegram/polling.js";
 import { TelegramGateway } from "./telegram/service.js";
@@ -31,9 +36,21 @@ const telegramWebhookEnabled =
   telegramGateway !== undefined &&
   telegramWebhookSecret !== undefined &&
   telegramWebhookSecret.trim().length > 0;
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const supervisorService =
+  openaiApiKey === undefined || openaiApiKey.trim().length === 0
+    ? undefined
+    : new SupervisorService({
+        alwaysHuman: await loadAlwaysHumanActions(process.env.ATLAS_POLICIES_PATH),
+        monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
+        runtime: new OpenAIAgentRuntime(openaiApiKey),
+        store: new PrismaSupervisorStore(prisma),
+        taskStore,
+      });
 const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
+  ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,
   ...(telegramWebhookEnabled ? { telegramClient, telegramGateway, telegramWebhookSecret } : {}),
 });

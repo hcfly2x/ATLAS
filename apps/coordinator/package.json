@@ -17,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@atlas/agent-runtime": "workspace:*",
     "@atlas/audit": "workspace:*",
     "@atlas/core": "workspace:*",
     "@atlas/queue": "workspace:*",

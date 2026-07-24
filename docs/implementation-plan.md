@@ -45,6 +45,8 @@ Critério: criar, aprovar e acompanhar uma tarefa pelo Telegram.
 
 ### Fase 4 — Supervisor mínimo (sem conselho)
 
+**Status:** concluída em branch própria; aguarda revisão e merge.
+
 - `agent-runtime` com interface de LLM (ADR-008), teto de custo por tarefa.
 - Normalização da demanda + supervisor gera Specification validada (Zod).
 - Roteador de complexidade apenas classifica e registra (não roteia para conselho ainda); nível crítico força WAITING_APPROVAL.

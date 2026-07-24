@@ -30,11 +30,18 @@ Cérebro do sistema:
 
 ### Agent Runtime
 
-Executa agentes especializados de forma isolada e estruturada.
+Expõe uma interface própria, independente do provedor, para executar agentes com
+saída estruturada validada por Zod. A implementação operacional inicial usa a
+Responses API da OpenAI, sem persistir prompts no provedor (`store: false`).
+Normalizador e roteador usam GPT-5.6 Luna; o supervisor usa GPT-5.6 Terra.
 
 ### Supervisor
 
-Consolida pareceres e produz a especificação final.
+Na Fase 4, normaliza a demanda, classifica a complexidade e produz uma
+Specification executável, versionada e com hash canônico. A política combina
+`Project.autonomy_level`, criticidade e `.atlas/policies.yaml#always_human` para
+encaminhar a Task a `QUEUED` ou `WAITING_APPROVAL`. Dispensa de aprovação humana
+gera Approval explícita de sistema e AuditEvent; não reduz a auditabilidade.
 
 ### Queue
 
@@ -93,6 +100,9 @@ packages/ (até a Fase 2)
 - AuditEvent append-only, também protegido contra UPDATE/DELETE por trigger.
 - Execution referencia obrigatoriamente `specification_id`.
 - Approval registra tipo, ID, versão e hash do alvo aprovado.
+- Approval distingue ator `USER|SYSTEM` e canal `TELEGRAM|DASHBOARD|POLICY`.
+- Cada chamada deliberativa registra agente, modelo, tokens, custo estimado e
+  latência em `llm_calls`.
 - Idempotency keys nas fronteiras persistidas.
 - Execution possui `lease_id`, `lease_expires_at`, fencing token e chaves separadas de claim/resultado desde a primeira migração (ADR-012).
 - Atualização de estado e AuditEvent aceito ocorrem na mesma transação.
