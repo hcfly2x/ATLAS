@@ -33,6 +33,8 @@ e aguarda revisão; a Fase 6 não está autorizada.
 - Quarta migração para resultados, chunks e consumo Codex.
 - Pilot Setup Wizard local em `/setup`, restrito ao loopback e desacoplado do
   banco, para validar e salvar `.atlas/projects.yaml` atomicamente.
+- O processo standalone do wizard usa Fastify mínimo e não importa o app
+  principal nem depende do Prisma Client gerado.
 - Comandos permitidos configurados como executável e argumentos separados; o
   seed aceita o mesmo contrato estruturado consumido pelo worker.
 
@@ -45,6 +47,7 @@ e aguarda revisão; a Fase 6 não está autorizada.
   atômica/preservação de campos, proteção da escrita HTTP e restrição loopback.
 - Interface verificada no navegador local com carregamento dos quatro projetos
   e apresentação das pendências sem gravar o arquivo canônico.
+- Boot standalone verificado sem carregar `@prisma/client`.
 - Git testado em repositório temporário; Codex testado com binário falso.
 - Quatro migrações aplicadas do zero em PostgreSQL 17 efêmero.
 - Seed executado com sucesso.

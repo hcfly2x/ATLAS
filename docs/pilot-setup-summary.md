@@ -5,7 +5,7 @@
 - Interface local em `/setup` para listar, criar, editar, validar e salvar
   projetos em `.atlas/projects.yaml`.
 - Servidor independente `pnpm pilot`, sem inicializar Prisma, Telegram,
-  supervisor ou worker.
+  supervisor ou worker e sem exigir Prisma Client gerado.
 - Validação canônica de ativação e gravação atômica com preservação de campos
   desconhecidos.
 - Allowlist visual estruturada em executável e argumentos, compatível com o

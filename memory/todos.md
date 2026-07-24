@@ -27,3 +27,10 @@
   teto por tarefa e prazo de retenção de dados sensíveis.
 - Revisar o diff do arquivo protegido, iniciar o PostgreSQL, executar migrações e
   seed antes da primeira tarefa real.
+
+## Pilot Setup Wizard — melhorias não bloqueadoras
+
+- Substituir a heurística por substring da classificação sensível por uma
+  taxonomia explícita ou uma política conservadora para classificações futuras.
+- Evitar commit acidental de temporários órfãos do salvamento atômico, cobrindo
+  `.atlas/*.tmp-*` no `.gitignore` ou removendo-os de forma segura no startup.

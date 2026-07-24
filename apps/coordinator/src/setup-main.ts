@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import { createCoordinatorApp } from "./app.js";
+import { createSetupApp } from "./setup/app.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
 
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -13,7 +13,7 @@ const projectConfigStore = new ProjectConfigStore(
   process.env.ATLAS_PROJECTS_PATH ??
     fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
 );
-const app = createCoordinatorApp({ logger: true, projectConfigStore });
+const app = createSetupApp(projectConfigStore);
 
 try {
   await app.listen({ host, port });

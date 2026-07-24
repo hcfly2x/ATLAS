@@ -12,6 +12,8 @@
 - Seed unificado com o mesmo schema de configuração usado pelo wizard e worker.
 - Scripts locais adicionados para abrir o wizard e carregar o coordinator a
   partir de `.env.local`, sem copiar ou versionar credenciais.
+- Boot independente do app principal e do Prisma Client gerado, permitindo usar
+  `pnpm pilot` imediatamente após a instalação das dependências.
 
 ## 0.0.8
 

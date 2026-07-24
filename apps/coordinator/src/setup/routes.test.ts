@@ -6,11 +6,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { stringify } from "yaml";
 import { z } from "zod";
 
-import { createCoordinatorApp } from "../app.js";
+import { createSetupApp } from "./app.js";
 import { editableProjectSchema, ProjectConfigStore } from "./project-config.js";
 
 const directories: string[] = [];
-const apps: ReturnType<typeof createCoordinatorApp>[] = [];
+const apps: ReturnType<typeof createSetupApp>[] = [];
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -54,10 +54,7 @@ async function appFixture() {
       ],
     }),
   );
-  const app = createCoordinatorApp({
-    logger: false,
-    projectConfigStore: new ProjectConfigStore(path),
-  });
+  const app = createSetupApp(new ProjectConfigStore(path), { logger: false });
   apps.push(app);
   return app;
 }
