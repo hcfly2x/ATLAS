@@ -14,7 +14,8 @@ Concluída com o kit v0.0.4: stack canônica definida, ADRs 001–012 aceitos, m
 
 Objetivo: uma demanda enviada pelo Telegram vira tarefa, é interpretada pelo supervisor, executada pelo worker com Codex em worktree isolada, e o resultado (diff + testes) volta ao Telegram para aprovação. **Sem conselho multiagente ainda** — apenas normalização + supervisor.
 
-### Fase 1 — Foundation mínima
+### Fase 1 — Foundation mínima ✅
+
 - Monorepo pnpm + Turborepo + TypeScript estrito.
 - Apps: `coordinator` (inclui gateway Telegram como módulo) e `worker`. Dashboard NÃO entra no MVP.
 - Packages: `shared` (contratos Zod), `queue` (pg-boss), `codex-adapter`, `git-adapter`, `agent-runtime`, `audit`.
@@ -25,6 +26,7 @@ Objetivo: uma demanda enviada pelo Telegram vira tarefa, é interpretada pelo su
 Critério: pipeline verde, tudo compilando.
 
 ### Fase 2 — Core mínimo do Coordinator
+
 - Prisma + migrações para: Project, Task, Specification, Approval, Execution, Worker, AuditEvent, incluindo desde o primeiro schema as idempotency keys, lease renovável e fencing token do ADR-012.
 - CRUD de projetos via seed/config (sem UI).
 - Máquina de estados da Task conforme `docs/data-model.md`, com transições, hashes e alvos versionados validados.
@@ -33,12 +35,14 @@ Critério: pipeline verde, tudo compilando.
 Critério: uma Task percorre estados via API interna, com auditoria.
 
 ### Fase 3 — Telegram MVP
+
 - Webhook + autorização por Telegram ID único.
 - Texto → Task; seleção de projeto; botões de aprovação; comando de status; cancelamento.
 
 Critério: criar, aprovar e acompanhar uma tarefa pelo Telegram.
 
 ### Fase 4 — Supervisor mínimo (sem conselho)
+
 - `agent-runtime` com interface de LLM (ADR-008), teto de custo por tarefa.
 - Normalização da demanda + supervisor gera Specification validada (Zod).
 - Roteador de complexidade apenas classifica e registra (não roteia para conselho ainda); nível crítico força WAITING_APPROVAL.
@@ -46,6 +50,7 @@ Critério: criar, aprovar e acompanhar uma tarefa pelo Telegram.
 Critério: demanda vira especificação executável rastreável e auditada.
 
 ### Fase 5 — Worker + Codex + Git
+
 - Registro do worker, token Bearer, long-polling, heartbeat (ADR-007), preflight e concorrência 1 (ADR-011).
 - Worktree + branch por tarefa, cleanup, diff.
 - Codex CLI via adapter (ADR-006), streaming de logs em chunks, cancelamento, timeout.
@@ -60,22 +65,29 @@ Critério: **ciclo completo de valor funcionando de ponta a ponta.** Marco do MV
 ## TRILHA 2 — Expansão (somente após MVP validado em uso real)
 
 ### Fase 6 — Memória por projeto
+
 Memória manual, decisões, resumos de tarefa, context builder com isolamento por projeto (ADR-004).
 
 ### Fase 7 — Conselho multiagente
+
 Registro de papéis, roteamento por complexidade acionando conselho (simple: contexto+supervisor; moderate: +arquiteto+qa; critical: conselho completo), pareceres independentes, detecção de divergências, segunda rodada, consolidação. ADR-003.
 
 ### Fase 8 — Políticas e segurança avançadas
+
 Matriz de permissões completa, self-modification restricted fim a fim, proteção de secrets, auditoria completa revisada.
 
 ### Fase 9 — Mídia e documentos
+
 Áudio, imagens, PDF, DOCX, anexos vinculados à tarefa.
 
 ### Fase 10 — Dashboard
+
 Projetos, tarefas, aprovações, custos, logs, memória.
 
 ### Fase 11 — Hardening
+
 E2E, idempotência, retries, recuperação de falhas, performance, backups, documentação operacional.
 
 ### Fase 12 — Times operacionais
+
 Marketing e financeiro, com autonomia progressiva por níveis (0 a 4) e tetos de gasto.

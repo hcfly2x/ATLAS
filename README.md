@@ -28,4 +28,15 @@ Transformar mensagens enviadas pelo Telegram em demandas estruturadas, analisada
 
 ## Estado atual
 
-Este repositório contém o Project Starter Kit v0.0.4: Fase 0 concluída, ADRs 001–012 aceitos e Fase 1 — Foundation mínima autorizada. Nenhuma feature de negócio foi implementada.
+Este repositório contém o Project Starter Kit v0.0.4: Fase 0 e Fase 1 — Foundation mínima concluídas, com ADRs 001–012 aceitos. Nenhuma feature de negócio foi implementada e a Fase 2 não está autorizada.
+
+## Foundation
+
+- monorepo pnpm + Turborepo + TypeScript estrito;
+- apps `coordinator` e `worker`;
+- packages `shared`, `queue`, `codex-adapter`, `git-adapter`, `agent-runtime` e `audit`;
+- Fastify no coordinator e pg-boss sobre PostgreSQL como dependências canônicas;
+- lint, formatação, typecheck, testes, build e CI;
+- Docker Compose somente para o PostgreSQL de desenvolvimento do coordinator.
+
+Consulte `docs/development.md` para executar a validação local.

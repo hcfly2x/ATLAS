@@ -1,14 +1,22 @@
 # Changelog
 
 ## 0.0.4
+
 - Codex confirmado no plano ChatGPT Pro.
 - Teto lógico do Codex de US$ 75/mês definido para rastreamento pelo ATLAS; consumo incluído na assinatura Pro.
 - Teto de US$ 25/mês da API OpenAI definido também como hard limit no dashboard do provedor.
 - ADR-012 aceito na opção 1: idempotency keys, lease renovável e fencing token.
 - Schema da Fase 2 obrigado a contemplar idempotência, lease e fencing desde a primeira migração.
 - Epic 00 encerrado e Fase 1 — Foundation mínima autorizada explicitamente.
+- Fase 1 concluída em worktree/branch isolada.
+- Monorepo pnpm + Turborepo + TypeScript estrito criado com dois apps e seis packages.
+- Fastify, pg-boss e Zod incorporados nas fronteiras previstas, sem feature de negócio.
+- Pipeline local e CI configuradas para formatação, lint, typecheck, testes e build.
+- PostgreSQL de desenvolvimento definido em Docker Compose apenas para o coordinator.
+- Logging estruturado com correlation ID e restrições do worker cobertos por testes.
 
 ## 0.0.3
+
 - Epic 00 revisado e aceito; Fase 1 permanecia não autorizada.
 - Numeração das fases unificada pelo plano em duas trilhas.
 - Máquina de estados revisada com SPECIFYING, FINALIZING, CANCEL_REQUESTED, failure_stage, retry técnico e retrabalho versionado.
@@ -26,6 +34,7 @@
 - Backlog realinhado às Fases 1–5 da Trilha 1; conselho movido para o Epic 07.
 
 ## 0.0.2
+
 - Stack canônica consolidada (`project-manifest.yaml` é a fonte de verdade).
 - ADRs 005–010 criados e aceitos; ADR-001 aceito.
 - Modelo de dados conceitual e máquina de estados adicionados (`docs/data-model.md`).
@@ -35,6 +44,7 @@
 - Pendências reduzidas às que dependiam do usuário.
 
 ## 0.0.1
+
 - Criado Project Starter Kit.
 - Consolidada visão multiagente.
 - Registrados projetos iniciais.

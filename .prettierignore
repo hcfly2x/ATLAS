@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+
+# Preserve accepted ADRs and authored project documentation verbatim.
+.atlas/
+agents/
+backlog/
+docs/
+memory/
+specifications/
+templates/
+AGENTS.md
+README.md
+starter-kit.json
