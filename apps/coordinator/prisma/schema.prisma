@@ -98,6 +98,11 @@ enum MemoryType {
   NOTE
 }
 
+enum DeliberationStatus {
+  RUNNING
+  COMPLETED
+}
+
 model Project {
   id                    String            @id
   name                  String
@@ -149,9 +154,43 @@ model Task {
   codexUsages           CodexUsage[]
   memoryItems           MemoryItem[]
   telegramDelivery      TelegramTaskDelivery?
+  deliberations         Deliberation[]
 
   @@index([projectId, state])
   @@map("tasks")
+}
+
+model Deliberation {
+  id                String             @id @default(uuid())
+  taskId            String             @map("task_id")
+  round             Int
+  status            DeliberationStatus @default(RUNNING)
+  divergenceSummary Json?              @map("divergence_summary")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  completedAt       DateTime?          @map("completed_at")
+  task              Task               @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  opinions          AgentOpinion[]
+
+  @@unique([taskId, round])
+  @@index([taskId, createdAt])
+  @@map("deliberations")
+}
+
+model AgentOpinion {
+  id               String       @id @default(uuid())
+  deliberationId   String       @map("deliberation_id")
+  agentId          String       @map("agent_id")
+  payload          Json
+  model            String
+  inputTokens      Int          @map("input_tokens")
+  outputTokens     Int          @map("output_tokens")
+  estimatedCostUsd Decimal      @map("estimated_cost_usd") @db.Decimal(12, 8)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  deliberation     Deliberation @relation(fields: [deliberationId], references: [id], onDelete: Restrict)
+
+  @@unique([deliberationId, agentId])
+  @@index([agentId, createdAt])
+  @@map("agent_opinions")
 }
 
 model Specification {

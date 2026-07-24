@@ -104,6 +104,21 @@ Tasks sem interromper uma já iniciada. Toda chamada registra tokens, custo
 estimado e latência. Os testes usam exclusivamente um `AgentRuntime` falso e
 nunca chamam a API real.
 
+### Conselho multiagente
+
+O coordinator carrega o registro de papéis de `.atlas/agents.yaml`, as
+instruções versionadas em `agents/` e as rotas por complexidade de
+`.atlas/routing.yaml`. Os caminhos podem ser substituídos localmente com
+`ATLAS_AGENTS_PATH` e `ATLAS_ROUTING_PATH`. O modelo dos pareceristas usa
+`ATLAS_COUNCIL_MODEL` (default `gpt-5.6-luna`); o supervisor continua em
+`gpt-5.6-terra`, permitindo revisão e consolidação com modelos distintos.
+
+Cada parecer é independente na primeira rodada. Havendo divergência material, o
+supervisor solicita revisão focada somente aos agentes envolvidos e encerra após
+a segunda rodada. Deliberações não criam novos estados de Task: ocorrem dentro
+de `SPECIFYING`, antes da Specification final. Cada parecer e cada rodada gera
+AuditEvent correlacionado.
+
 ## API interna
 
 As rotas `/internal/*` exigem `Authorization: Bearer <INTERNAL_API_TOKEN>`.

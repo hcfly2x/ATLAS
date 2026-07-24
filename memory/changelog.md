@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.14
+
+- Fase 7 — Conselho multiagente implementada em branch própria.
+- Registro de papéis e roteamento por complexidade passaram a ser carregados de
+  `.atlas/agents.yaml`, `agents/` e `.atlas/routing.yaml`.
+- Pareceres independentes validados por Zod, detecção de divergências, segunda
+  rodada focada e consolidação sem maioria simples foram adicionados.
+- `Deliberation` e `AgentOpinion` foram persistidos com limite de duas rodadas,
+  métricas de modelo/consumo, constraints e pareceres append-only.
+- Cada parecer e cada rodada passou a gerar AuditEvent com Task e correlation
+  ID; o supervisor que emite a Specification não atua como revisor.
+- Modelo dos pareceristas tornou-se configurável e distinto do supervisor por
+  default.
+
 ## 0.0.13
 
 - ADR-016 criado como Proposto para skills versionadas e anexáveis a agentes.

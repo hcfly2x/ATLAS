@@ -13,12 +13,17 @@ import type {
 } from "@atlas/core";
 import {
   complexityClassificationSchema,
+  divergenceAnalysisSchema,
   normalizedDemandSchema,
+  specialistOpinionSchema,
   specificationContentSchema,
+  type DivergenceAnalysis,
   type NormalizedDemand,
+  type SpecialistOpinion,
   type TaskComplexity,
 } from "@atlas/shared";
 
+import type { CouncilConfig } from "./council-config.js";
 import {
   LlmMonthlyBudgetExceededError,
   SupervisorService,
@@ -49,25 +54,56 @@ class FakeAgentRuntime implements AgentRuntime {
   constructor(
     private readonly complexity: TaskComplexity,
     private readonly requestedActions: readonly string[] = [],
+    private readonly materialDivergence = false,
   ) {}
 
   run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
     this.calls += 1;
     this.inputs.push(request.input);
     const fixture =
-      request.agentId === "normalizer"
+      request.outputSchemaName === "normalized_demand"
         ? normalizedDemandSchema.parse({
             constraints: [],
             context: [],
             objective: "Normalized objective",
             requested_actions: this.requestedActions,
           })
-        : request.agentId === "complexity_router"
+        : request.outputSchemaName === "complexity_classification"
           ? complexityClassificationSchema.parse({
               complexity: this.complexity,
               reasons: [`classified as ${this.complexity}`],
             })
-          : specificationContentSchema.parse(specificationContent);
+          : request.outputSchemaName.startsWith("specialist_opinion_")
+            ? specialistOpinionSchema.parse({
+                acceptance_criteria: ["Keep the change bounded"],
+                confidence: 0.8,
+                findings: ["The request is feasible"],
+                recommendation: "Proceed with tests",
+                risks: [],
+                understanding: "Review the requested change",
+                unresolved_questions: [],
+              })
+            : request.outputSchemaName === "material_divergence_analysis"
+              ? divergenceAnalysisSchema.parse({
+                  material_divergences: this.materialDivergence
+                    ? [
+                        {
+                          agent_ids: ["architect", "qa"],
+                          description: "Testing boundary is disputed",
+                          topic: "test strategy",
+                        },
+                      ]
+                    : [],
+                  revision_requests: this.materialDivergence
+                    ? [{ agent_id: "architect", focus: "Reconcile the test boundary" }]
+                    : [],
+                })
+              : request.outputSchemaName === "final_divergence_analysis"
+                ? divergenceAnalysisSchema.parse({
+                    material_divergences: [],
+                    revision_requests: [],
+                  })
+                : specificationContentSchema.parse(specificationContent);
     return Promise.resolve({
       estimatedCostUsd: 0.01,
       inputTokens: 10,
@@ -96,6 +132,8 @@ class InMemorySupervisorStore implements SupervisorStore, TaskCoreStore {
   complexity: TaskComplexity | undefined;
   monthlySpendUsd = 0;
   normalizedDemand: NormalizedDemand | undefined;
+  readonly opinions: { agentId: string; opinion: SpecialistOpinion; round: 1 | 2 }[] = [];
+  readonly rounds: { analysis?: DivergenceAnalysis; id: string; round: 1 | 2 }[] = [];
 
   constructor(public task: SupervisionTask) {}
 
@@ -143,6 +181,32 @@ class InMemorySupervisorStore implements SupervisorStore, TaskCoreStore {
 
   recordLlmCall(input: LlmCallRecord): Promise<void> {
     this.calls.push(input);
+    return Promise.resolve();
+  }
+
+  createDeliberation(input: { round: 1 | 2 }): Promise<{ id: string }> {
+    const record = { id: randomUUID(), round: input.round };
+    this.rounds.push(record);
+    return Promise.resolve(record);
+  }
+
+  persistAgentOpinion(input: {
+    agentId: string;
+    opinion: SpecialistOpinion;
+    round: 1 | 2;
+  }): Promise<void> {
+    this.opinions.push(input);
+    return Promise.resolve();
+  }
+
+  completeDeliberation(input: {
+    analysis: DivergenceAnalysis;
+    deliberationId: string;
+  }): Promise<void> {
+    const round = this.rounds.find(({ id }) => id === input.deliberationId);
+    if (round !== undefined) {
+      Object.assign(round, { analysis: input.analysis });
+    }
     return Promise.resolve();
   }
 
@@ -203,6 +267,7 @@ function service(
 ): SupervisorService {
   return new SupervisorService({
     alwaysHuman: new Set(["production_secret_change"]),
+    council: testCouncil,
     monthlyBudgetUsd: 25,
     ...(memoryContextProvider === undefined ? {} : { memoryContextProvider }),
     runtime,
@@ -210,6 +275,27 @@ function service(
     taskStore: store,
   });
 }
+
+const testCouncil: CouncilConfig = {
+  agents: new Map(
+    ["product", "project_context", "architect", "security", "qa", "engineering_supervisor"].map(
+      (id) => [id, { id, instructions: `Act as ${id}` }],
+    ),
+  ),
+  routes: {
+    critical: [
+      "product",
+      "project_context",
+      "architect",
+      "security",
+      "qa",
+      "engineering_supervisor",
+    ],
+    moderate: ["project_context", "architect", "qa", "engineering_supervisor"],
+    simple: ["project_context", "engineering_supervisor"],
+  },
+  supervisorId: "engineering_supervisor",
+};
 
 describe("SupervisorService", () => {
   it("routes a moderate level-2 task directly to QUEUED with a system Approval", async () => {
@@ -220,7 +306,13 @@ describe("SupervisorService", () => {
 
     expect(result.state).toBe("QUEUED");
     expect(store.complexity).toBe("moderate");
-    expect(store.calls).toHaveLength(3);
+    expect(store.calls).toHaveLength(7);
+    expect(store.opinions.map(({ agentId }) => agentId)).toEqual([
+      "project_context",
+      "architect",
+      "qa",
+    ]);
+    expect(store.rounds).toHaveLength(1);
     expect(store.approvals).toEqual([
       expect.objectContaining({
         actor: "SYSTEM",
@@ -247,6 +339,24 @@ describe("SupervisorService", () => {
       status: "PENDING",
       targetState: "WAITING_APPROVAL",
     });
+    expect(store.opinions.map(({ agentId }) => agentId)).toEqual([
+      "product",
+      "project_context",
+      "architect",
+      "security",
+      "qa",
+    ]);
+  });
+
+  it("uses only project context as independent reviewer for a simple task", async () => {
+    const store = new InMemorySupervisorStore(task());
+
+    await service(store, new FakeAgentRuntime("simple")).processTask(
+      store.task.id,
+      "simple-correlation",
+    );
+
+    expect(store.opinions.map(({ agentId }) => agentId)).toEqual(["project_context"]);
   });
 
   it("requires approval for an always-human action regardless of moderate complexity", async () => {
@@ -258,6 +368,24 @@ describe("SupervisorService", () => {
     ).processTask(store.task.id, "policy-correlation");
 
     expect(result.state).toBe("WAITING_APPROVAL");
+  });
+
+  it("runs one focused second round for material divergences and never asks the supervisor to review", async () => {
+    const store = new InMemorySupervisorStore(task());
+
+    await service(store, new FakeAgentRuntime("moderate", [], true)).processTask(
+      store.task.id,
+      "divergence-correlation",
+    );
+
+    expect(store.rounds.map(({ round }) => round)).toEqual([1, 2]);
+    expect(store.opinions.map(({ agentId, round }) => `${String(round)}:${agentId}`)).toEqual([
+      "1:project_context",
+      "1:architect",
+      "1:qa",
+      "2:architect",
+    ]);
+    expect(store.opinions.some(({ agentId }) => agentId === "engineering_supervisor")).toBe(false);
   });
 
   it("blocks new deliberation at the monthly limit and audits without calling the runtime", async () => {
@@ -282,6 +410,6 @@ describe("SupervisorService", () => {
     }).processTask(store.task.id, "memory-correlation");
 
     expect(runtime.inputs[0]).toContain("[decision] Keep PostgreSQL");
-    expect(runtime.inputs[2]).toContain("[decision] Keep PostgreSQL");
+    expect(runtime.inputs.some((value) => value.includes("[decision] Keep PostgreSQL"))).toBe(true);
   });
 });

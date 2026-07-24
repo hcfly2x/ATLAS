@@ -6,6 +6,7 @@ import { OpenAIAgentRuntime } from "@atlas/agent-runtime";
 import { createCoordinatorApp } from "./app.js";
 import { PrismaTaskCoreStore } from "./core/prisma-task-core-store.js";
 import { loadAlwaysHumanActions, parseMonthlyBudgetUsd } from "./supervisor/config.js";
+import { loadCouncilConfig } from "./supervisor/council-config.js";
 import { PrismaSupervisorStore } from "./supervisor/prisma-supervisor-store.js";
 import { SupervisorService } from "./supervisor/service.js";
 import { TelegramBotApiClient } from "./telegram/client.js";
@@ -62,11 +63,24 @@ const telegramWebhookEnabled =
   telegramWebhookSecret !== undefined &&
   telegramWebhookSecret.trim().length > 0;
 const openaiApiKey = process.env.OPENAI_API_KEY;
-const supervisorService =
+const council =
   openaiApiKey === undefined || openaiApiKey.trim().length === 0
+    ? undefined
+    : await loadCouncilConfig(
+        process.env.ATLAS_AGENTS_PATH ??
+          fileURLToPath(new URL("../../../.atlas/agents.yaml", import.meta.url)),
+        process.env.ATLAS_ROUTING_PATH ??
+          fileURLToPath(new URL("../../../.atlas/routing.yaml", import.meta.url)),
+      );
+const supervisorService =
+  openaiApiKey === undefined || openaiApiKey.trim().length === 0 || council === undefined
     ? undefined
     : new SupervisorService({
         alwaysHuman: await loadAlwaysHumanActions(process.env.ATLAS_POLICIES_PATH),
+        council,
+        ...(process.env.ATLAS_COUNCIL_MODEL === undefined
+          ? {}
+          : { councilModel: process.env.ATLAS_COUNCIL_MODEL }),
         monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
         memoryContextProvider: memoryService,
         runtime: new OpenAIAgentRuntime(openaiApiKey),

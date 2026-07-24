@@ -43,6 +43,14 @@ Specification executável, versionada e com hash canônico. A política combina
 encaminhar a Task a `QUEUED` ou `WAITING_APPROVAL`. Dispensa de aprovação humana
 gera Approval explícita de sistema e AuditEvent; não reduz a auditabilidade.
 
+Na Fase 7, o roteamento versionado de `.atlas/routing.yaml` seleciona pareceres
+independentes dos papéis registrados em `.atlas/agents.yaml`: contexto no fluxo
+simples, contexto+arquitetura+qualidade no moderado e conselho completo no
+crítico. O supervisor não emite parecer sobre a própria Specification. Ele
+identifica somente divergências materiais, pode solicitar uma segunda e última
+rodada focada e então consolida uma única Specification sem votação por maioria.
+Pareceres e rodadas são persistidos e auditados individualmente.
+
 ### Queue
 
 Gerencia tarefas, prioridade, retry, timeout e cancelamento. Implementação: pg-boss sobre PostgreSQL (ADR-005).
@@ -110,6 +118,8 @@ packages/ (até a Fase 2)
 - Prisma e PostgreSQL no coordinator.
 - Migração inicial versionada em `apps/coordinator/prisma/migrations/`.
 - Entidades Project, Task, Specification, Approval, Execution, Worker e AuditEvent.
+- Deliberation agrupa no máximo duas rodadas; AgentOpinion preserva cada parecer
+  estruturado, modelo e consumo, com proteção append-only no banco.
 - Specification imutável por versão e hash, com proteção adicional por trigger no banco.
 - AuditEvent append-only, também protegido contra UPDATE/DELETE por trigger.
 - Execution referencia obrigatoriamente `specification_id`.

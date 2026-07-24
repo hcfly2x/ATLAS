@@ -81,6 +81,35 @@ export const complexityClassificationSchema = z.object({
 });
 export type ComplexityClassification = z.infer<typeof complexityClassificationSchema>;
 
+export const specialistOpinionSchema = z.object({
+  understanding: z.string().min(1),
+  findings: z.array(z.string()),
+  recommendation: z.string().min(1),
+  risks: z.array(z.string()),
+  acceptance_criteria: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  unresolved_questions: z.array(z.string()),
+});
+export type SpecialistOpinion = z.infer<typeof specialistOpinionSchema>;
+
+export const materialDivergenceSchema = z.object({
+  topic: z.string().min(1),
+  agent_ids: z.array(z.string().min(1)).min(2),
+  description: z.string().min(1),
+});
+export type MaterialDivergence = z.infer<typeof materialDivergenceSchema>;
+
+export const divergenceAnalysisSchema = z.object({
+  material_divergences: z.array(materialDivergenceSchema),
+  revision_requests: z.array(
+    z.object({
+      agent_id: z.string().min(1),
+      focus: z.string().min(1),
+    }),
+  ),
+});
+export type DivergenceAnalysis = z.infer<typeof divergenceAnalysisSchema>;
+
 export const specificationContentSchema = z.object({
   objective: z.string().min(1),
   context: z.array(z.string()),

@@ -5,6 +5,8 @@ import {
   createMemoryItemSchema,
   createStructuredLog,
   createWorkerResult,
+  divergenceAnalysisSchema,
+  specialistOpinionSchema,
   workerResultSchema,
 } from "./index.js";
 
@@ -71,6 +73,34 @@ describe("createMemoryItemSchema", () => {
         type: "decision",
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("multi-agent deliberation contracts", () => {
+  it("validates bounded confidence and material divergences with at least two agents", () => {
+    expect(
+      specialistOpinionSchema.safeParse({
+        acceptance_criteria: [],
+        confidence: 0.8,
+        findings: [],
+        recommendation: "proceed",
+        risks: [],
+        understanding: "bounded request",
+        unresolved_questions: [],
+      }).success,
+    ).toBe(true);
+    expect(
+      divergenceAnalysisSchema.safeParse({
+        material_divergences: [
+          {
+            agent_ids: ["architect"],
+            description: "material conflict",
+            topic: "scope",
+          },
+        ],
+        revision_requests: [],
+      }).success,
+    ).toBe(false);
   });
 });
 

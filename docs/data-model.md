@@ -6,9 +6,15 @@
 
 **Task** — id, project_id, origem (telegram), mensagem original, demanda normalizada, complexidade (`simple|moderate|critical`), estado, `failure_stage?`, timestamps. Uma Task é a unidade central: tudo se liga a ela.
 
-**Deliberation** — id, task_id, rodada (`1|2`), status. Agrupa os pareceres de uma rodada na Trilha 2.
+**Deliberation** — id, task_id, rodada (`1|2`), status
+(`running|completed`), resumo de divergências, timestamps. Agrupa os pareceres
+de uma rodada na Trilha 2; `(task_id, rodada)` é único.
 
-**AgentOpinion** — id, deliberation_id, agent_id, payload validado (`understanding`, `findings`, `recommendation`, `risks`, `acceptance_criteria`, `confidence`, `unresolved_questions`), tokens, custo.
+**AgentOpinion** — id, deliberation_id, agent_id, payload validado
+(`understanding`, `findings`, `recommendation`, `risks`,
+`acceptance_criteria`, `confidence`, `unresolved_questions`), modelo, tokens,
+custo. Um agente emite no máximo um parecer por rodada; registros são
+append-only.
 
 **Specification** — id, task_id, versão, hash do payload canônico, payload validado conforme `specifications/executable-specification.md`, produzida pelo supervisor, criada_em. Cada versão é imutável; uma Task aponta para sua versão ativa.
 
@@ -63,6 +69,9 @@ Project 1—N MemoryItem
   `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
   e não pode produzir trilha mais fraca que a aprovação manual.
 - Eventos repetidos usam idempotency key; lease renovável e fencing token seguem o ADR-012 aceito.
+- Cada parecer e cada início/conclusão de rodada gera AuditEvent com `task_id` e
+  `correlation_id`; o supervisor que emite a Specification não ocupa o papel de
+  revisor.
 
 ## Máquina de estados da Task
 

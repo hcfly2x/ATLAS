@@ -13,7 +13,9 @@ import {
 import { TaskVersionConflictError, type TaskSnapshot } from "@atlas/core";
 import {
   taskStateSchema,
+  type DivergenceAnalysis,
   type NormalizedDemand,
+  type SpecialistOpinion,
   type TaskComplexity as SharedTaskComplexity,
 } from "@atlas/shared";
 
@@ -132,6 +134,116 @@ export class PrismaSupervisorStore implements SupervisorStore {
           projectId: input.projectId,
           targetId: call.id,
           targetType: "llm_call",
+          taskId: input.taskId,
+        },
+      });
+    });
+  }
+
+  async createDeliberation(input: {
+    correlationId: string;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<{ id: string }> {
+    return this.prisma.$transaction(async (transaction) => {
+      const deliberation = await transaction.deliberation.create({
+        data: { round: input.round, taskId: input.taskId },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "deliberation.round.started",
+          actor: "AGENT",
+          correlationId: input.correlationId,
+          idempotencyKey: `deliberation:${input.taskId}:${String(input.round)}:started`,
+          payload: json({ deliberationId: deliberation.id, round: input.round }),
+          projectId: input.projectId,
+          targetId: deliberation.id,
+          targetType: "deliberation",
+          taskId: input.taskId,
+        },
+      });
+      return { id: deliberation.id };
+    });
+  }
+
+  async persistAgentOpinion(input: {
+    agentId: string;
+    correlationId: string;
+    deliberationId: string;
+    estimatedCostUsd: number;
+    inputTokens: number;
+    model: string;
+    opinion: SpecialistOpinion;
+    outputTokens: number;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      const opinion = await transaction.agentOpinion.create({
+        data: {
+          agentId: input.agentId,
+          deliberationId: input.deliberationId,
+          estimatedCostUsd: new Prisma.Decimal(input.estimatedCostUsd),
+          inputTokens: input.inputTokens,
+          model: input.model,
+          outputTokens: input.outputTokens,
+          payload: json(input.opinion),
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "agent.opinion.recorded",
+          actor: "AGENT",
+          correlationId: input.correlationId,
+          idempotencyKey: `agent-opinion:${opinion.id}:recorded`,
+          payload: json({
+            agentId: input.agentId,
+            deliberationId: input.deliberationId,
+            model: input.model,
+            round: input.round,
+          }),
+          projectId: input.projectId,
+          targetId: opinion.id,
+          targetType: "agent_opinion",
+          taskId: input.taskId,
+        },
+      });
+    });
+  }
+
+  async completeDeliberation(input: {
+    analysis: DivergenceAnalysis;
+    correlationId: string;
+    deliberationId: string;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.deliberation.update({
+        where: { id: input.deliberationId },
+        data: {
+          completedAt: new Date(),
+          divergenceSummary: json(input.analysis),
+          status: "COMPLETED",
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "deliberation.round.completed",
+          actor: "AGENT",
+          correlationId: input.correlationId,
+          idempotencyKey: `deliberation:${input.taskId}:${String(input.round)}:completed`,
+          payload: json({
+            deliberationId: input.deliberationId,
+            materialDivergenceCount: input.analysis.material_divergences.length,
+            round: input.round,
+          }),
+          projectId: input.projectId,
+          targetId: input.deliberationId,
+          targetType: "deliberation",
           taskId: input.taskId,
         },
       });
