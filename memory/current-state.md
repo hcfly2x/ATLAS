@@ -2,9 +2,8 @@
 
 ## Fase
 
-Fase 5 — Worker + Codex + Git concluída em `phase-5-worker-codex`, aguardando
-revisão e merge. A Trilha 1 está implementada na branch; a Fase 6 não está
-autorizada.
+Fase 5 — Worker + Codex + Git integrada na `main` e publicada como `v0.0.8`.
+A Trilha 1 está completa; a Fase 6 não está autorizada.
 
 ## Implementado
 
@@ -26,6 +25,8 @@ autorizada.
   Approval humana ligada a `result_hash` e `diff_hash`.
 - Resultado e finalização aplicam transições atômicas com guarda de estado e
   versão; um resultado concorrente não sobrescreve `CANCEL_REQUESTED`.
+- Runner e CodexAdapter tratam sinais já abortados antes de iniciar/registrar o
+  subprocesso, fechando a corrida de cancelamento encontrada no CI pós-merge.
 - Retry técnico nível 3 somente após reconciliação e fencing.
 - Teto lógico Codex US$ 75/mês registrado separadamente da deliberação OpenAI.
 - Quarta migração para resultados, chunks e consumo Codex.
@@ -54,12 +55,12 @@ autorizada.
 
 ## Próximo passo
 
-Auditar o PR da Fase 5. Merge, piloto operacional e qualquer trabalho da Fase 6
-dependem de autorização explícita.
+Preparar um piloto operacional controlado com um projeto real e credenciais
+locais configuradas fora do repositório. Qualquer trabalho da Fase 6 depende de
+autorização explícita.
 
 ## Restrições ativas
 
-- não fazer merge desta branch sem autorização;
 - não iniciar a Fase 6;
 - não executar Codex real ou mudanças em repositórios externos como teste;
 - não provisionar staging/produção nem criar `render.yaml`;

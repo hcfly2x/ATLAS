@@ -222,6 +222,10 @@ describe("WorkerRunner", () => {
       codex: {
         execute: (request) =>
           new Promise((_resolve, reject) => {
+            if (request.abortSignal.aborted) {
+              reject(new Error("cancelled"));
+              return;
+            }
             request.abortSignal.addEventListener(
               "abort",
               () => {

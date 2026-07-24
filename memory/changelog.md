@@ -19,6 +19,8 @@
 - Quarta migração adicionou payload/hashes de resultado, chunks e uso Codex.
 - Transições do resultado e da finalização passaram a usar guarda otimista de
   estado/versão e o AuditEvent canônico, preservando `CANCEL_REQUESTED`.
+- Cancelamento passou a tratar também o sinal abortado antes do registro do
+  listener do CodexAdapter, eliminando corrida observada no CI da `main`.
 
 ## 0.0.7
 
