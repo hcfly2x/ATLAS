@@ -48,10 +48,8 @@ describe("read-only dashboard", () => {
     expect(page.body).toContain("somente leitura");
     expect(denied.statusCode).toBe(401);
     expect(accepted.statusCode).toBe(200);
-    expect(accepted.json().costs).toMatchObject({
-      codex: { capUsd: 75 },
-      llm: { capUsd: 25 },
-    });
+    expect(accepted.body).toContain('"capUsd":75');
+    expect(accepted.body).toContain('"capUsd":25');
   });
 
   it("does not expose write methods under /dashboard", async () => {

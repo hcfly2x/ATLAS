@@ -185,12 +185,13 @@ export class TelegramGateway {
     if (command?.command === "verbose") {
       const level = verboseLevelSchema.parse(command.argument);
       await this.options.store.setVerboseLevel(userId, BigInt(message.chat.id), level as 0 | 1 | 2);
-      const descriptions = [
-        "somente o resultado final",
-        "resultado final e marcos de execução",
-        "resultado final, marcos e logs do worker",
-      ] as const;
-      return [{ text: `Verbosity ${String(level)}: ${descriptions[level]}.` }];
+      const description =
+        level === 0
+          ? "somente o resultado final"
+          : level === 1
+            ? "resultado final e marcos de execução"
+            : "resultado final, marcos e logs do worker";
+      return [{ text: `Verbosity ${String(level)}: ${description}.` }];
     }
     if (command?.command === "status") {
       const taskId = optionalTaskIdSchema.parse(command.argument);

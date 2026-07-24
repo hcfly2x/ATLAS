@@ -17,7 +17,7 @@ const TASK_STATES = [
   "CANCELLED",
 ] as const;
 
-function jsonSafe<T>(value: T): unknown {
+function jsonSafe(value: unknown): unknown {
   return JSON.parse(
     JSON.stringify(value, (_key, nested: unknown) =>
       typeof nested === "bigint" ? nested.toString() : nested,
