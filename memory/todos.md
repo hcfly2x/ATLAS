@@ -56,3 +56,12 @@
   acionar Specification, Approval ou worker.
 - Priorizar e atribuir fase ao epic de tarefas agendadas/webhooks somente após o
   epic de infraestrutura.
+
+## Fase 11 — hardening da deliberação
+
+- Tornar a orquestração do conselho retomável após queda do coordinator: hoje
+  chamadas e pareceres já concluídos permanecem auditados, mas uma interrupção
+  entre agentes pode deixar a Deliberation em `RUNNING` e a Task em
+  `SPECIFYING`, exigindo reconciliação operacional.
+- Definir retry idempotente de falha de provedor por agente sem repetir
+  pareceres já persistidos nem ultrapassar o limite de duas rodadas.

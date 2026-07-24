@@ -95,6 +95,8 @@ projeto (ADR-004). Contrato e aceite detalhados em
 
 ### Fase 7 — Conselho multiagente
 
+**Status:** concluída em branch própria, pendente de revisão.
+
 Registro de papéis, roteamento por complexidade acionando conselho (simple: contexto+supervisor; moderate: +arquiteto+qa; critical: conselho completo), pareceres independentes, detecção de divergências, segunda rodada, consolidação. ADR-003.
 
 ### Fase 8 — Políticas e segurança avançadas

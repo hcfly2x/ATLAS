@@ -2,6 +2,10 @@
 
 > Trilha 2 — Fase 7. Executar somente após o MVP validado (ver `docs/implementation-plan.md`).
 
+## Status
+
+Concluído em branch própria, pendente de revisão e integração.
+
 ## Tarefas
 - registro de papéis;
 - roteador;

@@ -1,4 +1,4 @@
-import type { AgentRequest, AgentRuntime } from "@atlas/agent-runtime";
+import type { AgentRequest, AgentResponse, AgentRuntime } from "@atlas/agent-runtime";
 import { OPENAI_MODELS } from "@atlas/agent-runtime";
 import {
   TaskNotFoundError,
@@ -8,16 +8,22 @@ import {
 } from "@atlas/core";
 import {
   complexityClassificationSchema,
+  divergenceAnalysisSchema,
   executableSpecificationPayloadSchema,
   normalizedDemandSchema,
+  specialistOpinionSchema,
   specificationContentSchema,
   canonicalPayloadHash,
   type ComplexityClassification,
+  type DivergenceAnalysis,
   type ExecutableSpecificationPayload,
   type NormalizedDemand,
+  type SpecialistOpinion,
   type SpecificationContent,
   type TaskComplexity,
 } from "@atlas/shared";
+
+import type { CouncilConfig } from "./council-config.js";
 
 export interface SupervisionTask extends TaskSnapshot {
   readonly autonomyLevel: number;
@@ -59,6 +65,33 @@ export interface SupervisorStore {
     taskId: string;
   }): Promise<void>;
   recordLlmCall(input: LlmCallRecord): Promise<void>;
+  createDeliberation(input: {
+    correlationId: string;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<{ id: string }>;
+  persistAgentOpinion(input: {
+    agentId: string;
+    correlationId: string;
+    deliberationId: string;
+    estimatedCostUsd: number;
+    inputTokens: number;
+    model: string;
+    opinion: SpecialistOpinion;
+    outputTokens: number;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<void>;
+  completeDeliberation(input: {
+    analysis: DivergenceAnalysis;
+    correlationId: string;
+    deliberationId: string;
+    projectId: string;
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<void>;
   persistNormalizedDemand(input: {
     correlationId: string;
     demand: NormalizedDemand;
@@ -136,6 +169,8 @@ export class SupervisorService {
   constructor(
     private readonly options: {
       alwaysHuman: ReadonlySet<string>;
+      council: CouncilConfig;
+      councilModel?: string;
       monthlyBudgetUsd: number;
       memoryContextProvider?: ProjectMemoryContextProvider;
       runtime: AgentRuntime;
@@ -253,17 +288,27 @@ export class SupervisorService {
       })
     ).task;
 
+    const opinions = await this.deliberate({
+      classification,
+      correlationId,
+      memoryContext,
+      normalized,
+      projectId: task.projectId,
+      taskId,
+    });
+
     const content = await this.runAndRecord<SpecificationContent>({
       agentId: "engineering_supervisor",
       correlationId,
       input: JSON.stringify({
         complexity: classification,
         normalized,
+        specialist_opinions: opinions,
         project_memory: memoryContext?.text ?? "",
         project_memory_truncated: memoryContext?.truncated ?? false,
       }),
       instructions:
-        "Produce one executable specification. Keep scope bounded, use authorized_scope semantics, list tests, commands, expected delivery, and policy actions requiring approval. Do not invoke a multi-agent council.",
+        "Consolidate the independent specialist opinions without majority voting. Resolve material divergences, keep scope bounded, use authorized_scope semantics, and produce one executable specification with tests, commands, expected delivery, and policy actions requiring approval.",
       model: OPENAI_MODELS.supervisor,
       outputSchema: specificationContentSchema,
       outputSchemaName: "executable_specification_content",
@@ -304,12 +349,206 @@ export class SupervisorService {
     };
   }
 
+  private async deliberate(input: {
+    classification: ComplexityClassification;
+    correlationId: string;
+    memoryContext: { text: string; truncated: boolean } | undefined;
+    normalized: NormalizedDemand;
+    projectId: string;
+    taskId: string;
+  }): Promise<readonly { agentId: string; opinion: SpecialistOpinion; round: 1 | 2 }[]> {
+    const route = this.options.council.routes[input.classification.complexity];
+    const supervisorOccurrences = route.filter(
+      (agentId) => agentId === this.options.council.supervisorId,
+    ).length;
+    if (route.at(-1) !== this.options.council.supervisorId || supervisorOccurrences !== 1) {
+      throw new Error("The Specification author must appear only as the final consolidator");
+    }
+    const specialistIds = route.slice(0, -1);
+    if (specialistIds.length === 0) {
+      throw new Error("A council route requires an independent reviewer");
+    }
+
+    const roundOne = await this.runDeliberationRound({
+      ...input,
+      agentIds: specialistIds,
+      round: 1,
+    });
+    const analysis = await this.runAndRecord<DivergenceAnalysis>({
+      agentId: this.options.council.supervisorId,
+      correlationId: input.correlationId,
+      input: JSON.stringify({
+        normalized: input.normalized,
+        opinions: roundOne.map(({ agentId, opinion }) => ({ agent_id: agentId, ...opinion })),
+      }),
+      instructions:
+        "Identify only material conflicts among independent opinions. Request focused revisions only from agents involved in a material divergence. Do not decide by majority and do not invent new agents.",
+      model: OPENAI_MODELS.supervisor,
+      outputSchema: divergenceAnalysisSchema,
+      outputSchemaName: "material_divergence_analysis",
+      projectId: input.projectId,
+      taskId: input.taskId,
+    });
+    await this.options.store.completeDeliberation({
+      analysis,
+      correlationId: input.correlationId,
+      deliberationId: roundOne.deliberationId,
+      projectId: input.projectId,
+      round: 1,
+      taskId: input.taskId,
+    });
+
+    if (analysis.material_divergences.length === 0) {
+      return roundOne;
+    }
+    const involvedAgents = new Set(
+      analysis.material_divergences.flatMap(({ agent_ids }) => agent_ids),
+    );
+    const invalidDivergenceAgent = [...involvedAgents].find(
+      (agentId) =>
+        !specialistIds.includes(agentId) || agentId === this.options.council.supervisorId,
+    );
+    if (invalidDivergenceAgent !== undefined) {
+      throw new Error(
+        `Divergence analysis referenced an invalid reviewer: ${invalidDivergenceAgent}`,
+      );
+    }
+    const requestedAgents = new Set(analysis.revision_requests.map(({ agent_id }) => agent_id));
+    const invalidAgent = [...requestedAgents].find(
+      (agentId) => !specialistIds.includes(agentId) || !involvedAgents.has(agentId),
+    );
+    if (invalidAgent !== undefined || requestedAgents.has(this.options.council.supervisorId)) {
+      throw new Error(
+        `Divergence analysis requested an invalid reviewer: ${invalidAgent ?? "supervisor"}`,
+      );
+    }
+    if (requestedAgents.size === 0) {
+      throw new Error("Material divergences require at least one focused revision");
+    }
+    const roundTwo = await this.runDeliberationRound({
+      ...input,
+      agentIds: [...requestedAgents],
+      previousOpinions: roundOne,
+      revisionRequests: analysis.revision_requests,
+      round: 2,
+    });
+    const roundTwoAnalysis = await this.runAndRecord<DivergenceAnalysis>({
+      agentId: this.options.council.supervisorId,
+      correlationId: input.correlationId,
+      input: JSON.stringify({
+        initial_divergences: analysis.material_divergences,
+        opinions: [...roundOne, ...roundTwo].map(({ agentId, opinion, round }) => ({
+          agent_id: agentId,
+          opinion,
+          round,
+        })),
+      }),
+      instructions:
+        "Assess which material divergences remain after the focused second and final round. Do not request another round; revision_requests must be empty. The final supervisor will resolve any remaining conflict without majority voting.",
+      model: OPENAI_MODELS.supervisor,
+      outputSchema: divergenceAnalysisSchema,
+      outputSchemaName: "final_divergence_analysis",
+      projectId: input.projectId,
+      taskId: input.taskId,
+    });
+    if (roundTwoAnalysis.revision_requests.length > 0) {
+      throw new Error("A third deliberation round is not allowed");
+    }
+    await this.options.store.completeDeliberation({
+      analysis: roundTwoAnalysis,
+      correlationId: input.correlationId,
+      deliberationId: roundTwo.deliberationId,
+      projectId: input.projectId,
+      round: 2,
+      taskId: input.taskId,
+    });
+    return [...roundOne, ...roundTwo];
+  }
+
+  private async runDeliberationRound(input: {
+    agentIds: readonly string[];
+    classification: ComplexityClassification;
+    correlationId: string;
+    memoryContext: { text: string; truncated: boolean } | undefined;
+    normalized: NormalizedDemand;
+    previousOpinions?: readonly { agentId: string; opinion: SpecialistOpinion; round: 1 | 2 }[];
+    projectId: string;
+    revisionRequests?: readonly { agent_id: string; focus: string }[];
+    round: 1 | 2;
+    taskId: string;
+  }): Promise<
+    { agentId: string; opinion: SpecialistOpinion; round: 1 | 2 }[] & {
+      deliberationId: string;
+    }
+  > {
+    const deliberation = await this.options.store.createDeliberation({
+      correlationId: input.correlationId,
+      projectId: input.projectId,
+      round: input.round,
+      taskId: input.taskId,
+    });
+    const results = await Promise.all(
+      input.agentIds.map(async (agentId) => {
+        const agent = this.options.council.agents.get(agentId);
+        if (agent === undefined) {
+          throw new Error(`Council agent is not configured: ${agentId}`);
+        }
+        const focus = input.revisionRequests?.find(
+          (request) => request.agent_id === agentId,
+        )?.focus;
+        const response = await this.runAndRecordResponse<SpecialistOpinion>({
+          agentId,
+          correlationId: input.correlationId,
+          input: JSON.stringify({
+            complexity: input.classification,
+            normalized: input.normalized,
+            previous_opinions: input.previousOpinions ?? [],
+            project_memory: input.memoryContext?.text ?? "",
+            project_memory_truncated: input.memoryContext?.truncated ?? false,
+            revision_focus: focus ?? null,
+            round: input.round,
+          }),
+          instructions: `${agent.instructions}\n\nReturn an independent specialist opinion. Do not produce the final Specification, expand permissions, or coordinate with other agents.${focus === undefined ? "" : ` Reconsider only this material divergence: ${focus}`}`,
+          model: this.options.councilModel ?? OPENAI_MODELS.reviewer,
+          outputSchema: specialistOpinionSchema,
+          outputSchemaName: `specialist_opinion_${agentId}`,
+          projectId: input.projectId,
+          taskId: input.taskId,
+        });
+        await this.options.store.persistAgentOpinion({
+          agentId,
+          correlationId: input.correlationId,
+          deliberationId: deliberation.id,
+          estimatedCostUsd: response.estimatedCostUsd,
+          inputTokens: response.inputTokens,
+          model: response.model,
+          opinion: response.output,
+          outputTokens: response.outputTokens,
+          projectId: input.projectId,
+          round: input.round,
+          taskId: input.taskId,
+        });
+        return { agentId, opinion: response.output, round: input.round };
+      }),
+    );
+    return Object.assign(results, { deliberationId: deliberation.id });
+  }
+
   private async runAndRecord<Output>(
     input: AgentRequest<Output> & {
       correlationId: string;
       projectId: string;
     },
   ): Promise<Output> {
+    return (await this.runAndRecordResponse(input)).output;
+  }
+
+  private async runAndRecordResponse<Output>(
+    input: AgentRequest<Output> & {
+      correlationId: string;
+      projectId: string;
+    },
+  ): Promise<AgentResponse<Output>> {
     const response = await this.options.runtime.run(input);
     await this.options.store.recordLlmCall({
       agentId: input.agentId,
@@ -322,6 +561,6 @@ export class SupervisorService {
       projectId: input.projectId,
       taskId: input.taskId,
     });
-    return response.output;
+    return response;
   }
 }

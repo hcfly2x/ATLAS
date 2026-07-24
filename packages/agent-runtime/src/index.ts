@@ -5,6 +5,7 @@ import type { ZodType } from "zod";
 export const OPENAI_MODELS = {
   normalizer: "gpt-5.6-luna",
   router: "gpt-5.6-luna",
+  reviewer: "gpt-5.6-luna",
   supervisor: "gpt-5.6-terra",
 } as const;
 

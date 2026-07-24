@@ -9,12 +9,15 @@ import {
   canonicalPayloadHash,
   complexityClassificationSchema,
   createWorkerResult,
+  divergenceAnalysisSchema,
   executableSpecificationPayloadSchema,
   normalizedDemandSchema,
+  specialistOpinionSchema,
   specificationContentSchema,
 } from "@atlas/shared";
 
 import { PrismaTaskCoreStore } from "./prisma-task-core-store.js";
+import type { CouncilConfig } from "../supervisor/council-config.js";
 import { PrismaSupervisorStore } from "../supervisor/prisma-supervisor-store.js";
 import { SupervisorService } from "../supervisor/service.js";
 import { ApprovalTargetHashMismatchError, PrismaTelegramStore } from "../telegram/store.js";
@@ -33,31 +36,51 @@ const telegramStore = new PrismaTelegramStore(prisma);
 class IntegrationAgentRuntime implements AgentRuntime {
   run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
     const fixture =
-      request.agentId === "normalizer"
+      request.outputSchemaName === "normalized_demand"
         ? normalizedDemandSchema.parse({
             constraints: [],
             context: ["integration"],
             objective: "Generate a moderate specification",
             requested_actions: [],
           })
-        : request.agentId === "complexity_router"
+        : request.outputSchemaName === "complexity_classification"
           ? complexityClassificationSchema.parse({
               complexity: "moderate",
               reasons: ["bounded change"],
             })
-          : specificationContentSchema.parse({
-              acceptance_criteria: ["persisted"],
-              allowed_commands: [],
-              approval_required_for: [],
-              authorized_scope: ["docs/**"],
-              constraints: [],
-              context: ["integration"],
-              expected_delivery: "Specification",
-              implementation_strategy: ["persist"],
-              objective: "Integration supervision",
-              out_of_scope: ["worker"],
-              required_tests: ["integration"],
-            });
+          : request.outputSchemaName.startsWith("specialist_opinion_")
+            ? specialistOpinionSchema.parse({
+                acceptance_criteria: ["persisted"],
+                confidence: 0.9,
+                findings: ["bounded"],
+                recommendation: "proceed",
+                risks: [],
+                understanding: "integration council opinion",
+                unresolved_questions: [],
+              })
+            : request.outputSchemaName === "material_divergence_analysis"
+              ? divergenceAnalysisSchema.parse({
+                  material_divergences: [],
+                  revision_requests: [],
+                })
+              : request.outputSchemaName === "final_divergence_analysis"
+                ? divergenceAnalysisSchema.parse({
+                    material_divergences: [],
+                    revision_requests: [],
+                  })
+                : specificationContentSchema.parse({
+                    acceptance_criteria: ["persisted"],
+                    allowed_commands: [],
+                    approval_required_for: [],
+                    authorized_scope: ["docs/**"],
+                    constraints: [],
+                    context: ["integration"],
+                    expected_delivery: "Specification",
+                    implementation_strategy: ["persist"],
+                    objective: "Integration supervision",
+                    out_of_scope: ["worker"],
+                    required_tests: ["integration"],
+                  });
     return Promise.resolve({
       estimatedCostUsd: 0.001,
       inputTokens: 10,
@@ -68,6 +91,27 @@ class IntegrationAgentRuntime implements AgentRuntime {
     });
   }
 }
+
+const integrationCouncil: CouncilConfig = {
+  agents: new Map(
+    ["product", "project_context", "architect", "security", "qa", "engineering_supervisor"].map(
+      (id) => [id, { id, instructions: `Act as ${id}` }],
+    ),
+  ),
+  routes: {
+    critical: [
+      "product",
+      "project_context",
+      "architect",
+      "security",
+      "qa",
+      "engineering_supervisor",
+    ],
+    moderate: ["project_context", "architect", "qa", "engineering_supervisor"],
+    simple: ["project_context", "engineering_supervisor"],
+  },
+  supervisorId: "engineering_supervisor",
+};
 
 function specificationPayload(taskId: string, projectId: string, version = 1) {
   return executableSpecificationPayloadSchema.parse({
@@ -408,6 +452,7 @@ describe("Prisma core persistence", () => {
     });
     const service = new SupervisorService({
       alwaysHuman: new Set(["production_secret_change"]),
+      council: integrationCouncil,
       monthlyBudgetUsd: 25,
       runtime: new IntegrationAgentRuntime(),
       store: new PrismaSupervisorStore(prisma),
@@ -419,10 +464,49 @@ describe("Prisma core persistence", () => {
     expect(result.state).toBe("QUEUED");
     const task = await prisma.task.findUniqueOrThrow({
       where: { id: created.task.id },
-      include: { activeSpecification: true, approvals: true, llmCalls: true },
+      include: {
+        activeSpecification: true,
+        approvals: true,
+        deliberations: { include: { opinions: true } },
+        llmCalls: true,
+      },
     });
     expect(task).toMatchObject({ complexity: "MODERATE", state: "QUEUED", version: 4 });
-    expect(task.llmCalls).toHaveLength(3);
+    expect(task.llmCalls).toHaveLength(7);
+    expect(task.deliberations).toHaveLength(1);
+    expect(task.deliberations[0]?.status).toBe("COMPLETED");
+    expect(task.deliberations[0]?.opinions).toHaveLength(3);
+    const opinionEvents = await prisma.auditEvent.findMany({
+      where: { action: "agent.opinion.recorded", taskId: created.task.id },
+    });
+    expect(opinionEvents).toHaveLength(3);
+    expect(
+      opinionEvents.every(
+        ({ correlationId }) => correlationId === "supervisor-integration-correlation",
+      ),
+    ).toBe(true);
+    const roundEvents = await prisma.auditEvent.findMany({
+      where: {
+        action: { in: ["deliberation.round.started", "deliberation.round.completed"] },
+        taskId: created.task.id,
+      },
+    });
+    expect(roundEvents).toHaveLength(2);
+    expect(
+      roundEvents.every(
+        ({ correlationId }) => correlationId === "supervisor-integration-correlation",
+      ),
+    ).toBe(true);
+    const opinionId = task.deliberations[0]?.opinions[0]?.id;
+    if (opinionId === undefined) {
+      throw new Error("expected a persisted specialist opinion");
+    }
+    await expect(
+      prisma.agentOpinion.update({
+        where: { id: opinionId },
+        data: { agentId: "mutated" },
+      }),
+    ).rejects.toThrow(/agent_opinions is append-only/);
     expect(task.approvals).toEqual([
       expect.objectContaining({
         actor: "SYSTEM",

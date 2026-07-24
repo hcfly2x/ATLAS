@@ -130,3 +130,12 @@
   agente em documento versionado protegido pelo ADR-010.
 - Modo consulta e tarefas agendadas/webhooks entram apenas como epics de roadmap
   com fase ainda não definida; registro não equivale a autorização.
+- A Fase 7 usa o registro e o roteamento versionados em `.atlas/`; a primeira
+  rodada reúne pareceres independentes e somente divergências materiais podem
+  abrir uma segunda e última rodada focada.
+- O supervisor consolida a Specification sem votação por maioria e não participa
+  como parecerista/revisor da própria saída.
+- Pareceristas usam GPT-5.6 Luna por default e o supervisor GPT-5.6 Terra; o
+  modelo de parecer pode ser configurado separadamente.
+- Deliberations e AgentOpinions são rastreáveis por Task; cada parecer é
+  append-only e cada parecer/rodada gera AuditEvent correlacionado.
