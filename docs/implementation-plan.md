@@ -82,7 +82,9 @@ Matriz de permissões completa, self-modification restricted fim a fim, proteç�
 
 ### Fase 10 — Dashboard
 
-Projetos, tarefas, aprovações, custos, logs, memória.
+Projetos, tarefas, aprovações, custos, logs, memória; criação e edição de agentes
+(nome, papel, habilidades, contexto) e organização em times via interface, como
+alternativa à edição direta de `.atlas/agents.yaml`.
 
 ### Fase 11 — Hardening
 
