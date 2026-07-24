@@ -4,6 +4,15 @@
 
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na
   sessão.
+- Implementar reconciliador idempotente para Tasks em `NEW` na inicialização do
+  coordinator: queda entre criação Telegram e disparo do supervisor não pode
+  deixar demanda sem supervisão.
+- Reduzir o ambiente herdado pelo processo Codex ao mínimo necessário; hoje o
+  adapter não precisa expor o token do worker ao executor.
+- Definir contrato explícito e aprovado para bootstrap de dependências em
+  worktree limpa. O piloto comprovou que o Codex escreve com sandbox restrito,
+  mas `pnpm validate` falha sem `node_modules`; o worker não deve executar
+  `pnpm install` implicitamente fora de uma política/allowlist declarada.
 
 ## Epic de infraestrutura — após o fechamento da Fase 3
 

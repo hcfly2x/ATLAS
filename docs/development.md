@@ -222,6 +222,18 @@ exige macOS/ARM64, Node, Git, Codex CLI e os repositórios dos projetos. Antes d
 aceitar uma Task, o preflight valida plataforma, arquitetura, versões mínimas e
 ferramentas GNU explicitamente declaradas.
 
+Antes de testar manualmente o ciclo completo, reconstrua todos os packages para
+que o worker use os adapters atuais em `dist/`:
+
+```bash
+pnpm -r build
+```
+
+Em falhas transitórias de conexão com o coordinator, registro e claim usam
+backoff exponencial de 5 segundos até 60 segundos por default. Erros permanentes
+de autenticação/autorização (`401`/`403`) ou requisição inválida (`400`/`422`)
+encerram o worker para correção da configuração local.
+
 Variáveis operacionais são mantidas somente no ambiente local:
 
 ```bash

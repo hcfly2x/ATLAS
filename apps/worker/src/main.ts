@@ -4,6 +4,7 @@ import { CodexCliAdapter } from "@atlas/codex-adapter";
 import { GitCliAdapter } from "@atlas/git-adapter";
 
 import { WorkerCoordinatorClient } from "./client.js";
+import { retryWithBackoff, runWorkerPolling } from "./polling.js";
 import { WorkerConcurrencyGate, WorkerRunner, workerStartupCapabilities } from "./runner.js";
 
 function requiredEnvironment(name: string): string {
@@ -25,14 +26,38 @@ const projectScopes = requiredEnvironment("ATLAS_PROJECT_SCOPES")
   .map((value) => value.trim())
   .filter(Boolean);
 const concurrencyLimit = Number.parseInt(process.env.ATLAS_WORKER_CONCURRENCY ?? "1", 10);
+const reconnectInitialDelayMs = Number(process.env.ATLAS_RECONNECT_INITIAL_DELAY_MS ?? "5000");
+const reconnectMaxDelayMs = Number(process.env.ATLAS_RECONNECT_MAX_DELAY_MS ?? "60000");
 const client = new WorkerCoordinatorClient(coordinatorUrl, workerToken);
 const capabilities = await workerStartupCapabilities();
-const registration = await client.register({
-  capabilities,
-  concurrencyLimit,
-  name: process.env.ATLAS_WORKER_NAME ?? "local-mac-worker",
-  projectScopes,
+const controller = new AbortController();
+const logTransientError = (error: unknown, operation: string): void => {
+  const message = error instanceof Error ? error.message : "unknown error";
+  process.stderr.write(
+    `${JSON.stringify({ level: "error", message, operation, service: "worker" })}\n`,
+  );
+};
+process.on("SIGINT", () => {
+  controller.abort();
+  process.exitCode = 0;
 });
+const registration = await retryWithBackoff(
+  () =>
+    client.register({
+      capabilities,
+      concurrencyLimit,
+      name: process.env.ATLAS_WORKER_NAME ?? "local-mac-worker",
+      projectScopes,
+    }),
+  {
+    initialDelayMs: reconnectInitialDelayMs,
+    maxDelayMs: reconnectMaxDelayMs,
+    onError: (error) => {
+      logTransientError(error, "register");
+    },
+    signal: controller.signal,
+  },
+);
 const runner = new WorkerRunner({
   api: client,
   codex: new CodexCliAdapter(),
@@ -49,19 +74,21 @@ const runner = new WorkerRunner({
 });
 const gate = new WorkerConcurrencyGate(concurrencyLimit);
 const heartbeat = setInterval(() => {
-  void client.heartbeat(registration.workerId, capabilities);
+  void client.heartbeat(registration.workerId, capabilities).catch((error: unknown) => {
+    logTransientError(error, "heartbeat");
+  });
 }, 30_000);
 
-process.on("SIGINT", () => {
+controller.signal.addEventListener("abort", () => {
   clearInterval(heartbeat);
-  process.exitCode = 0;
 });
 
-while (process.exitCode === undefined) {
-  const assignment = await client.claim(registration.workerId, `claim:${randomUUID()}`);
-  if (assignment === null) {
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    continue;
-  }
-  await gate.run(() => runner.execute(assignment));
-}
+await runWorkerPolling({
+  claim: () => client.claim(registration.workerId, `claim:${randomUUID()}`),
+  execute: (assignment) => gate.run(() => runner.execute(assignment)),
+  idleDelayMs: 5_000,
+  onError: logTransientError,
+  retryInitialDelayMs: reconnectInitialDelayMs,
+  retryMaxDelayMs: reconnectMaxDelayMs,
+  signal: controller.signal,
+});

@@ -28,7 +28,7 @@ const output = process.argv[process.argv.indexOf("--output-last-message") + 1];
 process.stdin.resume();
 process.stdin.on("end", () => {
   fs.writeFileSync(output, JSON.stringify({summary:"fake done",risks:[],pending_items:[]}));
-  process.stdout.write("fake chunk");
+  process.stdout.write(JSON.stringify({args:process.argv.slice(2),message:"fake chunk"}));
 });
 `,
     );
@@ -54,6 +54,9 @@ process.stdin.on("end", () => {
         summary: { pendingItems: [], risks: [], summary: "fake done" },
       });
       expect(chunks.join("")).toContain("fake chunk");
+      expect(chunks.join("")).toContain(
+        `"--sandbox","workspace-write","--cd",${JSON.stringify(root)},"--ephemeral"`,
+      );
     } finally {
       process.env.PATH = previousPath;
     }

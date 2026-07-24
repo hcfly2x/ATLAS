@@ -165,7 +165,13 @@ describe("TelegramGateway", () => {
   it("authorizes one Telegram user and creates a Task idempotently after project selection", async () => {
     const store = new InMemoryTelegramStore();
     const taskStore = new InMemoryTaskStore();
-    const gateway = new TelegramGateway({ allowedUserId: 42n, store, taskStore });
+    const supervised: string[] = [];
+    const gateway = new TelegramGateway({
+      allowedUserId: 42n,
+      onTaskCreated: (taskId) => supervised.push(taskId),
+      store,
+      taskStore,
+    });
 
     await gateway.handle(callbackUpdate(1, "project:atlas"), "correlation-project");
     const created = await gateway.handle(
@@ -177,6 +183,7 @@ describe("TelegramGateway", () => {
     expect(created.responses[0]?.text).toContain("Task criada");
     expect(replay.replayed).toBe(true);
     expect(taskStore.createCalls).toBe(1);
+    expect(supervised).toEqual([[...taskStore.tasks.keys()][0]]);
     await expect(
       gateway.handle(messageUpdate(3, "negado", 99), "correlation-forbidden"),
     ).rejects.toBeInstanceOf(TelegramUnauthorizedError);

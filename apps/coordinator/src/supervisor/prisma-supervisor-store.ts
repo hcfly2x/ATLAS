@@ -9,6 +9,7 @@ import {
   TaskState,
   type PrismaClient,
 } from "@prisma/client";
+import { z } from "zod";
 
 import { TaskVersionConflictError, type TaskSnapshot } from "@atlas/core";
 import {
@@ -52,19 +53,29 @@ const complexityMap: Record<SharedTaskComplexity, TaskComplexity> = {
   simple: TaskComplexity.SIMPLE,
 };
 
+const allowedCommandsSchema = z.array(
+  z.object({
+    args: z.array(z.string()),
+    executable: z.string().min(1),
+  }),
+);
+
 export class PrismaSupervisorStore implements SupervisorStore {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getTask(taskId: string): Promise<SupervisionTask | undefined> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      include: { project: { select: { autonomyLevel: true } } },
+      include: { project: { select: { allowedCommands: true, autonomyLevel: true } } },
     });
     if (task === null) {
       return undefined;
     }
     return {
       ...taskSnapshot(task),
+      allowedCommands: allowedCommandsSchema
+        .parse(task.project.allowedCommands)
+        .map(({ args, executable }) => [executable, ...args].join(" ")),
       autonomyLevel: task.project.autonomyLevel,
       originalMessage: task.originalMessage,
     };

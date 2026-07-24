@@ -28,6 +28,7 @@ export class TelegramUnauthorizedError extends Error {
 
 export interface TelegramGatewayOptions {
   readonly allowedUserId: bigint;
+  readonly onTaskCreated?: (taskId: string, correlationId: string) => void;
   readonly store: TelegramStore;
   readonly taskStore: TaskCoreStore;
 }
@@ -248,6 +249,9 @@ export class TelegramGateway {
       originalMessage: message.text,
       projectId: project.id,
     });
+    if (!created.idempotentReplay) {
+      this.options.onTaskCreated?.(created.task.id, correlationId);
+    }
     return [
       {
         text: `${created.idempotentReplay ? "Task existente" : "Task criada"}: ${created.task.id}\nProjeto: ${project.name}\nEstado: ${created.task.state}`,

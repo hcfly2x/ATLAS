@@ -2,9 +2,9 @@
 
 ## Fase
 
-Bloco C integrado na `main` como v0.0.13. Fase 7 — Conselho multiagente —
-aprovada para integração na `main` como v0.0.14 pelo PR #16. A Fase 8 não está
-autorizada.
+Bloco C e Fase 7 — Conselho multiagente — estão integrados na `main` como
+v0.0.14. A Fase 8 não está autorizada. Uma correção pós-piloto está em revisão
+na branch `fix/pilot-blockers`, sem PR ou merge.
 
 ## Implementado
 
@@ -23,6 +23,10 @@ autorizada.
   parecer/início/conclusão de rodada gera AuditEvent com `task_id` e
   `correlation_id`.
 - A máquina de estados não mudou: o conselho ocorre dentro de `SPECIFYING`.
+- O piloto confirmou entrada Telegram, supervisão, allowlist e execução do
+  worker, e revelou bloqueios operacionais em tratamento: disparo automático do
+  supervisor, falha LLM terminal, reconexão do worker e sandbox de escrita do
+  Codex.
 
 ## Testes e validações
 
@@ -50,11 +54,16 @@ autorizada.
 - O custo e a latência crescem com a complexidade e com a segunda rodada; o teto
   mensal existente continua bloqueando novas deliberações, sem interromper uma
   Task já iniciada.
+- A escrita real do Codex em worktree exigiu rebuild dos packages: a tentativa
+  anterior executou o `dist` antigo do adapter.
+- Após o rebuild, o Codex alterou corretamente uma única linha autorizada em
+  worktree com `workspace-write`; a validação seguinte falhou porque worktree
+  nova não possui dependências e não existe bootstrap permitido/configurado.
 
 ## Próximo passo
 
-Confirmar a integração e a pipeline da `main`. Não iniciar a Fase 8 sem
-autorização explícita.
+Concluir a revisão e validação empírica da correção pós-piloto; não iniciar a
+Fase 8 sem autorização explícita.
 
 ## Restrições ativas
 

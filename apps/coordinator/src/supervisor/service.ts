@@ -26,6 +26,7 @@ import {
 import type { CouncilConfig } from "./council-config.js";
 
 export interface SupervisionTask extends TaskSnapshot {
+  readonly allowedCommands: readonly string[];
   readonly autonomyLevel: number;
   readonly originalMessage: string;
 }
@@ -136,6 +137,21 @@ export class TaskNotReadyForSupervisionError extends Error {
   }
 }
 
+export class SpecificationCommandOutsideAllowlistError extends Error {
+  readonly code = "SPECIFICATION_COMMAND_OUTSIDE_ALLOWLIST";
+
+  constructor(readonly commands: readonly string[]) {
+    super(`Specification contains commands outside the project allowlist: ${commands.join(", ")}`);
+    this.name = "SpecificationCommandOutsideAllowlistError";
+  }
+}
+
+const supervisionFailureStageByState = {
+  NORMALIZING: "normalizing",
+  ROUTING: "routing",
+  SPECIFYING: "specifying",
+} as const;
+
 export interface AutonomyPolicyInput {
   readonly alwaysHuman: ReadonlySet<string>;
   readonly autonomyLevel: number;
@@ -225,128 +241,165 @@ export class SupervisorService {
       })
     ).task;
 
-    const normalized = await this.runAndRecord<NormalizedDemand>({
-      agentId: "normalizer",
-      correlationId,
-      input: JSON.stringify({
-        project_memory: memoryContext?.text ?? "",
-        project_memory_truncated: memoryContext?.truncated ?? false,
-        user_request: task.originalMessage,
-      }),
-      instructions:
-        "Normalize the request without adding scope. Return objective, relevant context, constraints, and requested policy actions using stable snake_case action names.",
-      model: OPENAI_MODELS.normalizer,
-      outputSchema: normalizedDemandSchema,
-      outputSchemaName: "normalized_demand",
-      projectId: task.projectId,
-      taskId,
-    });
-    await this.options.store.persistNormalizedDemand({
-      correlationId,
-      demand: normalized,
-      projectId: task.projectId,
-      taskId,
-    });
-    snapshot = (
-      await this.stateMachine.transition({
-        actor: "agent",
+    try {
+      const normalized = await this.runAndRecord<NormalizedDemand>({
+        agentId: "normalizer",
         correlationId,
-        expectedVersion: snapshot.version,
-        idempotencyKey: `supervisor:${taskId}:routing`,
+        input: JSON.stringify({
+          project_memory: memoryContext?.text ?? "",
+          project_memory_truncated: memoryContext?.truncated ?? false,
+          user_request: task.originalMessage,
+        }),
+        instructions:
+          "Normalize the request without adding scope. Return objective, relevant context, constraints, and requested policy actions using stable snake_case action names.",
+        model: OPENAI_MODELS.normalizer,
+        outputSchema: normalizedDemandSchema,
+        outputSchemaName: "normalized_demand",
+        projectId: task.projectId,
         taskId,
-        toState: "ROUTING",
-      })
-    ).task;
-
-    const classification = await this.runAndRecord<ComplexityClassification>({
-      agentId: "complexity_router",
-      correlationId,
-      input: JSON.stringify(normalized),
-      instructions:
-        "Classify the normalized demand as simple, moderate, or critical. Authentication, payment, migration, production, infrastructure, destructive change, tracking, ad budget, protected areas, and ATLAS self-modification are critical.",
-      model: OPENAI_MODELS.router,
-      outputSchema: complexityClassificationSchema,
-      outputSchemaName: "complexity_classification",
-      projectId: task.projectId,
-      taskId,
-    });
-    await this.options.store.persistComplexity({
-      complexity: classification.complexity,
-      correlationId,
-      projectId: task.projectId,
-      reasons: classification.reasons,
-      taskId,
-    });
-    snapshot = (
-      await this.stateMachine.transition({
-        actor: "agent",
+      });
+      await this.options.store.persistNormalizedDemand({
         correlationId,
-        expectedVersion: snapshot.version,
-        idempotencyKey: `supervisor:${taskId}:specifying`,
+        demand: normalized,
+        projectId: task.projectId,
         taskId,
-        toState: "SPECIFYING",
-      })
-    ).task;
+      });
+      snapshot = (
+        await this.stateMachine.transition({
+          actor: "agent",
+          correlationId,
+          expectedVersion: snapshot.version,
+          idempotencyKey: `supervisor:${taskId}:routing`,
+          taskId,
+          toState: "ROUTING",
+        })
+      ).task;
 
-    const opinions = await this.deliberate({
-      classification,
-      correlationId,
-      memoryContext,
-      normalized,
-      projectId: task.projectId,
-      taskId,
-    });
+      const classification = await this.runAndRecord<ComplexityClassification>({
+        agentId: "complexity_router",
+        correlationId,
+        input: JSON.stringify(normalized),
+        instructions:
+          "Classify the normalized demand as simple, moderate, or critical. Authentication, payment, migration, production, infrastructure, destructive change, tracking, ad budget, protected areas, and ATLAS self-modification are critical.",
+        model: OPENAI_MODELS.router,
+        outputSchema: complexityClassificationSchema,
+        outputSchemaName: "complexity_classification",
+        projectId: task.projectId,
+        taskId,
+      });
+      await this.options.store.persistComplexity({
+        complexity: classification.complexity,
+        correlationId,
+        projectId: task.projectId,
+        reasons: classification.reasons,
+        taskId,
+      });
+      snapshot = (
+        await this.stateMachine.transition({
+          actor: "agent",
+          correlationId,
+          expectedVersion: snapshot.version,
+          idempotencyKey: `supervisor:${taskId}:specifying`,
+          taskId,
+          toState: "SPECIFYING",
+        })
+      ).task;
 
-    const content = await this.runAndRecord<SpecificationContent>({
-      agentId: "engineering_supervisor",
-      correlationId,
-      input: JSON.stringify({
-        complexity: classification,
+      const opinions = await this.deliberate({
+        classification,
+        correlationId,
+        memoryContext,
         normalized,
-        specialist_opinions: opinions,
-        project_memory: memoryContext?.text ?? "",
-        project_memory_truncated: memoryContext?.truncated ?? false,
-      }),
-      instructions:
-        "Consolidate the independent specialist opinions without majority voting. Resolve material divergences, keep scope bounded, use authorized_scope semantics, and produce one executable specification with tests, commands, expected delivery, and policy actions requiring approval.",
-      model: OPENAI_MODELS.supervisor,
-      outputSchema: specificationContentSchema,
-      outputSchemaName: "executable_specification_content",
-      projectId: task.projectId,
-      taskId,
-    });
-    const version = await this.options.store.nextSpecificationVersion(taskId);
-    const payload = executableSpecificationPayloadSchema.parse({
-      ...content,
-      project_id: task.projectId,
-      risk_level: classification.complexity,
-      task_id: taskId,
-      version,
-    });
-    const payloadHash = canonicalPayloadHash(payload);
-    const humanApprovalRequired = requiresPriorHumanApproval({
-      alwaysHuman: this.options.alwaysHuman,
-      autonomyLevel: task.autonomyLevel,
-      complexity: classification.complexity,
-      requestedActions: [...normalized.requested_actions, ...content.approval_required_for],
-    });
-    const targetState = humanApprovalRequired ? "WAITING_APPROVAL" : "QUEUED";
-    const persisted = await this.options.store.persistSpecification({
-      actor: humanApprovalRequired ? "USER" : "SYSTEM",
-      channel: humanApprovalRequired ? "TELEGRAM" : "POLICY",
-      correlationId,
-      expectedTaskVersion: snapshot.version,
-      payload,
-      payloadHash,
-      status: humanApprovalRequired ? "PENDING" : "APPROVED",
-      targetState,
-      taskId,
-    });
-    return {
-      approvalId: persisted.approvalId,
-      specificationId: persisted.specificationId,
-      state: targetState,
-    };
+        projectId: task.projectId,
+        taskId,
+      });
+
+      const content = await this.runAndRecord<SpecificationContent>({
+        agentId: "engineering_supervisor",
+        correlationId,
+        input: JSON.stringify({
+          complexity: classification,
+          normalized,
+          project_allowed_commands: task.allowedCommands,
+          specialist_opinions: opinions,
+          project_memory: memoryContext?.text ?? "",
+          project_memory_truncated: memoryContext?.truncated ?? false,
+        }),
+        instructions:
+          "Consolidate the independent specialist opinions without majority voting. Resolve material divergences, keep scope bounded, use authorized_scope semantics, and produce one executable specification with tests, commands, expected delivery, and policy actions requiring approval. allowed_commands must contain only exact entries from project_allowed_commands; permissions are configuration and must never be invented or expanded.",
+        model: OPENAI_MODELS.supervisor,
+        outputSchema: specificationContentSchema,
+        outputSchemaName: "executable_specification_content",
+        projectId: task.projectId,
+        taskId,
+      });
+      const projectAllowedCommands = new Set(task.allowedCommands);
+      const unauthorizedCommands = content.allowed_commands.filter(
+        (command) => !projectAllowedCommands.has(command),
+      );
+      if (unauthorizedCommands.length > 0) {
+        throw new SpecificationCommandOutsideAllowlistError(unauthorizedCommands);
+      }
+      const version = await this.options.store.nextSpecificationVersion(taskId);
+      const payload = executableSpecificationPayloadSchema.parse({
+        ...content,
+        project_id: task.projectId,
+        risk_level: classification.complexity,
+        task_id: taskId,
+        version,
+      });
+      const payloadHash = canonicalPayloadHash(payload);
+      const humanApprovalRequired = requiresPriorHumanApproval({
+        alwaysHuman: this.options.alwaysHuman,
+        autonomyLevel: task.autonomyLevel,
+        complexity: classification.complexity,
+        requestedActions: [...normalized.requested_actions, ...content.approval_required_for],
+      });
+      const targetState = humanApprovalRequired ? "WAITING_APPROVAL" : "QUEUED";
+      const persisted = await this.options.store.persistSpecification({
+        actor: humanApprovalRequired ? "USER" : "SYSTEM",
+        channel: humanApprovalRequired ? "TELEGRAM" : "POLICY",
+        correlationId,
+        expectedTaskVersion: snapshot.version,
+        payload,
+        payloadHash,
+        status: humanApprovalRequired ? "PENDING" : "APPROVED",
+        targetState,
+        taskId,
+      });
+      return {
+        approvalId: persisted.approvalId,
+        specificationId: persisted.specificationId,
+        state: targetState,
+      };
+    } catch (error: unknown) {
+      const current = await this.options.store.getTask(taskId);
+      const failureStage =
+        current === undefined
+          ? undefined
+          : supervisionFailureStageByState[
+              current.state as keyof typeof supervisionFailureStageByState
+            ];
+      if (current !== undefined && failureStage !== undefined) {
+        try {
+          await this.stateMachine.transition({
+            actor: "agent",
+            correlationId,
+            expectedVersion: current.version,
+            failureStage,
+            idempotencyKey: `supervisor:${taskId}:failed:${failureStage}`,
+            taskId,
+            toState: "FAILED",
+          });
+        } catch (failureTransitionError: unknown) {
+          throw new AggregateError(
+            [error, failureTransitionError],
+            "Supervision failed and the Task could not transition to FAILED",
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   private async deliberate(input: {

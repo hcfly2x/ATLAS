@@ -29,7 +29,18 @@ export class CodexCliAdapter implements CodexAdapter {
   async execute(request: CodexExecutionRequest): Promise<CodexExecutionResult> {
     const child = spawn(
       "codex",
-      ["exec", "--json", "--output-last-message", request.summaryPath, "-"],
+      [
+        "exec",
+        "--sandbox",
+        "workspace-write",
+        "--cd",
+        request.worktreePath,
+        "--ephemeral",
+        "--json",
+        "--output-last-message",
+        request.summaryPath,
+        "-",
+      ],
       {
         cwd: request.worktreePath,
         detached: true,
