@@ -28,7 +28,7 @@ Transformar mensagens enviadas pelo Telegram em demandas estruturadas, analisada
 
 ## Estado atual
 
-Este repositório contém o Project Starter Kit v0.0.4: Fase 0 e Fase 1 — Foundation mínima concluídas, com ADRs 001–012 aceitos. Nenhuma feature de negócio foi implementada e a Fase 2 não está autorizada.
+Este repositório contém o ATLAS v0.0.5: Fases 0–2 concluídas, com ADRs 001–012 aceitos. Nenhuma feature de Telegram, supervisor ou worker foi antecipada e a Fase 3 não está autorizada.
 
 ## Foundation
 
@@ -40,3 +40,14 @@ Este repositório contém o Project Starter Kit v0.0.4: Fase 0 e Fase 1 — Foun
 - Docker Compose somente para o PostgreSQL de desenvolvimento do coordinator.
 
 Consulte `docs/development.md` para executar a validação local.
+
+## Core mínimo do Coordinator
+
+- Prisma e migração PostgreSQL inicial;
+- seed/config validado de projetos, sem UI;
+- máquina de estados canônica no package `core`;
+- API interna para criação e transição de Task;
+- Specification imutável e Approval com alvo versionado/hash;
+- Execution ligada a Specification;
+- idempotência, lease e fencing desde o primeiro schema;
+- auditoria append-only e logging real com correlation ID.

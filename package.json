@@ -8,13 +8,16 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "db:generate": "pnpm --filter @atlas/coordinator db:generate",
+    "db:validate": "DATABASE_URL=postgresql://atlas:atlas_local_only@127.0.0.1:5433/atlas pnpm --filter @atlas/coordinator db:validate",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:integration": "pnpm --filter @atlas/coordinator test:integration",
     "typecheck": "turbo run typecheck",
-    "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "validate": "pnpm format:check && pnpm db:generate && pnpm db:validate && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

@@ -2,6 +2,10 @@
 
 > Trilha 1 — Fase 2.
 
+## Estado
+
+Concluído em 23/07/2026. A Fase 3 permanece não autorizada.
+
 ## Tarefas
 - Prisma e migrações das entidades MVP;
 - seed/config validado de projetos, sem UI;

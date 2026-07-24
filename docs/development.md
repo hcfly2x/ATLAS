@@ -22,4 +22,15 @@ Para iniciar apenas o PostgreSQL local do coordinator:
 docker compose up -d postgres
 ```
 
+Por padrão, o PostgreSQL do ATLAS é publicado em `127.0.0.1:5433` para reduzir colisões com outros projetos. A porta pode ser alterada com `ATLAS_POSTGRES_PORT`.
+
+Para aplicar migrações, executar o seed validado e testar a persistência:
+
+```bash
+export DATABASE_URL=postgresql://atlas:atlas_local_only@127.0.0.1:5433/atlas
+pnpm --filter @atlas/coordinator exec prisma migrate deploy
+pnpm --filter @atlas/coordinator db:seed
+pnpm test:integration
+```
+
 Nenhuma credencial real deve ser adicionada ao `.env`. O arquivo `.env.example` contém apenas valores locais de desenvolvimento.

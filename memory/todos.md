@@ -1,8 +1,17 @@
 # Pendências
 
-## Fase 2
+## Fase 3
 
-- Substituir o objeto de log embutido no body de `/health` por logging real do Fastify/Pino com hook de correlation ID.
+- Implementar autenticação dos endpoints internos antes de qualquer exposição de
+  rede.
+- Documentar em `docs/development.md` a semântica de replay sob concorrência:
+  duas requisições simultâneas com a mesma idempotency key podem fazer a segunda
+  receber 409; no retry seguinte, ela recebe o replay.
+
+## Fase 4
+
+- Implementar o cálculo e a validação do hash canônico de Specification
+  (`payload_hash`), hoje garantido apenas por constraints de persistência.
 
 ## Antes de ativar cada projeto
 

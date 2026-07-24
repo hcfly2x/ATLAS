@@ -5,19 +5,32 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:validate": "prisma validate",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint . --max-warnings 0",
-    "start": "node dist/main.js",
-    "test": "vitest run",
+    "start": "node dist/src/main.js",
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run src/core/prisma.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@atlas/audit": "workspace:*",
+    "@atlas/core": "workspace:*",
     "@atlas/queue": "workspace:*",
     "@atlas/shared": "workspace:*",
-    "fastify": "^5.4.0"
+    "@prisma/client": "6.12.0",
+    "fastify": "^5.4.0",
+    "yaml": "2.8.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "prisma": "6.12.0",
     "tsx": "^4.20.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

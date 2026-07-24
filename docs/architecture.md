@@ -64,8 +64,9 @@ apps/ (Trilha 2)
 - dashboard
 - gateway separado, apenas se necessário
 
-packages/ (Fase 1)
+packages/ (até a Fase 2)
 
+- core
 - agent-runtime
 - queue
 - codex-adapter
@@ -73,7 +74,21 @@ packages/ (Fase 1)
 - audit
 - shared
 
-`core`, `supervisor`, `memory`, `policies` e `telegram-adapter` só serão extraídos quando as fases correspondentes justificarem sua criação.
+`supervisor`, `memory`, `policies` e `telegram-adapter` só serão extraídos quando as fases correspondentes justificarem sua criação.
+
+## Persistência do Core
+
+- Prisma e PostgreSQL no coordinator.
+- Migração inicial versionada em `apps/coordinator/prisma/migrations/`.
+- Entidades Project, Task, Specification, Approval, Execution, Worker e AuditEvent.
+- Specification imutável por versão e hash, com proteção adicional por trigger no banco.
+- AuditEvent append-only, também protegido contra UPDATE/DELETE por trigger.
+- Execution referencia obrigatoriamente `specification_id`.
+- Approval registra tipo, ID, versão e hash do alvo aprovado.
+- Idempotency keys nas fronteiras persistidas.
+- Execution possui `lease_id`, `lease_expires_at`, fencing token e chaves separadas de claim/resultado desde a primeira migração (ADR-012).
+- Atualização de estado e AuditEvent aceito ocorrem na mesma transação.
+- Concorrência de transições usa versão otimista da Task.
 
 ## Comunicação
 

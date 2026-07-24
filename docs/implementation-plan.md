@@ -25,7 +25,7 @@ Objetivo: uma demanda enviada pelo Telegram vira tarefa, é interpretada pelo su
 
 Critério: pipeline verde, tudo compilando.
 
-### Fase 2 — Core mínimo do Coordinator
+### Fase 2 — Core mínimo do Coordinator ✅
 
 - Prisma + migrações para: Project, Task, Specification, Approval, Execution, Worker, AuditEvent, incluindo desde o primeiro schema as idempotency keys, lease renovável e fencing token do ADR-012.
 - CRUD de projetos via seed/config (sem UI).

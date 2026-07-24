@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.0.5
+
+- Fase 1 aceita com ressalvas; workspace Vitest morto removido. A allowlist
+  `allowBuilds` da base foi ampliada para Prisma conforme o formato exigido pelo
+  pnpm 11.9.
+- Fase 2 — Core mínimo do Coordinator concluída.
+- Logging real Fastify/Pino com correlation ID substituiu log embutido no `/health`.
+- Package `core` criado com máquina de estados canônica e concorrência otimista.
+- Prisma schema e migração inicial adicionados para as sete entidades MVP.
+- Idempotency keys, lease renovável e fencing token incluídos desde a primeira migração.
+- Specification imutável e AuditEvent append-only protegidos por triggers PostgreSQL.
+- API interna de Task criada com transições auditadas e idempotentes.
+- Seed validado de projetos adicionado.
+- CI ampliada com PostgreSQL, migração, seed e testes de integração.
+- PostgreSQL local do ATLAS passou a usar a porta configurável 5433 por padrão.
+- Repositório privado canônico registrado como `hcfly2x/ATLAS`, com fluxo de
+  branch + PR e limitação atual de branch protection documentada.
+- Node.js mínimo e CI alinhados em 22.13 para compatibilidade com pnpm 11.9.0.
+- Fase 2 aceita sem correções de código e Fase 3 autorizada para começar somente
+  após a integração sequencial das branches anteriores.
+- Obrigações vinculantes registradas para autenticação interna na Fase 3, replay
+  idempotente concorrente na documentação e hash canônico na Fase 4.
+
 ## 0.0.4
 
 - Codex confirmado no plano ChatGPT Pro.
