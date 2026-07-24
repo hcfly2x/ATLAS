@@ -3,9 +3,8 @@
 ## Fase
 
 Bloco C e Fase 7 — Conselho multiagente — estão integrados na `main` como
-v0.0.14. A Fase 8 não está autorizada. A correção pós-piloto foi integrada; a
-entrega de resultado terminal ao autor Telegram está em implementação na branch
-`fix/task-result-telegram`, sem autorização de merge.
+v0.0.14. A Fase 8 não está autorizada. Correções pós-piloto e a entrega de
+resultado terminal ao autor via Telegram estão integradas na `main`.
 
 ## Implementado
 
@@ -25,14 +24,17 @@ entrega de resultado terminal ao autor Telegram está em implementação na bran
   `correlation_id`.
 - A máquina de estados não mudou: o conselho ocorre dentro de `SPECIFYING`.
 - O piloto confirmou entrada Telegram, supervisão, allowlist e execução do
-  worker, e revelou bloqueios operacionais em tratamento: disparo automático do
-  supervisor, falha LLM terminal, reconexão do worker e sandbox de escrita do
-  Codex.
+  worker; bloqueios de disparo do supervisor, falha LLM terminal, reconexão do
+  worker e sandbox de escrita do Codex foram tratados em correções pós-piloto.
 - O coordinator passa a publicar o resultado terminal de uma Task Telegram no
   chat codificado em sua origem: resumo, paths alterados, PR quando existir e
   `failure_stage` em falhas. A chave de entrega é persistida antes do envio para
   impedir duplicação após reinício; origens legadas de conversa privada usam o
   `user_id` como chat. Ausência de canal também gera AuditEvent.
+- A direção de longo prazo está registrada como organização autônoma de agentes.
+  A única peça estrutural ausente é QA pós-execução; runtime reproduzível e
+  recuperação durável devem precedê-la, e ela deve preceder qualquer ampliação
+  de autonomia.
 
 ## Testes e validações
 
@@ -68,12 +70,14 @@ entrega de resultado terminal ao autor Telegram está em implementação na bran
 
 ## Próximo passo
 
-Revisar a entrega de resultado terminal Telegram; não iniciar a Fase 8 nem as
-fases de estabilização sem autorização explícita.
+Não iniciar a Fase 8, os blocos de estabilização ou QA pós-execução sem
+autorização explícita.
 
 ## Restrições ativas
 
 - não iniciar a Fase 8;
+- não iniciar os blocos de estabilização, QA pós-execução ou ampliação de
+  autonomia;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;

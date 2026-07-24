@@ -145,3 +145,11 @@
   `telegram:user_id` usam o próprio `user_id` como `chat_id`. A entrega é
   auditada e `at-most-once` para evitar duplicação após reinício. Não existe
   ferramenta genérica de envio de mensagens ou destino arbitrário.
+- O objetivo final é um loop autônomo de organização de agentes no qual a
+  aprovação humana fica restrita ao crítico ou irreversível: conselheiros,
+  decisão, diretor/distribuidor, times, especialistas, QA pós-execução e entrega
+  final. A ordem é inegociável: estabilizar runtime e recuperação → QA
+  pós-execução → ampliar autonomia.
+- Competências novas entram preferencialmente como skills anexáveis e
+  especialistas temporários, não como novos agentes permanentes; ADR-016 e
+  ADR-017 continuam Propostos e não autorizam implementação.

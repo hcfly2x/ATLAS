@@ -99,6 +99,39 @@ projeto (ADR-004). Contrato e aceite detalhados em
 
 Registro de papéis, roteamento por complexidade acionando conselho (simple: contexto+supervisor; moderate: +arquiteto+qa; critical: conselho completo), pareceres independentes, detecção de divergências, segunda rodada, consolidação. ADR-003.
 
+### Sequência de estabilização e controle de qualidade — precede expansão de autonomia
+
+Cada item só cria uma entidade nova quando `docs/gap-analysis.md` comprovar que
+não existe mecanismo equivalente a estender.
+
+- **Bloco 1 — fechar bloqueios do piloto:** consolidar os bloqueios observados
+  no fluxo real; conclusão mensurável: uma Task de piloto percorre entrada,
+  supervisão, execução e término sem intervenção operacional não documentada.
+- **Bloco 2 — runtime reproduzível por projeto:** tornar o ambiente de execução
+  previsível sem instalar dependências fora de política; conclusão mensurável:
+  preflight e bootstrap explicitamente autorizados produzem o mesmo resultado
+  para um projeto configurado em worktree limpa.
+- **Bloco 3 — recuperação durável:** reconciliar Tasks, leases e execuções após
+  queda; conclusão mensurável: cenários de queda definidos retomam ou falham de
+  forma auditada sem reexecutar Codex sob lease ambíguo.
+- **QA pós-execução:** depois dos Blocos 2 e 3, revisar o resultado do worker
+  com revisor distinto do emissor da Specification; conclusão mensurável:
+  todos os resultados da amostra definida recebem parecer pós-execução
+  correlacionado antes da entrega final. Só depois desta peça o loop "até a
+  entrega" possui ponto de parada confiável.
+- **Enforcement determinístico:** estender allowlist e proteção de paths já
+  existentes; conclusão mensurável: decisões de política repetidas sobre a
+  mesma entrada geram o mesmo resultado auditado.
+- **Observabilidade:** estender AuditEvent, logs e dashboard somente-leitura;
+  conclusão mensurável: uma Task pode ser reconstruída ponta a ponta por
+  `correlation_id`, sem trilha paralela.
+- **Evals:** medir a qualidade e o custo sobre conjunto versionado de cenários;
+  conclusão mensurável: baseline de aprovação, latência e custo é publicado
+  antes de mudança de política ou ampliação de autonomia.
+
+Nenhuma ampliação de autonomia além da política vigente será iniciada antes de
+runtime reproduzível, recuperação durável e QA pós-execução estarem concluídos.
+
 ### Fase 8 — Políticas e segurança avançadas
 
 Matriz de permissões completa, self-modification restricted fim a fim, proteção de secrets, auditoria completa revisada.

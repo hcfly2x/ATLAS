@@ -10,10 +10,10 @@
   ao usar o `user_id` como `chat_id`; a publicação limita-se a `COMPLETED` e
   `FAILED` e adota `at-most-once` para não duplicar após reinício.
 
-## Unreleased — correção pós-piloto
+## Unreleased — estabilização e direção de organização
 
 - Disparo automático de supervisão para Tasks Telegram e falha LLM terminal
-  passaram a ser tratados na branch de correção, ainda sem integração.
+  foram corrigidos e integrados na `main`.
 - Supervisor passou a limitar comandos da Specification à allowlist persistida
   do Project.
 - Worker ganhou recuperação com backoff exponencial para indisponibilidade
@@ -22,6 +22,10 @@
   worktree, sem bypass.
 - Procedimento de piloto passou a exigir rebuild dos packages antes de validar o
   worker manualmente.
+- Planejamento passou a registrar a organização-alvo de agentes e a sequência
+  obrigatória: runtime reproduzível e recuperação durável, QA pós-execução e só
+  então ampliação de autonomia. O epic de QA pós-execução foi registrado sem
+  autorização de implementação.
 
 ## 0.0.14
 
