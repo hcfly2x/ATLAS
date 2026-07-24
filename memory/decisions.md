@@ -99,3 +99,7 @@
   término reconciliado; lease expirado ambíguo nunca autoriza reexecução.
 - O consumo Codex é registrado por Execution e bloqueia claims novos ao atingir
   o teto lógico mensal configurável de US$ 75.
+- Antes do piloto, a configuração de projetos pode ser feita pelo Pilot Setup
+  Wizard local em `/setup`; `.atlas/projects.yaml` permanece a fonte versionada
+  e protegida, a gravação exige ação humana explícita e deve ser revisada por
+  diff. O assistente não é o dashboard da Fase 10 e não autoriza a Fase 6.

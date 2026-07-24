@@ -55,7 +55,7 @@ Critério: demanda vira especificação executável rastreável e auditada.
 
 ### Fase 5 — Worker + Codex + Git
 
-**Status:** concluída em branch própria; aguarda revisão e merge.
+**Status:** concluída, aceita e integrada na `main` como v0.0.8.
 
 - Registro do worker, token Bearer, long-polling, heartbeat (ADR-007), preflight e concorrência 1 (ADR-011).
 - Worktree + branch por tarefa, cleanup, diff.
@@ -65,6 +65,17 @@ Critério: demanda vira especificação executável rastreável e auditada.
 - Commit e PR somente após aprovação do resultado.
 
 Critério: **ciclo completo de valor funcionando de ponta a ponta.** Marco do MVP.
+
+### Preparação local do piloto ✅
+
+- Assistente local em `/setup` para configurar, validar e salvar projetos em
+  `.atlas/projects.yaml`.
+- Fronteira restrita ao loopback, sem banco, credenciais, deploy ou funções do
+  dashboard.
+- Ativação condicionada aos requisitos canônicos do projeto e revisão humana do
+  diff do arquivo protegido.
+
+Esta preparação operacional não cria uma nova fase e não autoriza a Fase 6.
 
 ---
 

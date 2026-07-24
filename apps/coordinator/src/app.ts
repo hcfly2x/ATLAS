@@ -32,6 +32,12 @@ import {
   WorkerLeaseError,
   type WorkerService,
 } from "./worker/service.js";
+import {
+  ProjectConfigConflictError,
+  ProjectConfigValidationError,
+  type ProjectConfigStore,
+} from "./setup/project-config.js";
+import { registerSetupRoutes } from "./setup/routes.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -63,6 +69,7 @@ const leaseSchema = z.object({
 export interface CoordinatorAppOptions {
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
+  readonly projectConfigStore?: ProjectConfigStore;
   readonly supervisorService?: Pick<SupervisorService, "processTask">;
   readonly taskStore?: TaskCoreStore;
   readonly telegramClient?: TelegramClient;
@@ -105,6 +112,10 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     service: "coordinator",
     status: "ok",
   }));
+
+  if (options.projectConfigStore !== undefined) {
+    registerSetupRoutes(app, options.projectConfigStore);
+  }
 
   if (options.taskStore !== undefined) {
     if (options.internalAuthToken === undefined || options.internalAuthToken.length === 0) {
@@ -391,6 +402,21 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
         correlationId: request.id,
         limitUsd: error.limitUsd,
         spentUsd: error.spentUsd,
+      });
+    }
+    if (error instanceof ProjectConfigValidationError) {
+      return reply.code(422).send({
+        code: "PROJECT_NOT_READY_FOR_ACTIVATION",
+        correlationId: request.id,
+        issues: error.issues,
+        message: error.message,
+      });
+    }
+    if (error instanceof ProjectConfigConflictError) {
+      return reply.code(409).send({
+        code: "PROJECT_CONFIG_CONFLICT",
+        correlationId: request.id,
+        message: error.message,
       });
     }
 

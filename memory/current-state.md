@@ -3,7 +3,8 @@
 ## Fase
 
 Fase 5 — Worker + Codex + Git integrada na `main` e publicada como `v0.0.8`.
-A Trilha 1 está completa; a Fase 6 não está autorizada.
+A Trilha 1 está completa. O Pilot Setup Wizard foi concluído em branch própria
+e aguarda revisão; a Fase 6 não está autorizada.
 
 ## Implementado
 
@@ -30,12 +31,23 @@ A Trilha 1 está completa; a Fase 6 não está autorizada.
 - Retry técnico nível 3 somente após reconciliação e fencing.
 - Teto lógico Codex US$ 75/mês registrado separadamente da deliberação OpenAI.
 - Quarta migração para resultados, chunks e consumo Codex.
+- Pilot Setup Wizard local em `/setup`, restrito ao loopback e desacoplado do
+  banco, para validar e salvar `.atlas/projects.yaml` atomicamente.
+- O processo standalone do wizard usa Fastify mínimo e não importa o app
+  principal nem depende do Prisma Client gerado.
+- Comandos permitidos configurados como executável e argumentos separados; o
+  seed aceita o mesmo contrato estruturado consumido pelo worker.
 
 ## Testes e validações
 
 - Instalação e lockfile: aprovados.
 - Formatação, Prisma generate/validate, lint, typecheck e build: aprovados.
-- Testes unitários/API/contrato: 43 aprovados.
+- Testes unitários/API/contrato: 49 aprovados, sendo 6 novos do wizard.
+- Testes do wizard cobrem defaults sem mutação, validação de ativação, gravação
+  atômica/preservação de campos, proteção da escrita HTTP e restrição loopback.
+- Interface verificada no navegador local com carregamento dos quatro projetos
+  e apresentação das pendências sem gravar o arquivo canônico.
+- Boot standalone verificado sem carregar `@prisma/client`.
 - Git testado em repositório temporário; Codex testado com binário falso.
 - Quatro migrações aplicadas do zero em PostgreSQL 17 efêmero.
 - Seed executado com sucesso.
@@ -55,9 +67,10 @@ A Trilha 1 está completa; a Fase 6 não está autorizada.
 
 ## Próximo passo
 
-Preparar um piloto operacional controlado com um projeto real e credenciais
-locais configuradas fora do repositório. Qualquer trabalho da Fase 6 depende de
-autorização explícita.
+Revisar e integrar o PR do Pilot Setup Wizard. Depois, configurar um projeto
+real, executar migrações/seed e iniciar o piloto controlado com credenciais
+locais fora do repositório. Qualquer trabalho da Fase 6 depende de autorização
+explícita.
 
 ## Restrições ativas
 

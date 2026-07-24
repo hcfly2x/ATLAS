@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.9
+
+- Pilot Setup Wizard local adicionado em `/setup`, sem antecipar o dashboard.
+- Configuração lê, valida e salva `.atlas/projects.yaml` de forma atômica,
+  preservando campos fora do formulário.
+- Ativação exige repositório Git absoluto, ferramentas mínimas, allowlist
+  estruturada, teto por tarefa e retenção coerente.
+- Escritas HTTP exigem intenção explícita e toda a fronteira permanece restrita
+  ao loopback.
+- Seed unificado com o mesmo schema de configuração usado pelo wizard e worker.
+- Scripts locais adicionados para abrir o wizard e carregar o coordinator a
+  partir de `.env.local`, sem copiar ou versionar credenciais.
+- Boot independente do app principal e do Prisma Client gerado, permitindo usar
+  `pnpm pilot` imediatamente após a instalação das dependências.
+
 ## 0.0.8
 
 - Fase 5 — Worker + Codex + Git concluída em branch própria.
