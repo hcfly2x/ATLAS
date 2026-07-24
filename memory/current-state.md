@@ -3,8 +3,8 @@
 ## Fase
 
 Bloco C integrado na `main` como v0.0.13. Fase 7 — Conselho multiagente —
-concluída na branch `phase-7-multi-agent`, pendente de revisão e merge. A Fase 8
-não está autorizada.
+aprovada para integração na `main` como v0.0.14 pelo PR #16. A Fase 8 não está
+autorizada.
 
 ## Implementado
 
@@ -53,8 +53,8 @@ não está autorizada.
 
 ## Próximo passo
 
-Revisar o PR da Fase 7. Não fazer merge nem iniciar a Fase 8 sem autorização
-explícita.
+Confirmar a integração e a pipeline da `main`. Não iniciar a Fase 8 sem
+autorização explícita.
 
 ## Restrições ativas
 

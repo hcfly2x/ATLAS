@@ -65,3 +65,7 @@
   `SPECIFYING`, exigindo reconciliação operacional.
 - Definir retry idempotente de falha de provedor por agente sem repetir
   pareceres já persistidos nem ultrapassar o limite de duas rodadas.
+- Limitar a concorrência das chamadas de parecer por rodada, evitando que um
+  pico de rate limit do provedor derrube toda a deliberação.
+- Resolver symlinks para o destino real em `assertInsideRoot` antes de ler
+  instruções de agente, mantendo a fronteira física dentro do repositório.
