@@ -137,6 +137,72 @@ describe("WorkerRunner", () => {
     expect(calls).toEqual(["create", "finalize", "coordinator-finalize", "cleanup"]);
   });
 
+  it("orders result log references when concurrent stream callbacks complete out of order", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-log-order-"));
+    temporaryDirectories.push(root);
+    let submitted: Awaited<ReturnType<WorkerRunner["execute"]>> | undefined;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: (_workerId, _assignment, chunk) =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, chunk.sequence === 0 ? 10 : 0);
+          }),
+        finalize: () => Promise.resolve(),
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: true,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submitted = result;
+          return Promise.resolve({ replayed: false, state: "FINALIZING" });
+        },
+      },
+      codex: {
+        execute: async (request) => {
+          await Promise.all([request.onChunk("first"), request.onChunk("second")]);
+          return { exitCode: 0, summary: { pendingItems: [], risks: [], summary: "done" } };
+        },
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () =>
+          Promise.resolve({ commitSha: "abcdef123456", pullRequestUrl: "https://example.test/1" }),
+        removeWorktree: () => Promise.resolve(),
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 100,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    await runner.execute(assignment(root));
+
+    expect(submitted?.log_chunks.map((chunk) => chunk.sequence)).toEqual([0, 1]);
+  });
+
   it("submits failure and cleans up when Codex fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "atlas-runner-failure-"));
     temporaryDirectories.push(root);
