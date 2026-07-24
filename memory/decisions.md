@@ -38,3 +38,4 @@
 - ADR-012 aceito na opção 1: idempotency keys, lease renovável e fencing token.
 - O schema da Fase 2 deve incluir colunas de chaves de idempotência, lease e fencing token; essa modelagem não será postergada para a Fase 5.
 - A Fase 1 — Foundation mínima foi autorizada explicitamente em 23/07/2026; a Fase 2 exige autorização separada.
+- A Fase 1 foi aceita com ressalvas não bloqueadoras; a Fase 2 — Core mínimo do Coordinator foi autorizada explicitamente em 23/07/2026.

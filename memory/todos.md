@@ -1,9 +1,8 @@
 # Pendências
 
-## Antes da Fase 2
+## Fase 2
 
-- Submeter pipeline, resumo técnico e `memory/current-state.md` à revisão do usuário.
-- Obter autorização explícita e separada antes de iniciar a Fase 2.
+- Substituir o objeto de log embutido no body de `/health` por logging real do Fastify/Pino com hook de correlation ID.
 
 ## Antes de ativar cada projeto
 

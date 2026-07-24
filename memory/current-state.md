@@ -2,7 +2,7 @@
 
 ## Fase
 
-Fase 1 — Foundation mínima concluída em 23/07/2026 na branch `phase-1-foundation`. A Fase 2 não está autorizada e exige confirmação explícita separada.
+Fase 1 aceita com ressalvas não bloqueadoras. Fase 2 — Core mínimo do Coordinator autorizada e iniciada em 23/07/2026 na branch `phase-2-core`.
 
 ## Implementado
 
@@ -33,11 +33,11 @@ Fase 1 — Foundation mínima concluída em 23/07/2026 na branch `phase-1-founda
 
 ## Próximo passo
 
-O usuário revisará o resumo, `memory/current-state.md` e a pipeline. Somente após autorização explícita separada poderá começar a Fase 2 — Core mínimo do Coordinator.
+Executar exclusivamente o backlog da Fase 2. A Fase 3 permanece não autorizada.
 
 ## Restrições ativas
 
-- não iniciar a Fase 2;
+- não iniciar a Fase 3;
 - não implementar feature de negócio;
 - não fazer deploy ou merge;
 - não integrar credenciais reais;
