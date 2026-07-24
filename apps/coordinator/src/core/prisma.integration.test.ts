@@ -685,5 +685,84 @@ describe("Prisma core persistence", () => {
         workerId: registration.workerId,
       }),
     ).toEqual({ replayed: false, state: "WAITING_RESULT_APPROVAL" });
+
+    const cancelledTaskId = randomUUID();
+    await prisma.task.create({
+      data: {
+        id: cancelledTaskId,
+        idempotencyKey: `cancel-race-task-${cancelledTaskId}`,
+        origin: "integration-test",
+        originalMessage: "cancel while result is in flight",
+        projectId,
+        state: "QUEUED",
+      },
+    });
+    const cancelledPayload = specificationPayload(cancelledTaskId, projectId);
+    const cancelledSpecification = await prisma.specification.create({
+      data: {
+        payload: cancelledPayload,
+        payloadHash: canonicalPayloadHash(cancelledPayload),
+        taskId: cancelledTaskId,
+        version: 1,
+      },
+    });
+    await prisma.task.update({
+      where: { id: cancelledTaskId },
+      data: { activeSpecificationId: cancelledSpecification.id },
+    });
+    const secondToken = `worker-token-${randomUUID()}`;
+    const secondRegistration = await service.register({
+      capabilities: {
+        architecture: "arm64",
+        codex_version: "codex 1.0.0",
+        git_version: "git version 2.0.0",
+        node_version: "v22.13.0",
+        platform: "darwin",
+        tools: {},
+      },
+      concurrencyLimit: 1,
+      name: "cancel-race-worker",
+      projectScopes: [projectId],
+      token: secondToken,
+    });
+    const cancelAssignment = await service.claim(
+      await service.authenticate(secondToken),
+      `cancel-race-claim-${randomUUID()}`,
+    );
+    expect(cancelAssignment).not.toBeNull();
+    if (cancelAssignment === null) throw new Error("cancel assignment expected");
+    await prisma.task.update({
+      where: { id: cancelledTaskId },
+      data: { state: "CANCEL_REQUESTED", version: { increment: 1 } },
+    });
+    const cancelledRaceResult = createWorkerResult({
+      ...previousResultContent,
+      execution_id: cancelAssignment.execution_id,
+      idempotency_key: `cancel-race-result-${randomUUID()}`,
+      log_chunks: [],
+      specification_hash: cancelAssignment.specification_hash,
+      specification_id: cancelAssignment.specification_id,
+      specification_version: cancelAssignment.specification_version,
+      task_id: cancelAssignment.task_id,
+      worker_id: secondRegistration.workerId,
+    });
+    await expect(
+      service.submitResult({
+        fencingToken: BigInt(cancelAssignment.fencing_token),
+        leaseId: cancelAssignment.lease_id,
+        result: cancelledRaceResult,
+        workerId: secondRegistration.workerId,
+      }),
+    ).rejects.toBeInstanceOf(WorkerConflictError);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: cancelledTaskId } })).toMatchObject({
+      state: "CANCEL_REQUESTED",
+    });
+    expect(
+      await prisma.auditEvent.findUnique({
+        where: {
+          idempotencyKey: `audit:${cancelledRaceResult.idempotency_key}:transition-rejected`,
+        },
+      }),
+    ).toMatchObject({ action: "task.transition.rejected" });
   });
 });

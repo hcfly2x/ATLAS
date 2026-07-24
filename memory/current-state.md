@@ -24,6 +24,8 @@ autorizada.
 - Paths protegidos bloqueiam finalização automática.
 - Política de resultado cria Approval `SYSTEM/POLICY` no nível 2 ou solicita
   Approval humana ligada a `result_hash` e `diff_hash`.
+- Resultado e finalização aplicam transições atômicas com guarda de estado e
+  versão; um resultado concorrente não sobrescreve `CANCEL_REQUESTED`.
 - Retry técnico nível 3 somente após reconciliação e fencing.
 - Teto lógico Codex US$ 75/mês registrado separadamente da deliberação OpenAI.
 - Quarta migração para resultados, chunks e consumo Codex.
@@ -36,7 +38,8 @@ autorizada.
 - Git testado em repositório temporário; Codex testado com binário falso.
 - Quatro migrações aplicadas do zero em PostgreSQL 17 efêmero.
 - Seed executado com sucesso.
-- Testes de integração PostgreSQL: 6 aprovados.
+- Testes de integração PostgreSQL: 6 aprovados, incluindo corrida entre
+  resultado e `CANCEL_REQUESTED`.
 - Nenhum push, PR real de projeto-alvo, Codex real, deploy ou credencial real nos
   testes.
 

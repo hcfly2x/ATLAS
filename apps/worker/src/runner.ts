@@ -8,6 +8,7 @@ import type { GitAdapter, WorktreeRequest } from "@atlas/git-adapter";
 import {
   canonicalPayloadHash,
   createWorkerResult,
+  WORKER_RESULT_CONTRACT_VERSION,
   type WorkerAssignment,
   type WorkerCapabilities,
   type WorkerResult,
@@ -208,7 +209,7 @@ export class WorkerRunner {
         changed_paths: [...diff.changedPaths],
         codex_estimated_cost_usd: this.options.codexEstimatedCostUsdPerExecution,
         commands,
-        contract_version: "1.0",
+        contract_version: WORKER_RESULT_CONTRACT_VERSION,
         diff_hash: checksum(diff.content),
         diff_ref: `execution:${assignment.execution_id}:diff`,
         diff_summary: {
@@ -282,7 +283,7 @@ export class WorkerRunner {
         changed_paths: [...diff.changedPaths],
         codex_estimated_cost_usd: this.options.codexEstimatedCostUsdPerExecution,
         commands,
-        contract_version: "1.0",
+        contract_version: WORKER_RESULT_CONTRACT_VERSION,
         diff_hash: checksum(diff.content),
         diff_ref: `execution:${assignment.execution_id}:diff`,
         diff_summary: {

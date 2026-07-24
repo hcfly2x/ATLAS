@@ -17,6 +17,8 @@
 - Retry técnico nível 3 condicionado a reconciliação e fencing.
 - Consumo lógico Codex e teto mensal default US$ 75 persistidos separadamente.
 - Quarta migração adicionou payload/hashes de resultado, chunks e uso Codex.
+- Transições do resultado e da finalização passaram a usar guarda otimista de
+  estado/versão e o AuditEvent canônico, preservando `CANCEL_REQUESTED`.
 
 ## 0.0.7
 

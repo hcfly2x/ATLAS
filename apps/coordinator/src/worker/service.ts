@@ -275,14 +275,23 @@ export class WorkerService {
         });
         await transaction.auditEvent.create({
           data: {
-            action: "task.transitioned",
+            action: "task.transition.accepted",
             actor: "WORKER",
             correlationId: idempotencyKey,
             idempotencyKey: `audit:${idempotencyKey}:task-transition`,
-            payload: json({ fromState: "QUEUED", toState: "RUNNING" }),
+            payload: json({
+              fromState: "QUEUED",
+              task: {
+                failureStage: claimed.task.failureStage,
+                id: claimed.task.id,
+                projectId: claimed.task.projectId,
+                state: "RUNNING",
+                version: claimed.task.version + 1,
+              },
+            }),
             projectId: claimed.task.projectId,
             targetId: claimed.taskId,
-            targetType: "TASK",
+            targetType: "task",
             taskId: claimed.taskId,
           },
         });
@@ -364,14 +373,23 @@ export class WorkerService {
       });
       await transaction.auditEvent.create({
         data: {
-          action: "task.transitioned",
+          action: "task.transition.accepted",
           actor: "WORKER",
           correlationId: idempotencyKey,
           idempotencyKey: `audit:${idempotencyKey}:task-transition`,
-          payload: json({ fromState: "QUEUED", toState: "RUNNING" }),
+          payload: json({
+            fromState: "QUEUED",
+            task: {
+              failureStage: task.failureStage,
+              id: task.id,
+              projectId: task.projectId,
+              state: "RUNNING",
+              version: task.version + 1,
+            },
+          }),
           projectId: task.projectId,
           targetId: task.id,
-          targetType: "TASK",
+          targetType: "task",
           taskId: task.id,
         },
       });
@@ -661,7 +679,58 @@ export class WorkerService {
     const executionStatus = autoFinalize
       ? ExecutionStatus.FINALIZING
       : ExecutionStatus.AWAITING_RESULT_APPROVAL;
-    await this.options.prisma.$transaction(async (transaction) => {
+    const transitioned = await this.options.prisma.$transaction(async (transaction) => {
+      const testingTransition = await transaction.task.updateMany({
+        where: {
+          id: execution.taskId,
+          state: TaskState.RUNNING,
+          version: execution.task.version,
+        },
+        data: { state: TaskState.TESTING, version: { increment: 1 } },
+      });
+      if (testingTransition.count !== 1) {
+        const current = await transaction.task.findUniqueOrThrow({
+          where: { id: execution.taskId },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            action: "task.transition.rejected",
+            actor: "WORKER",
+            correlationId: result.idempotency_key,
+            idempotencyKey: `audit:${result.idempotency_key}:transition-rejected`,
+            payload: json({
+              actualState: current.state,
+              actualVersion: current.version,
+              expectedState: TaskState.RUNNING,
+              expectedVersion: execution.task.version,
+              reason: "state_or_version_conflict",
+              toState: TaskState.TESTING,
+            }),
+            projectId: execution.task.projectId,
+            targetId: execution.taskId,
+            targetType: "task",
+            taskId: execution.taskId,
+          },
+        });
+        return false;
+      }
+      const testingTask = await transaction.task.findUniqueOrThrow({
+        where: { id: execution.taskId },
+      });
+      const policyTransition = await transaction.task.updateMany({
+        where: {
+          id: execution.taskId,
+          state: TaskState.TESTING,
+          version: testingTask.version,
+        },
+        data: { state: taskState, version: { increment: 1 } },
+      });
+      if (policyTransition.count !== 1) {
+        throw new WorkerConflictError("task changed while applying result policy");
+      }
+      const policyTask = await transaction.task.findUniqueOrThrow({
+        where: { id: execution.taskId },
+      });
       await transaction.execution.update({
         where: { id: execution.id },
         data: {
@@ -677,10 +746,6 @@ export class WorkerService {
           status: executionStatus,
           testResult: json(result.tests),
         },
-      });
-      await transaction.task.update({
-        where: { id: execution.taskId },
-        data: { state: taskState, version: { increment: 2 } },
       });
       await transaction.approval.create({
         data: {
@@ -729,31 +794,53 @@ export class WorkerService {
       });
       await transaction.auditEvent.create({
         data: {
-          action: "task.transitioned",
+          action: "task.transition.accepted",
           actor: "WORKER",
           correlationId: result.idempotency_key,
           idempotencyKey: `audit:${result.idempotency_key}:testing`,
-          payload: json({ fromState: "RUNNING", toState: "TESTING" }),
+          payload: json({
+            fromState: "RUNNING",
+            task: {
+              failureStage: testingTask.failureStage,
+              id: testingTask.id,
+              projectId: testingTask.projectId,
+              state: testingTask.state,
+              version: testingTask.version,
+            },
+          }),
           projectId: execution.task.projectId,
           targetId: execution.taskId,
-          targetType: "TASK",
+          targetType: "task",
           taskId: execution.taskId,
         },
       });
       await transaction.auditEvent.create({
         data: {
-          action: "task.transitioned",
+          action: "task.transition.accepted",
           actor: "SYSTEM",
           correlationId: result.idempotency_key,
           idempotencyKey: `audit:${result.idempotency_key}:result-policy`,
-          payload: json({ fromState: "TESTING", toState: taskState }),
+          payload: json({
+            fromState: "TESTING",
+            task: {
+              failureStage: policyTask.failureStage,
+              id: policyTask.id,
+              projectId: policyTask.projectId,
+              state: policyTask.state,
+              version: policyTask.version,
+            },
+          }),
           projectId: execution.task.projectId,
           targetId: execution.taskId,
-          targetType: "TASK",
+          targetType: "task",
           taskId: execution.taskId,
         },
       });
+      return true;
     });
+    if (!transitioned) {
+      throw new WorkerConflictError("task is no longer RUNNING");
+    }
     return { replayed: false, state: taskState };
   }
 
@@ -784,8 +871,45 @@ export class WorkerService {
     if (execution.status !== ExecutionStatus.FINALIZING) {
       throw new WorkerConflictError("execution is not ready for finalization");
     }
-    await this.options.prisma.$transaction([
-      this.options.prisma.execution.update({
+    const transitioned = await this.options.prisma.$transaction(async (transaction) => {
+      const completedTransition = await transaction.task.updateMany({
+        where: {
+          id: execution.taskId,
+          state: TaskState.FINALIZING,
+          version: execution.task.version,
+        },
+        data: { state: TaskState.COMPLETED, version: { increment: 1 } },
+      });
+      if (completedTransition.count !== 1) {
+        const current = await transaction.task.findUniqueOrThrow({
+          where: { id: execution.taskId },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            action: "task.transition.rejected",
+            actor: "WORKER",
+            correlationId: input.idempotencyKey,
+            idempotencyKey: `audit:${input.idempotencyKey}:transition-rejected`,
+            payload: json({
+              actualState: current.state,
+              actualVersion: current.version,
+              expectedState: TaskState.FINALIZING,
+              expectedVersion: execution.task.version,
+              reason: "state_or_version_conflict",
+              toState: TaskState.COMPLETED,
+            }),
+            projectId: execution.task.projectId,
+            targetId: execution.taskId,
+            targetType: "task",
+            taskId: execution.taskId,
+          },
+        });
+        return false;
+      }
+      const completedTask = await transaction.task.findUniqueOrThrow({
+        where: { id: execution.taskId },
+      });
+      await transaction.execution.update({
         where: { id: execution.id },
         data: {
           finalizationHash,
@@ -794,16 +918,12 @@ export class WorkerService {
           leaseId: null,
           status: ExecutionStatus.SUCCEEDED,
         },
-      }),
-      this.options.prisma.task.update({
-        where: { id: execution.taskId },
-        data: { state: TaskState.COMPLETED, version: { increment: 1 } },
-      }),
-      this.options.prisma.worker.update({
+      });
+      await transaction.worker.update({
         where: { id: input.workerId },
         data: { status: WorkerStatus.IDLE },
-      }),
-      this.options.prisma.auditEvent.create({
+      });
+      await transaction.auditEvent.create({
         data: {
           action: "execution.finalized",
           actor: "WORKER",
@@ -820,8 +940,34 @@ export class WorkerService {
           targetType: "EXECUTION",
           taskId: execution.taskId,
         },
-      }),
-    ]);
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "task.transition.accepted",
+          actor: "WORKER",
+          correlationId: input.idempotencyKey,
+          idempotencyKey: `audit:${input.idempotencyKey}:task-transition`,
+          payload: json({
+            fromState: "FINALIZING",
+            task: {
+              failureStage: completedTask.failureStage,
+              id: completedTask.id,
+              projectId: completedTask.projectId,
+              state: completedTask.state,
+              version: completedTask.version,
+            },
+          }),
+          projectId: execution.task.projectId,
+          targetId: execution.taskId,
+          targetType: "task",
+          taskId: execution.taskId,
+        },
+      });
+      return true;
+    });
+    if (!transitioned) {
+      throw new WorkerConflictError("task is no longer FINALIZING");
+    }
     return { replayed: false };
   }
 

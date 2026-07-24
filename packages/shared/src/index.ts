@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
+export const WORKER_RESULT_CONTRACT_VERSION = "1.0" as const;
+
 export const correlationIdSchema = z.string().min(1).max(128);
 export type CorrelationId = z.infer<typeof correlationIdSchema>;
 
@@ -167,7 +169,7 @@ export const workerLogChunkReferenceSchema = z.object({
 });
 
 const workerResultBaseSchema = z.object({
-  contract_version: z.literal("1.0"),
+  contract_version: z.literal(WORKER_RESULT_CONTRACT_VERSION),
   task_id: z.string().uuid(),
   execution_id: z.string().uuid(),
   specification_id: z.string().uuid(),

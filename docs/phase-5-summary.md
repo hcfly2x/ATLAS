@@ -20,6 +20,9 @@ política de aprovação e abertura de pull request sem merge automático.
 - Fencing token vigente é obrigatório em renovação, log, resultado e finalização.
 - Testes verdes e ausência de paths protegidos permitem `FINALIZING` no nível 2,
   com Approval `SYSTEM/POLICY`; caso contrário há aprovação humana.
+- As transições do resultado e da finalização usam guarda otimista por estado e
+  versão e emitem `task.transition.accepted`; conflitos são rejeitados e
+  auditados sem sobrescrever cancelamento concorrente.
 - Retry automático nível 3 só abrange `network|timeout` após lease liberado e
   reconciliação; `lease_expired` exige confirmação explícita de término.
 - Teto lógico Codex default US$ 75/mês é separado do orçamento OpenAI.
@@ -42,7 +45,8 @@ política de aprovação e abertura de pull request sem merge automático.
 - Adapter Git em repositório temporário e Codex Adapter com binário falso.
 - Quatro migrações e seed em PostgreSQL 17 efêmero.
 - Seis testes de integração PostgreSQL, incluindo lease, fencing, replay,
-  conflito, orçamento, Approval automática e retry técnico nível 3.
+  conflito, orçamento, Approval automática, retry técnico nível 3 e resultado
+  concorrente com `CANCEL_REQUESTED`.
 
 ## Riscos remanescentes
 
