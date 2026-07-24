@@ -9,11 +9,9 @@ const ACTIVE_STATES = new Set<TaskState>([
   "FINALIZING",
   "CANCEL_REQUESTED",
 ]);
-const TERMINAL_STATES = new Set<TaskState>(["COMPLETED", "FAILED", "CANCELLED"]);
 
 export interface TelegramProgressCandidate {
   readonly chatId: bigint;
-  readonly finalDelivered: boolean;
   readonly lastActivityAt: Date | null;
   readonly lastLogSequence: number;
   readonly lastLogOffset: number;
@@ -31,7 +29,6 @@ export interface TelegramProgressCandidate {
 export interface TelegramProgressStore {
   listCandidates(): Promise<readonly TelegramProgressCandidate[]>;
   markActivity(taskId: string, at: Date): Promise<void>;
-  markFinal(taskId: string, taskVersion: number): Promise<void>;
   markLogs(taskId: string, sequence: number, offset: number): Promise<void>;
   markMilestone(taskId: string, taskVersion: number): Promise<void>;
 }
@@ -45,12 +42,11 @@ export class PrismaTelegramProgressStore implements TelegramProgressStore {
     for (const session of sessions) {
       const tasks = await this.prisma.task.findMany({
         where: {
-          origin: `telegram:${session.userId.toString()}`,
           OR: [
-            { state: { notIn: ["COMPLETED", "FAILED", "CANCELLED"] } },
-            { telegramDelivery: { finalDeliveredAt: null } },
-            { telegramDelivery: null },
+            { origin: `telegram:${session.userId.toString()}` },
+            { origin: { startsWith: `telegram:${session.userId.toString()}:` } },
           ],
+          state: { notIn: ["COMPLETED", "FAILED", "CANCELLED"] },
         },
         include: {
           auditEvents: {
@@ -79,9 +75,6 @@ export class PrismaTelegramProgressStore implements TelegramProgressStore {
             : undefined;
         candidates.push({
           chatId: session.chatId,
-          finalDelivered:
-            task.telegramDelivery?.finalDeliveredAt !== null &&
-            task.telegramDelivery?.finalDeliveredAt !== undefined,
           lastActivityAt: task.telegramDelivery?.lastActivityAt ?? null,
           lastLogSequence: task.telegramDelivery?.lastLogSequence ?? -1,
           lastLogOffset: task.telegramDelivery?.lastLogOffset ?? 0,
@@ -108,14 +101,15 @@ export class PrismaTelegramProgressStore implements TelegramProgressStore {
       where: { id: taskId },
       select: { origin: true, projectId: true },
     });
-    const match = /^telegram:(\d+)$/.exec(task.origin);
+    const match = /^telegram:(\d+)(?::(-?\d+))?$/.exec(task.origin);
     if (match?.[1] === undefined) throw new Error("Telegram task origin is invalid");
     const userId = BigInt(match[1]);
     const session = await this.prisma.telegramSession.findUniqueOrThrow({ where: { userId } });
+    const chatId = match[2] === undefined ? session.chatId : BigInt(match[2]);
     await this.prisma.telegramTaskDelivery.upsert({
       where: { taskId },
-      create: { chatId: session.chatId, projectId: task.projectId, taskId, userId },
-      update: { chatId: session.chatId },
+      create: { chatId, projectId: task.projectId, taskId, userId },
+      update: { chatId },
     });
   }
 
@@ -124,14 +118,6 @@ export class PrismaTelegramProgressStore implements TelegramProgressStore {
     await this.prisma.telegramTaskDelivery.update({
       where: { taskId },
       data: { lastActivityAt: at },
-    });
-  }
-
-  async markFinal(taskId: string, taskVersion: number): Promise<void> {
-    await this.ensure(taskId);
-    await this.prisma.telegramTaskDelivery.update({
-      where: { taskId },
-      data: { finalDeliveredAt: new Date(), lastTaskVersion: taskVersion },
     });
   }
 
@@ -203,17 +189,6 @@ export class TelegramProgressPublisher {
           completed ? 0 : nextOffset,
         );
       }
-    }
-
-    if (TERMINAL_STATES.has(candidate.state) && !candidate.finalDelivered) {
-      await this.client.sendResponses(candidate.chatId, [
-        {
-          text: `Resultado final da Task ${candidate.taskId}: ${candidate.state}${
-            candidate.pullRequestUrl === undefined ? "" : `\nPR: ${candidate.pullRequestUrl}`
-          }`,
-        },
-      ]);
-      await this.store.markFinal(candidate.taskId, candidate.taskVersion);
     }
   }
 }

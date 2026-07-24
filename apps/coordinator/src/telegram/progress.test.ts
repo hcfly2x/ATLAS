@@ -11,7 +11,6 @@ import type { TelegramResponse } from "./types.js";
 class ProgressStore implements TelegramProgressStore {
   candidates: TelegramProgressCandidate[] = [];
   activities: string[] = [];
-  finals: string[] = [];
   logs: number[] = [];
   offsets: number[] = [];
   milestones: number[] = [];
@@ -20,10 +19,6 @@ class ProgressStore implements TelegramProgressStore {
   }
   markActivity(taskId: string) {
     this.activities.push(taskId);
-    return Promise.resolve();
-  }
-  markFinal(taskId: string) {
-    this.finals.push(taskId);
     return Promise.resolve();
   }
   markLogs(_taskId: string, sequence: number, offset: number) {
@@ -59,7 +54,6 @@ class ProgressClient implements TelegramClient {
 function candidate(overrides: Partial<TelegramProgressCandidate>): TelegramProgressCandidate {
   return {
     chatId: 10n,
-    finalDelivered: false,
     lastActivityAt: null,
     lastLogSequence: -1,
     lastLogOffset: 0,
@@ -76,7 +70,7 @@ function candidate(overrides: Partial<TelegramProgressCandidate>): TelegramProgr
 }
 
 describe("TelegramProgressPublisher", () => {
-  it("level 0 sends activity during work and only the final asynchronous result", async () => {
+  it("level 0 sends activity during work", async () => {
     const store = new ProgressStore();
     const client = new ProgressClient();
     store.candidates = [candidate({ state: "RUNNING" })];
@@ -84,11 +78,6 @@ describe("TelegramProgressPublisher", () => {
     await publisher.poll();
     expect(client.activity).toBe(1);
     expect(client.responses).toHaveLength(0);
-
-    store.candidates = [candidate({ state: "COMPLETED" })];
-    await publisher.poll();
-    expect(client.responses[0]?.text).toContain("Resultado final");
-    expect(store.finals).toHaveLength(1);
   });
 
   it("level 1 emits milestones and level 2 batches persisted chunks", async () => {
