@@ -75,6 +75,9 @@ export class CodexCliAdapter implements CodexAdapter {
       }
     };
     request.abortSignal.addEventListener("abort", abort, { once: true });
+    if (request.abortSignal.aborted) {
+      abort();
+    }
     child.stdin.end(request.prompt);
     const exitCode = await new Promise<number>((resolve, reject) => {
       child.once("error", reject);

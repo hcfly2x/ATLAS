@@ -165,6 +165,13 @@ export class WorkerRunner {
         `Specification path: ${specificationPath}`,
         'Write the final message as JSON: {"summary":"...","risks":[],"pending_items":[]}.',
       ].join("\n");
+      if (abortController.signal.aborted) {
+        throw new Error(
+          lifecycle.cancelRequested
+            ? "Execution cancelled before Codex start"
+            : "Execution aborted before Codex start",
+        );
+      }
       const codex = await this.options.codex.execute({
         abortSignal: abortController.signal,
         onChunk: sendChunk,
