@@ -45,3 +45,14 @@
   taxonomia explícita ou uma política conservadora para classificações futuras.
 - Evitar commit acidental de temporários órfãos do salvamento atômico, cobrindo
   `.atlas/*.tmp-*` no `.gitignore` ou removendo-os de forma segura no startup.
+
+## Roadmap documental — sem autorização de execução
+
+- Decidir o ADR-016 somente quando skills anexáveis entrarem em uma fase
+  autorizada, incluindo formato, versionamento, RBAC, confiança e auditoria.
+- Decidir o ADR-017 em conjunto com a persistência do ADR-013 quando a edição de
+  personas for autorizada.
+- Priorizar e atribuir fase ao epic de modo consulta depois do piloto, sem
+  acionar Specification, Approval ou worker.
+- Priorizar e atribuir fase ao epic de tarefas agendadas/webhooks somente após o
+  epic de infraestrutura.

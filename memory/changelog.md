@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.13
+
+- ADR-016 criado como Proposto para skills versionadas e anexáveis a agentes.
+- ADR-017 criado como Proposto para personas declaradas em documentos
+  versionados.
+- Epics de roadmap adicionados para modo consulta e tarefas
+  agendadas/webhooks, ambos sem fase ou execução autorizada.
+- Epic 07 passou a exigir revisor diferente do emissor da Specification,
+  modelos distintos para revisor/supervisor e AuditEvent por parecer e rodada
+  no critério de aceite.
+
 ## 0.0.12
 
 - Preferência `/verbose 0|1|2` persistida em `TelegramSession`.
