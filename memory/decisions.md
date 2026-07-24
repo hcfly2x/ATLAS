@@ -124,3 +124,9 @@
 - A visibilidade Telegram é configurável por sessão com `/verbose 0|1|2`;
   atividade, marcos, logs persistidos e resultado final são publicados por um
   fluxo idempotente separado da execução do worker.
+- ADR-016 registra como proposta — não decisão aceita — separar papel de
+  capacidade por meio de skills versionadas e anexáveis a agentes.
+- ADR-017 registra como proposta — sem resolver o ADR-013 — declarar persona de
+  agente em documento versionado protegido pelo ADR-010.
+- Modo consulta e tarefas agendadas/webhooks entram apenas como epics de roadmap
+  com fase ainda não definida; registro não equivale a autorização.

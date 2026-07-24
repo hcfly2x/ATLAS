@@ -6,6 +6,9 @@
 - registro de papéis;
 - roteador;
 - parecer independente;
+- garantir que o agente revisor não seja o mesmo agente que emitiu a
+  Specification;
+- permitir modelos distintos para revisor e supervisor;
 - divergências;
 - supervisor;
 - especificação final;
@@ -16,4 +19,8 @@
   da Fase 10.
 
 ## Aceite
-Uma demanda crítica gera pareceres, decisão e especificação rastreável.
+
+Uma demanda crítica gera pareceres, decisão e especificação rastreável; cada
+parecer e rodada emite AuditEvent correlacionado. O revisor é independente do
+agente que emitiu a Specification, e revisor e supervisor podem usar modelos
+distintos.
