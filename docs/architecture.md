@@ -3,10 +3,13 @@
 ## Componentes
 
 ### Telegram Gateway
+
 Responsável apenas por receber e enviar mensagens, arquivos e callbacks.
 
 ### Coordinator API
+
 Cérebro do sistema:
+
 - projetos;
 - sessões;
 - agentes;
@@ -18,51 +21,59 @@ Cérebro do sistema:
 - prompts.
 
 ### Agent Runtime
+
 Executa agentes especializados de forma isolada e estruturada.
 
 ### Supervisor
+
 Consolida pareceres e produz a especificação final.
 
 ### Queue
+
 Gerencia tarefas, prioridade, retry, timeout e cancelamento. Implementação: pg-boss sobre PostgreSQL (ADR-005).
 
 ### Worker Local
+
 Executa tarefas em Mac mini ou MacBook M1 com 8 GB de RAM e macOS Tahoe 26.4. Mantém uma execução concorrente por padrão, conforme ADR-011. Não executa Docker nem banco de dados; requer somente Node.js, Git, Codex CLI e os repositórios dos projetos.
 
 ### Codex Adapter
+
 Isola a integração com Codex SDK/CLI.
 
 ### Git Adapter
+
 Cria worktree, branch, commit, push e PR.
 
 ### Memory Service
+
 Mantém memória persistente sempre vinculada a um projeto (ADR-004), podendo associá-la também a agente e tarefa. Contexto comum ao sistema é configuração estática versionada, não memória global persistente.
 
 ### Audit Service
+
 Registra entrada, pareceres, decisões, aprovações, comandos e resultados.
 
-## Monorepo sugerido
+## Monorepo
 
 apps/ (MVP)
+
 - coordinator (inclui o gateway Telegram como módulo)
 - worker
 
 apps/ (Trilha 2)
+
 - dashboard
 - gateway separado, apenas se necessário
 
-packages/
-- core
+packages/ (Fase 1)
+
 - agent-runtime
-- supervisor
-- memory
-- policies
 - queue
 - codex-adapter
 - git-adapter
-- telegram-adapter
 - audit
 - shared
+
+`core`, `supervisor`, `memory`, `policies` e `telegram-adapter` só serão extraídos quando as fases correspondentes justificarem sua criação.
 
 ## Comunicação
 

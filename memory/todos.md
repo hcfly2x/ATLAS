@@ -1,6 +1,6 @@
 # Pendências
 
-## Após a Fase 1
+## Antes da Fase 2
 
 - Submeter pipeline, resumo técnico e `memory/current-state.md` à revisão do usuário.
 - Obter autorização explícita e separada antes de iniciar a Fase 2.

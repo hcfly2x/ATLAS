@@ -1,0 +1,21 @@
+name: atlas-coordinator-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas_local_only
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - atlas_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  atlas_postgres_data:

@@ -1,0 +1,23 @@
+{
+  "name": "@atlas/coordinator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint . --max-warnings 0",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@atlas/audit": "workspace:*",
+    "@atlas/queue": "workspace:*",
+    "@atlas/shared": "workspace:*",
+    "fastify": "^5.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
+  }
+}
