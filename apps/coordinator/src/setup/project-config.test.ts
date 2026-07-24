@@ -30,11 +30,11 @@ function config(projects: object[] = []) {
         protected_paths_profile: "project_default",
         allowed_commands: [],
         required_tools: { node: null, git: null, codex_cli: null, gnu_tools: [] },
-        task_cost_limit_usd: null,
+        task_cost_limit_usd: 2,
         retention: {
           logs_days: 30,
           files_days: 30,
-          sensitive_days: null,
+          sensitive_days: 7,
           audit_events_expire: false,
         },
       },
@@ -64,12 +64,12 @@ function validProject(repository: string): EditableProject {
     protected_paths_profile: "project_default",
     allowed_commands: [{ executable: "pnpm", args: ["test"] }],
     required_tools: {
-      node: ">=22.13.0",
-      git: ">=2.39.0",
-      codex_cli: ">=1.0.0",
+      node: null,
+      git: null,
+      codex_cli: null,
       gnu_tools: [],
     },
-    task_cost_limit_usd: 5,
+    task_cost_limit_usd: 2,
     retention: {
       logs_days: 30,
       files_days: 30,
@@ -111,6 +111,44 @@ describe("ProjectConfigStore", () => {
     expect(await store.validate(project)).toEqual({
       issues: ["O repositório informado não existe ou não contém .git."],
       valid: false,
+    });
+  });
+
+  it("activates without minimum tool versions and suggests name/test from package.json", async () => {
+    const { root, store } = await fixture();
+    const repository = join(root, "sample-app");
+    await mkdir(join(repository, ".git"), { recursive: true });
+    await writeFile(
+      join(repository, "package.json"),
+      JSON.stringify({ packageManager: "pnpm@11.9.0", scripts: { test: "vitest run" } }),
+    );
+
+    const project = validProject(repository);
+    expect(await store.validate(project)).toEqual({ issues: [], valid: true });
+    expect(await store.suggest(repository)).toEqual({
+      command: { executable: "pnpm", args: ["test"] },
+      id: "sample-app",
+      name: "sample-app",
+      source: "package.json",
+    });
+  });
+
+  it("suggests safe commands from pyproject.toml and Makefile without executing them", async () => {
+    const { root, store } = await fixture();
+    const pythonRepository = join(root, "python-app");
+    const makeRepository = join(root, "make-app");
+    await mkdir(join(pythonRepository, ".git"), { recursive: true });
+    await mkdir(join(makeRepository, ".git"), { recursive: true });
+    await writeFile(join(pythonRepository, "pyproject.toml"), "[project]\nname='example'\n");
+    await writeFile(join(makeRepository, "Makefile"), "test:\n\t@echo never-executed\n");
+
+    await expect(store.suggest(pythonRepository)).resolves.toMatchObject({
+      command: { executable: "python", args: ["-m", "pytest"] },
+      source: "pyproject.toml",
+    });
+    await expect(store.suggest(makeRepository)).resolves.toMatchObject({
+      command: { executable: "make", args: ["test"] },
+      source: "Makefile",
     });
   });
 

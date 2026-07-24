@@ -110,3 +110,11 @@
   receber memória de outro projeto.
 - Conclusão de Execution gera resumo de Task na mesma transação da finalização;
   criação manual e automática são idempotentes e auditadas.
+- O Pilot Setup Wizard usa configuração mínima: repositório Git absoluto e
+  comandos de teste permitidos ficam no fluxo principal; os demais campos são
+  opções avançadas.
+- Projetos usam default de US$ 2 por tarefa e retenção sensível de 7 dias.
+  `required_tools` sem versão declarada significa “sem versão mínima”; o
+  preflight do worker continua registrando as versões reais.
+- A autodetecção do wizard apenas lê `package.json`, `pyproject.toml` ou
+  `Makefile`; sugestões de nome e teste são editáveis e nunca executam código.

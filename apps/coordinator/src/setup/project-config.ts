@@ -1,5 +1,5 @@
 import { lstat, readFile, rename, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 
 import { parse, stringify } from "yaml";
 import { z } from "zod";
@@ -79,7 +79,19 @@ export const editableProjectSchema = z.object({
   retention: retentionSchema,
 });
 
+export const repositorySuggestionRequestSchema = z.object({
+  repository: z.string().min(1).max(4096),
+});
+
+export const repositorySuggestionSchema = z.object({
+  id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  name: z.string().min(1).max(120),
+  command: projectCommandSchema.nullable(),
+  source: z.enum(["package.json", "pyproject.toml", "Makefile"]).nullable(),
+});
+
 export type EditableProject = z.infer<typeof editableProjectSchema>;
+export type RepositorySuggestion = z.infer<typeof repositorySuggestionSchema>;
 type ProjectConfig = z.infer<typeof projectConfigSchema>;
 type StoredProject = z.infer<typeof storedProjectSchema>;
 
@@ -112,6 +124,79 @@ function sensitiveClassification(value: string): boolean {
   return value.includes("sensitive") || value === "personal_financial";
 }
 
+function projectIdFromDirectory(name: string): string {
+  const normalized = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized.length > 0 ? normalized : "project";
+}
+
+async function validGitRepository(repositoryPath: string): Promise<boolean> {
+  if (!isAbsolute(repositoryPath)) return false;
+  try {
+    const repository = await stat(repositoryPath);
+    const gitMetadata = await stat(join(repositoryPath, ".git"));
+    return repository.isDirectory() && (gitMetadata.isDirectory() || gitMetadata.isFile());
+  } catch {
+    return false;
+  }
+}
+
+async function optionalFile(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+async function detectCommand(
+  repositoryPath: string,
+): Promise<Pick<RepositorySuggestion, "command" | "source">> {
+  const packageJson = await optionalFile(join(repositoryPath, "package.json"));
+  if (packageJson !== undefined) {
+    try {
+      const parsed = z
+        .object({
+          packageManager: z.string().optional(),
+          scripts: z.record(z.string(), z.string()).optional(),
+        })
+        .passthrough()
+        .safeParse(JSON.parse(packageJson) as unknown);
+      if (parsed.success && parsed.data.scripts?.test !== undefined) {
+        const packageManager = parsed.data.packageManager?.split("@")[0];
+        const executable =
+          packageManager === "pnpm" ||
+          packageManager === "yarn" ||
+          packageManager === "bun" ||
+          packageManager === "npm"
+            ? packageManager
+            : "npm";
+        return { command: { executable, args: ["test"] }, source: "package.json" };
+      }
+    } catch {
+      // A malformed package.json does not prevent suggestions from the other supported files.
+    }
+  }
+
+  if ((await optionalFile(join(repositoryPath, "pyproject.toml"))) !== undefined) {
+    return {
+      command: { executable: "python", args: ["-m", "pytest"] },
+      source: "pyproject.toml",
+    };
+  }
+
+  const makefile = await optionalFile(join(repositoryPath, "Makefile"));
+  if (makefile !== undefined && /^test\s*:/m.test(makefile)) {
+    return { command: { executable: "make", args: ["test"] }, source: "Makefile" };
+  }
+
+  return { command: null, source: null };
+}
+
 export class ProjectConfigConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -136,6 +221,21 @@ export class ProjectConfigStore {
   async list(): Promise<EditableProject[]> {
     const config = await this.read();
     return config.projects.map((project) => editable(config, project));
+  }
+
+  async suggest(repository: string): Promise<RepositorySuggestion> {
+    const repositoryPath = repository.trim();
+    if (!(await validGitRepository(repositoryPath))) {
+      throw new ProjectConfigValidationError([
+        "O repositório informado precisa existir, usar caminho absoluto e conter .git.",
+      ]);
+    }
+    const directoryName = basename(repositoryPath);
+    return repositorySuggestionSchema.parse({
+      id: projectIdFromDirectory(directoryName),
+      name: directoryName,
+      ...(await detectCommand(repositoryPath)),
+    });
   }
 
   async save(input: EditableProject): Promise<EditableProject> {
@@ -186,29 +286,11 @@ export class ProjectConfigStore {
       issues.push("Informe o caminho absoluto do repositório.");
     } else if (!isAbsolute(project.repository)) {
       issues.push("O caminho do repositório precisa ser absoluto.");
-    } else {
-      try {
-        const repository = await stat(project.repository);
-        const gitMetadata = await stat(join(project.repository, ".git"));
-        if (!repository.isDirectory() || (!gitMetadata.isDirectory() && !gitMetadata.isFile())) {
-          issues.push("O caminho informado não é um repositório Git.");
-        }
-      } catch {
-        issues.push("O repositório informado não existe ou não contém .git.");
-      }
+    } else if (!(await validGitRepository(project.repository))) {
+      issues.push("O repositório informado não existe ou não contém .git.");
     }
     if (project.allowed_commands.length === 0) {
       issues.push("Adicione ao menos um comando de teste permitido.");
-    }
-    if (
-      project.required_tools.node === null ||
-      project.required_tools.git === null ||
-      project.required_tools.codex_cli === null
-    ) {
-      issues.push("Informe as versões mínimas de Node, Git e Codex CLI.");
-    }
-    if (project.task_cost_limit_usd === null) {
-      issues.push("Defina o teto lógico por tarefa.");
     }
     if (
       sensitiveClassification(project.data_classification) &&

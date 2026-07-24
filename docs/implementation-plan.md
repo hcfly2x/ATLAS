@@ -74,6 +74,10 @@ Critério: **ciclo completo de valor funcionando de ponta a ponta.** Marco do MV
   dashboard.
 - Ativação condicionada aos requisitos canônicos do projeto e revisão humana do
   diff do arquivo protegido.
+- Configuração mínima pede somente repositório e comandos de teste; opções
+  avançadas permanecem editáveis e recolhidas por padrão.
+- Nome e comando podem ser sugeridos por arquivos conhecidos do repositório,
+  sem executar código.
 
 Esta preparação operacional não cria uma nova fase e não autoriza a Fase 6.
 
@@ -83,7 +87,7 @@ Esta preparação operacional não cria uma nova fase e não autoriza a Fase 6.
 
 ### Fase 6 — Memória por projeto
 
-**Status:** concluída em branch própria; aguarda revisão.
+**Status:** concluída, aceita e integrada na `main` como v0.0.10.
 
 Memória manual, decisões, resumos de tarefa, context builder com isolamento por
 projeto (ADR-004). Contrato e aceite detalhados em

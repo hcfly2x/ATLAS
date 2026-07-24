@@ -152,6 +152,27 @@ export const setupPage = `<!doctype html>
         font-size: 12px;
       }
       .section h3 { margin: 0; font-size: 16px; }
+      .scope-note {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-left: 3px solid var(--accent);
+        color: #cbd5cf;
+        background: rgba(183, 242, 108, .05);
+        font-size: 12px;
+      }
+      details.advanced {
+        margin: 8px 0 30px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(9, 13, 12, .35);
+      }
+      details.advanced > summary {
+        padding: 15px 17px;
+        cursor: pointer;
+        color: #cbd5cf;
+        font-weight: 800;
+      }
+      .advanced-content { padding: 8px 18px 4px; border-top: 1px solid var(--line); }
       .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
       .field { grid-column: span 6; }
       .field.third { grid-column: span 4; }
@@ -286,7 +307,8 @@ export const setupPage = `<!doctype html>
             <div>
               <p class="eyebrow">Configuração executável</p>
               <h2 id="project-title">Carregando projetos…</h2>
-              <p>Prepare um projeto para o piloto sem editar YAML manualmente. Nada é enviado para a nuvem.</p>
+              <p>Informe o repositório e os testes para preparar um projeto sem editar YAML manualmente. Nada é enviado para a nuvem.</p>
+              <div class="scope-note"><strong>Este assistente configura projetos, não agentes.</strong> Agentes e times continuam fora deste fluxo.</div>
             </div>
             <div class="readiness">
               <strong id="readiness-value">—</strong>
@@ -296,53 +318,64 @@ export const setupPage = `<!doctype html>
           <div class="validation" id="validation-box" role="status"></div>
           <form id="project-form">
             <section class="section">
-              <div class="section-title"><span class="section-number">01</span><h3>Identidade e política</h3></div>
-              <div class="grid">
-                <div class="field third"><label for="id">ID</label><input id="id" required /></div>
-                <div class="field"><label for="name">Nome</label><input id="name" required /></div>
-                <div class="field third">
-                  <label for="status">Status</label>
-                  <select id="status"><option value="draft">Draft</option><option value="active">Active</option><option value="future">Future</option><option value="archived">Archived</option></select>
-                </div>
-                <div class="field third">
-                  <label for="risk">Risco</label>
-                  <select id="risk"><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select>
-                </div>
-                <div class="field third"><label for="classification">Classificação</label><input id="classification" required /></div>
-                <div class="field third"><label for="autonomy">Autonomia</label><select id="autonomy"><option value="0">0 · Observação</option><option value="1">1 · Recomendação</option><option value="2">2 · Limitada</option><option value="3">3 · Supervisionada</option><option value="4" disabled>4 · Reservada</option></select></div>
-                <div class="field"><label for="policy">Política</label><input id="policy" required /></div>
-                <div class="field"><label for="protected-profile">Perfil de paths protegidos</label><input id="protected-profile" required /></div>
-              </div>
-            </section>
-            <section class="section">
-              <div class="section-title"><span class="section-number">02</span><h3>Repositório e ferramentas</h3></div>
+              <div class="section-title"><span class="section-number">01</span><h3>Repositório Git</h3></div>
               <div class="grid">
                 <div class="field full">
                   <label for="repository">Caminho absoluto do repositório</label>
                   <input id="repository" placeholder="/Users/seu-usuario/Projetos/meu-projeto" />
-                  <p class="hint">O diretório precisa existir neste Mac e conter metadados Git.</p>
+                  <p class="hint" id="detection-hint">O diretório precisa existir neste Mac e conter metadados Git. Nome e teste podem ser sugeridos sem executar código.</p>
                 </div>
-                <div class="field third"><label for="node-version">Node mínimo</label><input id="node-version" placeholder=">=22.13.0" /></div>
-                <div class="field third"><label for="git-version">Git mínimo</label><input id="git-version" placeholder=">=2.39.0" /></div>
-                <div class="field third"><label for="codex-version">Codex CLI mínimo</label><input id="codex-version" placeholder=">=1.0.0" /></div>
-                <div class="field full"><label for="gnu-tools">Ferramentas GNU declaradas</label><input id="gnu-tools" placeholder="gsed, ggrep (opcional)" /><p class="hint">Separe por vírgulas. Deixe vazio quando o projeto usa ferramentas BSD/macOS.</p></div>
               </div>
             </section>
             <section class="section">
-              <div class="section-title"><span class="section-number">03</span><h3>Comandos permitidos</h3></div>
+              <div class="section-title"><span class="section-number">02</span><h3>Comandos de teste permitidos</h3></div>
               <div class="command-list" id="command-list"></div>
               <button class="secondary" id="add-command" type="button">+ Adicionar comando</button>
               <p class="hint">Cada linha é executada sem shell. Exemplo: executável <strong>pnpm</strong>, argumentos <strong>test</strong>.</p>
             </section>
-            <section class="section">
-              <div class="section-title"><span class="section-number">04</span><h3>Limites e retenção</h3></div>
-              <div class="grid">
-                <div class="field third"><label for="task-cost">Teto por tarefa (US$)</label><input id="task-cost" type="number" min="0" step="0.01" /></div>
-                <div class="field third"><label for="logs-days">Logs (dias)</label><input id="logs-days" type="number" min="1" /></div>
-                <div class="field third"><label for="files-days">Arquivos (dias)</label><input id="files-days" type="number" min="1" /></div>
-                <div class="field third"><label for="sensitive-days">Dados sensíveis (dias)</label><input id="sensitive-days" type="number" min="1" placeholder="Não aplicável" /></div>
+            <details class="advanced">
+              <summary>Opções avançadas</summary>
+              <div class="advanced-content">
+                <section class="section">
+                  <div class="section-title"><h3>Identidade e política</h3></div>
+                  <div class="grid">
+                    <div class="field third"><label for="id">ID</label><input id="id" required /></div>
+                    <div class="field"><label for="name">Nome</label><input id="name" required /></div>
+                    <div class="field third">
+                      <label for="status">Status</label>
+                      <select id="status"><option value="draft">Draft</option><option value="active">Active</option><option value="future">Future</option><option value="archived">Archived</option></select>
+                    </div>
+                    <div class="field third">
+                      <label for="risk">Risco</label>
+                      <select id="risk"><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select>
+                    </div>
+                    <div class="field third"><label for="classification">Classificação</label><input id="classification" required /></div>
+                    <div class="field third"><label for="autonomy">Autonomia</label><select id="autonomy"><option value="0">0 · Observação</option><option value="1">1 · Recomendação</option><option value="2">2 · Limitada</option><option value="3">3 · Supervisionada</option><option value="4" disabled>4 · Reservada</option></select></div>
+                    <div class="field"><label for="policy">Política</label><input id="policy" required /></div>
+                    <div class="field"><label for="protected-profile">Perfil de paths protegidos</label><input id="protected-profile" required /></div>
+                  </div>
+                </section>
+                <section class="section">
+                  <div class="section-title"><h3>Ferramentas opcionais</h3></div>
+                  <p class="hint">Campos vazios significam “sem versão mínima”. O preflight do worker ainda registra as versões reais.</p>
+                  <div class="grid">
+                    <div class="field third"><label for="node-version">Node mínimo</label><input id="node-version" placeholder="Opcional" /></div>
+                    <div class="field third"><label for="git-version">Git mínimo</label><input id="git-version" placeholder="Opcional" /></div>
+                    <div class="field third"><label for="codex-version">Codex CLI mínimo</label><input id="codex-version" placeholder="Opcional" /></div>
+                    <div class="field full"><label for="gnu-tools">Ferramentas GNU declaradas</label><input id="gnu-tools" placeholder="gsed, ggrep (opcional)" /></div>
+                  </div>
+                </section>
+                <section class="section">
+                  <div class="section-title"><h3>Limites e retenção</h3></div>
+                  <div class="grid">
+                    <div class="field third"><label for="task-cost">Teto por tarefa (US$)</label><input id="task-cost" type="number" min="0" step="0.01" /></div>
+                    <div class="field third"><label for="logs-days">Logs (dias)</label><input id="logs-days" type="number" min="1" /></div>
+                    <div class="field third"><label for="files-days">Arquivos (dias)</label><input id="files-days" type="number" min="1" /></div>
+                    <div class="field third"><label for="sensitive-days">Dados sensíveis (dias)</label><input id="sensitive-days" type="number" min="1" /></div>
+                  </div>
+                </section>
               </div>
-            </section>
+            </details>
           </form>
           <footer class="actions">
             <span class="save-note">Salvar altera apenas <code>.atlas/projects.yaml</code>.</span>
@@ -440,6 +473,7 @@ export const setupPage = `<!doctype html>
         fields.sensitiveDays.value = project.retention.sensitive_days ?? "";
         byId("command-list").replaceChildren();
         project.allowed_commands.forEach(commandRow);
+        if (project.allowed_commands.length === 0) commandRow();
         byId("project-title").textContent = creating ? "Novo projeto" : project.name;
         hideValidation();
       }
@@ -455,9 +489,9 @@ export const setupPage = `<!doctype html>
           id: "", name: "", status: "draft", risk: "moderate",
           data_classification: "internal", policy: "least_privilege", autonomy_level: 2,
           repository: null, protected_paths_profile: "project_default", allowed_commands: [],
-          required_tools: { node: ">=22.13.0", git: ">=2.39.0", codex_cli: ">=1.0.0", gnu_tools: [] },
-          task_cost_limit_usd: 5,
-          retention: { logs_days: 30, files_days: 30, sensitive_days: null, audit_events_expire: false }
+          required_tools: { node: null, git: null, codex_cli: null, gnu_tools: [] },
+          task_cost_limit_usd: 2,
+          retention: { logs_days: 30, files_days: 30, sensitive_days: 7, audit_events_expire: false }
         };
       }
       function value() {
@@ -531,12 +565,42 @@ export const setupPage = `<!doctype html>
           toast(error instanceof Error ? error.message : "Falha ao carregar projetos", true);
         }
       }
+      async function detectRepository() {
+        const repository = fields.repository.value.trim();
+        if (!repository) return;
+        const hint = byId("detection-hint");
+        hint.textContent = "Verificando o repositório sem executar comandos…";
+        try {
+          const suggestion = await request("/setup/api/projects/detect", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-atlas-setup": "1" },
+            body: JSON.stringify({ repository })
+          });
+          if (state.creating) {
+            if (!fields.name.value.trim()) fields.name.value = suggestion.name;
+            if (!fields.id.value.trim()) fields.id.value = suggestion.id;
+            byId("project-title").textContent = fields.name.value || "Novo projeto";
+          }
+          const configuredCommands = [...document.querySelectorAll(".command-executable")]
+            .some((input) => input.value.trim().length > 0);
+          if (!configuredCommands && suggestion.command) {
+            byId("command-list").replaceChildren();
+            commandRow(suggestion.command);
+          }
+          hint.textContent = suggestion.source
+            ? "Sugestão carregada de " + suggestion.source + ". Revise e edite antes de salvar."
+            : "Repositório válido. Nenhum comando conhecido foi encontrado; informe o teste manualmente.";
+        } catch {
+          hint.textContent = "Não foi possível autodetectar. Confirme se o caminho é absoluto e contém .git.";
+        }
+      }
       byId("new-project").addEventListener("click", () => {
         state.selectedId = null;
         fill(draftProject(), true);
         renderList();
       });
       byId("add-command").addEventListener("click", () => commandRow());
+      fields.repository.addEventListener("blur", detectRepository);
       byId("validate").addEventListener("click", async () => {
         try {
           showValidation(await request("/setup/api/projects/validate", {

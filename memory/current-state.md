@@ -2,8 +2,9 @@
 
 ## Fase
 
-Pilot Setup Wizard integrado na `main` v0.0.9. Fase 6 — Memória por projeto
-concluída em branch própria e pendente de revisão; a Fase 7 não está autorizada.
+Fase 6 — Memória por projeto aceita e integrada na `main` v0.0.10. Bloco A de
+destravamento do piloto concluído em branch própria e pendente de revisão; a
+Fase 7 não está autorizada.
 
 ## Implementado
 
@@ -45,6 +46,14 @@ concluída em branch própria e pendente de revisão; a Fase 7 não está autori
 - Supervisor recebe contexto somente do Project da Task.
 - Finalização do worker persiste resumo da Task na mesma transação.
 - Quinta migração para `memory_items`.
+- Pilot Setup Wizard simplificado: somente repositório Git e comandos de teste
+  aparecem no fluxo principal; os demais campos ficam em opções avançadas.
+- Defaults do projeto: US$ 2 por tarefa e retenção sensível de 7 dias.
+- Ausência de versões mínimas em `required_tools` não bloqueia ativação; o
+  preflight continua registrando as versões reais.
+- Nome, ID e teste podem ser sugeridos pela leitura segura de `package.json`,
+  `pyproject.toml` ou `Makefile`, sem executar código.
+- A interface declara explicitamente que configura projetos, não agentes.
 
 ## Testes e validações
 
@@ -52,14 +61,16 @@ concluída em branch própria e pendente de revisão; a Fase 7 não está autori
 - Formatação, Prisma generate/validate, lint, typecheck e build: aprovados.
 - Testes unitários/API/contrato incluem context builder, API autenticada e
   injeção de memória no supervisor.
-- Suite unitária/API/contrato: 55 testes aprovados.
+- Suite unitária/API/contrato: 58 testes aprovados.
+- Teste visual local confirmou opções avançadas recolhidas, somente os dois
+  grupos mínimos visíveis e autodetecção editável a partir de `package.json`.
 - Testes do wizard cobrem defaults sem mutação, validação de ativação, gravação
   atômica/preservação de campos, proteção da escrita HTTP e restrição loopback.
 - Interface verificada no navegador local com carregamento dos quatro projetos
   e apresentação das pendências sem gravar o arquivo canônico.
 - Boot standalone verificado sem carregar `@prisma/client`.
 - Git testado em repositório temporário; Codex testado com binário falso.
-- Quatro migrações aplicadas do zero em PostgreSQL 17 efêmero.
+- Cinco migrações aplicadas do zero em PostgreSQL 17 efêmero.
 - Seed executado com sucesso.
 - Oito integrações PostgreSQL aprovadas em execuções consecutivas, incluindo
   corrida com `CANCEL_REQUESTED`, isolamento, replay/conflito e resumo automático.
@@ -73,12 +84,12 @@ concluída em branch própria e pendente de revisão; a Fase 7 não está autori
 - Worker: Mac M1, 8 GB, macOS Tahoe 26.4, sem Docker/banco.
 - Merge na `main`, produção, secrets de produção e paths protegidos continuam
   humanos.
-- Fase 5 não altera status dos ADRs Propostos nem inicia memória da Fase 6.
+- O Bloco A não altera status dos ADRs Propostos nem inicia a Fase 7.
 
 ## Próximo passo
 
-Revisar o PR da Fase 6. Não integrar nem iniciar a Fase 7 sem autorização
-explícita.
+Revisar o PR do Bloco A e executar o piloto depois da integração. Parar antes
+dos Blocos B e C; não iniciar a Fase 7.
 
 ## Restrições ativas
 
