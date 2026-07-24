@@ -1,6 +1,8 @@
 # Epic 05 — Worker + Codex + Git
 
 > Trilha 1 — Fase 5.
+>
+> **Status:** concluído em branch própria; aguarda revisão e merge.
 
 ## Tarefas
 - registro;
@@ -17,7 +19,7 @@
 - verificação de paths protegidos;
 - aprovação do resultado por hashes;
 - estado FINALIZING para commit e PR;
-- lease, fencing token e idempotência conforme decisão futura do ADR-012.
+- lease, fencing token e idempotência conforme o ADR-012 aceito.
 
 ## Aceite
 Uma tarefa aprovada altera um repositório isolado, retorna resultado íntegro e só cria commit/PR após aprovação válida.

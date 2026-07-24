@@ -18,6 +18,13 @@
 
 **Worker** — id, nome, token hash, escopo de projetos, capacidades/preflight, limite de concorrência, último heartbeat, status.
 
+**WorkerLogChunk** — id, execution_id, sequência, checksum, tamanho, conteúdo
+sanitizado, hash do payload, idempotency_key e timestamp. Sequência é única por
+Execution.
+
+**CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
+início, fim e timestamp de registro. É separado de `LlmCall`.
+
 **MemoryItem** — id, project_id, tipo (`decision|summary|note`), conteúdo, task_id origem?, agent_id?, criado_em. O escopo é sempre por projeto (ADR-004); não existe memória global persistente no MVP.
 
 **AuditEvent** — id, project_id, task_id?, target_type?, target_id?, correlation_id, ator (`user|agent|worker|system`), ação, payload, criado_em. Append-only, nunca editado.
@@ -34,6 +41,8 @@ Task N—1 Specification ativa
 Task 1—N Approval
 Task 1—N Execution
 Specification 1—N Execution
+Execution 1—N WorkerLogChunk
+Execution 1—1 CodexUsage
 Approval N—1 alvo versionado (Specification, Execution/result ou ação sensível)
 Task 1—N AuditEvent
 Project 1—N MemoryItem

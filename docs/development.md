@@ -102,3 +102,29 @@ Como alternativa futura de teste do webhook, um túnel HTTPS pode encaminhar par
 `127.0.0.1:3000`, mas a criação do túnel e a chamada `setWebhook` são operações
 manuais fora do repositório. Nenhum endpoint público ou configuração de produção
 é criado por este kit.
+
+## Worker local
+
+O worker roda fora do Docker e não possui dependência de PostgreSQL. O perfil MVP
+exige macOS/ARM64, Node, Git, Codex CLI e os repositórios dos projetos. Antes de
+aceitar uma Task, o preflight valida plataforma, arquitetura, versões mínimas e
+ferramentas GNU explicitamente declaradas.
+
+Variáveis operacionais são mantidas somente no ambiente local:
+
+```bash
+export ATLAS_COORDINATOR_URL=https://coordinator.example.invalid
+export ATLAS_WORKER_TOKEN=valor-fornecido-fora-do-repositorio
+export ATLAS_PROJECT_SCOPES=atlas
+export ATLAS_WORKTREE_ROOT=/caminho/absoluto/atlas-worktrees
+export GITHUB_TOKEN=valor-fornecido-fora-do-repositorio
+pnpm --filter @atlas/worker start
+```
+
+`ATLAS_WORKER_CONCURRENCY` permanece `1` no MVP. Heartbeat usa 30 segundos;
+renovação de lease é configurada separadamente e deve ocorrer antes da expiração.
+O coordinator bloqueia claims novos ao atingir o teto lógico mensal Codex de
+US$ 75, sem interromper execução em andamento.
+
+Testes nunca usam Codex real, push ou GitHub: o adapter Codex recebe um binário
+falso e o adapter Git trabalha em repositórios temporários locais.

@@ -47,6 +47,8 @@ Contrato documental normativo para o schema Zod previsto no ADR-009.
 - `result_hash`: hash da representação canônica do resultado.
 - `idempotency_key`: identifica de forma única a submissão do resultado.
 - `sequence`: número monotônico da atualização final para a Execution.
+- `codex_estimated_cost_usd`: consumo lógico estimado atribuído à Execution para
+  apuração do teto mensal separado do Codex.
 
 ## Regras
 
@@ -56,3 +58,6 @@ Contrato documental normativo para o schema Zod previsto no ADR-009.
 - Aprovação do usuário referencia `execution_id`, `result_hash` e `diff_hash`.
 - Logs, erros, comandos e resumo devem estar sanitizados antes do envio.
 - Paths protegidos impedem `FINALIZING` sem a aprovação exigida pelo ADR-010.
+- `commands[].executable` contém o caminho resolvido do binário, nunca uma
+  string interpretada por shell.
+- `log_chunks` é contíguo e corresponde aos chunks persistidos pelo coordinator.

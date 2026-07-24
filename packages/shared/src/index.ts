@@ -138,3 +138,173 @@ export function canonicalJson(value: unknown): string {
 export function canonicalPayloadHash(value: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
+
+const utcTimestampSchema = z.string().datetime({ offset: true });
+const hashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+
+export const workerCommandSchema = z.object({
+  executable: z.string().min(1),
+  args: z.array(z.string()),
+  started_at: utcTimestampSchema,
+  finished_at: utcTimestampSchema,
+  exit_code: z.number().int().nullable(),
+  status: z.enum(["passed", "failed", "cancelled"]),
+});
+
+export const workerTestSchema = z.object({
+  name: z.string().min(1),
+  command_index: z.number().int().nonnegative(),
+  status: z.enum(["passed", "failed", "skipped"]),
+  duration_ms: z.number().int().nonnegative(),
+  summary: z.string(),
+});
+
+export const workerLogChunkReferenceSchema = z.object({
+  sequence: z.number().int().nonnegative(),
+  checksum: hashSchema,
+  size_bytes: z.number().int().nonnegative(),
+  created_at: utcTimestampSchema,
+});
+
+const workerResultBaseSchema = z.object({
+  contract_version: z.literal("1.0"),
+  task_id: z.string().uuid(),
+  execution_id: z.string().uuid(),
+  specification_id: z.string().uuid(),
+  specification_version: z.number().int().positive(),
+  specification_hash: hashSchema,
+  worker_id: z.string().uuid(),
+  status: z.enum(["succeeded", "failed", "cancelled"]),
+  started_at: utcTimestampSchema,
+  finished_at: utcTimestampSchema,
+  failure_stage: z.string().min(1).nullable(),
+  error: z
+    .object({
+      code: z.string().min(1),
+      message: z.string(),
+    })
+    .nullable(),
+  summary: z.string(),
+  changed_paths: z.array(z.string()),
+  diff_summary: z.object({
+    files_changed: z.number().int().nonnegative(),
+    insertions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    description: z.string(),
+  }),
+  diff_ref: z.string().min(1),
+  diff_hash: hashSchema,
+  protected_path_matches: z.array(z.string()),
+  risks: z.array(z.string()),
+  pending_items: z.array(z.string()),
+  commands: z.array(workerCommandSchema),
+  tests: z.array(workerTestSchema),
+  log_chunks: z.array(workerLogChunkReferenceSchema),
+  logs_truncated: z.boolean(),
+  redaction_applied: z.literal(true),
+  codex_estimated_cost_usd: z.number().nonnegative(),
+  idempotency_key: z.string().min(1).max(255),
+  sequence: z.number().int().positive(),
+});
+
+function validateWorkerFailureStage(
+  value: {
+    commands: readonly unknown[];
+    error: unknown;
+    failure_stage: string | null;
+    log_chunks: readonly { sequence: number }[];
+    status: "succeeded" | "failed" | "cancelled";
+    tests: readonly { command_index: number }[];
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.status === "failed" && value.failure_stage === null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "failure_stage is required when status=failed",
+      path: ["failure_stage"],
+    });
+  }
+  if (value.status === "succeeded" && (value.failure_stage !== null || value.error !== null)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "succeeded result cannot contain failure_stage or error",
+      path: ["status"],
+    });
+  }
+  value.tests.forEach((test, index) => {
+    if (test.command_index >= value.commands.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "test references a command outside the commands list",
+        path: ["tests", index, "command_index"],
+      });
+    }
+  });
+  value.log_chunks.forEach((chunk, index) => {
+    if (chunk.sequence !== index) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "log chunk sequence must be contiguous and ordered",
+        path: ["log_chunks", index, "sequence"],
+      });
+    }
+  });
+}
+
+export const workerResultContentSchema = workerResultBaseSchema.superRefine(
+  validateWorkerFailureStage,
+);
+export type WorkerResultContent = z.infer<typeof workerResultContentSchema>;
+
+export const workerResultSchema = workerResultBaseSchema
+  .extend({ result_hash: hashSchema })
+  .superRefine(validateWorkerFailureStage);
+export type WorkerResult = z.infer<typeof workerResultSchema>;
+
+export function createWorkerResult(content: WorkerResultContent): WorkerResult {
+  const parsed = workerResultContentSchema.parse(content);
+  return workerResultSchema.parse({
+    ...parsed,
+    result_hash: canonicalPayloadHash(parsed),
+  });
+}
+
+export const workerCapabilitiesSchema = z.object({
+  platform: z.string(),
+  architecture: z.string(),
+  node_version: z.string(),
+  git_version: z.string(),
+  codex_version: z.string(),
+  tools: z.record(z.string()),
+});
+export type WorkerCapabilities = z.infer<typeof workerCapabilitiesSchema>;
+
+export const workerAssignmentSchema = z.object({
+  execution_id: z.string().uuid(),
+  task_id: z.string().uuid(),
+  project_id: z.string().min(1),
+  repository_path: z.string().min(1),
+  autonomy_level: z.number().int().min(0).max(3),
+  specification_id: z.string().uuid(),
+  specification_version: z.number().int().positive(),
+  specification_hash: hashSchema,
+  specification: executableSpecificationPayloadSchema,
+  lease_id: z.string().uuid(),
+  lease_expires_at: utcTimestampSchema,
+  fencing_token: z.string().regex(/^\d+$/),
+  allowed_commands: z.array(
+    z.object({
+      executable: z.string().min(1),
+      args: z.array(z.string()),
+    }),
+  ),
+  required_tools: z.object({
+    node: z.string().nullable(),
+    git: z.string().nullable(),
+    codex_cli: z.string().nullable(),
+    gnu_tools: z.array(z.string()),
+  }),
+  protected_globs: z.array(z.string()),
+});
+export type WorkerAssignment = z.infer<typeof workerAssignmentSchema>;

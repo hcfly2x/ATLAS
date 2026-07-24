@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.8
+
+- Fase 5 — Worker + Codex + Git concluída em branch própria.
+- Divisão de responsabilidades entre Telegram e dashboard registrada.
+- Worker passou a usar preflight real macOS/ARM64 e concorrência 1.
+- Registro, heartbeat, long-polling, lease renovável, fencing e idempotência
+  implementados.
+- Resultado integral do worker validado por Zod, com chunks sanitizados,
+  checksums e hashes canônicos.
+- Codex CLI e Git encapsulados em adapters operacionais sem shell.
+- Worktree/branch isoladas, testes, paths protegidos, cleanup e PR draft
+  implementados.
+- Política de resultado aplica Approval automática de sistema no nível 2 ou
+  escala para aprovação humana.
+- Retry técnico nível 3 condicionado a reconciliação e fencing.
+- Consumo lógico Codex e teto mensal default US$ 75 persistidos separadamente.
+- Quarta migração adicionou payload/hashes de resultado, chunks e uso Codex.
+
 ## 0.0.7
 
 - ADR-014 criado como Proposto para níveis de autonomia 0–4 por projeto.
