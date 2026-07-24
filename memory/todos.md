@@ -20,6 +20,16 @@
 - Retornar mensagem útil para Approval já decidida, em vez de erro interno
   genérico.
 
+## Visibilidade Telegram — melhorias não bloqueadoras
+
+- A publicação de progresso é `at-least-once`: envio ao Telegram e avanço do
+  cursor local não são atômicos. Um crash entre as duas operações pode duplicar
+  uma fatia de log, marco ou resultado final; tratar a duplicação como tolerável
+  no MVP e definir deduplicação operacional antes de exigir `exactly-once`.
+- Otimizar `listCandidates`: hoje todos os `worker_log_chunks` da última
+  Execution são carregados a cada poll, inclusive em verbosity 0. Filtrar no
+  banco por `sequence > lastLogSequence` e limitar a leitura ao próximo chunk.
+
 ## Antes de ativar cada projeto
 
 - Usar o Pilot Setup Wizard ou editar manualmente `.atlas/projects.yaml` para

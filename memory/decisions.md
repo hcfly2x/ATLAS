@@ -118,3 +118,9 @@
   preflight do worker continua registrando as versões reais.
 - A autodetecção do wizard apenas lê `package.json`, `pyproject.toml` ou
   `Makefile`; sugestões de nome e teste são editáveis e nunca executam código.
+- O dashboard operacional somente-leitura é deliberadamente independente do
+  ADR-013: ele apenas consulta dados existentes e não decide nem implementa onde
+  configurações editáveis de agentes viverão na Fase 10.
+- A visibilidade Telegram é configurável por sessão com `/verbose 0|1|2`;
+  atividade, marcos, logs persistidos e resultado final são publicados por um
+  fluxo idempotente separado da execução do worker.

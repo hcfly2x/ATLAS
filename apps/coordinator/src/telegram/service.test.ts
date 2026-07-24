@@ -81,6 +81,7 @@ class InMemoryTelegramStore implements TelegramStore {
   selected: TelegramProject | undefined;
   status: TelegramTaskStatus | undefined;
   decision: ApprovalDecisionResult | undefined;
+  verboseLevel = 0;
 
   findProcessedUpdate(updateId: bigint): Promise<readonly TelegramResponse[] | undefined> {
     return Promise.resolve(this.processed.get(updateId));
@@ -117,6 +118,11 @@ class InMemoryTelegramStore implements TelegramStore {
 
   getSelectedProject(): Promise<TelegramProject | undefined> {
     return Promise.resolve(this.selected);
+  }
+
+  setVerboseLevel(_userId: bigint, _chatId: bigint, level: 0 | 1 | 2): Promise<number> {
+    this.verboseLevel = level;
+    return Promise.resolve(level);
   }
 
   findTaskStatus(): Promise<TelegramTaskStatus | undefined> {
@@ -276,5 +282,19 @@ describe("TelegramGateway", () => {
 
     expect(result.responses[0]?.text).toContain("Somente mensagens de texto");
     expect(taskStore.createCalls).toBe(0);
+  });
+
+  it("persists /verbose 0|1|2 in the Telegram session", async () => {
+    const store = new InMemoryTelegramStore();
+    const gateway = new TelegramGateway({
+      allowedUserId: 42n,
+      store,
+      taskStore: new InMemoryTaskStore(),
+    });
+
+    const response = await gateway.handle(messageUpdate(40, "/verbose 2"), "verbose");
+
+    expect(store.verboseLevel).toBe(2);
+    expect(response.responses[0]?.text).toContain("logs do worker");
   });
 });

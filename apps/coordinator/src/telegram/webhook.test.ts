@@ -19,6 +19,7 @@ const telegramStore = {
   selectProject: () => Promise.reject(new Error("not used")),
   getSelectedProject: () => Promise.resolve(undefined),
   findTaskStatus: () => Promise.resolve(undefined),
+  setVerboseLevel: (_userId, _chatId, level) => Promise.resolve(level),
   decideApproval: () => Promise.reject(new Error("not used")),
 } satisfies TelegramStore;
 
@@ -45,6 +46,10 @@ class RecordingTelegramClient implements TelegramClient {
 
   sendResponses(chatId: bigint, responses: readonly TelegramResponse[]): Promise<void> {
     this.sent.push({ chatId, responses });
+    return Promise.resolve();
+  }
+
+  sendActivity(): Promise<void> {
     return Promise.resolve();
   }
 }

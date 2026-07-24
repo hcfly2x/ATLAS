@@ -46,6 +46,8 @@ import {
   MemoryTaskScopeError,
   type MemoryService,
 } from "./memory/service.js";
+import { registerDashboardRoutes } from "./dashboard/routes.js";
+import type { DashboardService } from "./dashboard/service.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -75,6 +77,8 @@ const leaseSchema = z.object({
 });
 
 export interface CoordinatorAppOptions {
+  readonly dashboardService?: DashboardService;
+  readonly dashboardToken?: string;
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
   readonly memoryService?: MemoryService;
@@ -121,6 +125,13 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     service: "coordinator",
     status: "ok",
   }));
+
+  if (options.dashboardService !== undefined) {
+    if (options.dashboardToken === undefined || options.dashboardToken.trim().length === 0) {
+      throw new Error("dashboardToken is required when dashboard routes are enabled");
+    }
+    registerDashboardRoutes(app, options.dashboardService, options.dashboardToken);
+  }
 
   if (options.projectConfigStore !== undefined) {
     registerSetupRoutes(app, options.projectConfigStore);

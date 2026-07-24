@@ -96,6 +96,7 @@ export interface TelegramStore {
   listProjects(): Promise<readonly TelegramProject[]>;
   selectProject(userId: bigint, chatId: bigint, projectId: string): Promise<TelegramProject>;
   getSelectedProject(userId: bigint): Promise<TelegramProject | undefined>;
+  setVerboseLevel(userId: bigint, chatId: bigint, level: 0 | 1 | 2): Promise<number>;
   findTaskStatus(userId: bigint, taskId?: string): Promise<TelegramTaskStatus | undefined>;
   decideApproval(input: {
     approvalId: string;
@@ -214,6 +215,16 @@ export class PrismaTelegramStore implements TelegramStore {
       select: { selectedProject: { select: { id: true, name: true } } },
     });
     return session?.selectedProject ?? undefined;
+  }
+
+  async setVerboseLevel(userId: bigint, chatId: bigint, level: 0 | 1 | 2): Promise<number> {
+    const session = await this.prisma.telegramSession.upsert({
+      where: { userId },
+      create: { chatId, userId, verboseLevel: level },
+      update: { chatId, verboseLevel: level },
+      select: { verboseLevel: true },
+    });
+    return session.verboseLevel;
   }
 
   async findTaskStatus(userId: bigint, taskId?: string): Promise<TelegramTaskStatus | undefined> {
