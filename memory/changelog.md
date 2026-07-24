@@ -22,6 +22,12 @@
   após a integração sequencial das branches anteriores.
 - Obrigações vinculantes registradas para autenticação interna na Fase 3, replay
   idempotente concorrente na documentação e hash canônico na Fase 4.
+- Fluxo documental de ideias registrado: GitHub Issue, triagem externa, memória
+  oficial e execução somente na fase correspondente.
+- Fase 10 passou a registrar criação/edição de agentes e organização em times
+  via interface.
+- ADR-013 criado como Proposto para decidir, apenas na Fase 10, onde persistir a
+  configuração de agentes editada pela UI.
 
 ## 0.0.4
 

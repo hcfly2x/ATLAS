@@ -50,3 +50,6 @@
 - A Fase 2 foi aceita sem correções de código; a Fase 3 — Telegram MVP foi
   autorizada explicitamente, mas deve partir da `main` após a integração
   sequencial das Fases 1, 2 e da entrega documental `idea-intake`.
+- Ideias são capturadas via GitHub Issues com template `idea`, amadurecidas em
+  triagem externa e só entram no repositório como escopo de fase ou ADR
+  Proposto; nenhuma ideia é implementada fora da fase correspondente.

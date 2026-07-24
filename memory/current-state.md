@@ -2,12 +2,16 @@
 
 ## Fase
 
-Fase 2 — Core mínimo do Coordinator concluída e aceita sem correções de código.
-A Fase 3 foi autorizada, mas só começa após a integração sequencial da Fase 2 e
-da entrega documental `idea-intake` na `main`.
+Fase 2 — Core mínimo do Coordinator concluída, aceita e integrada. O fluxo
+documental `idea-intake` está registrado. A Fase 3 — Telegram MVP está autorizada
+como próxima fase.
 
 ## Implementado
 
+- Fluxo documental de ideias definido: Issue com template `idea`, triagem externa
+  e registro oficial sem autorização automática de implementação.
+- Primeira ideia triada registrada no escopo da Fase 10; ADR-013 permanece
+  Proposto até a chegada dessa fase.
 - Correção remanescente do aceite da Fase 1: workspace Vitest morto removido.
 - Compatibilidade pnpm 11.9: a base já usa `allowBuilds`; a Fase 2 ampliou a
   allowlist booleana mínima para Prisma, pois `onlyBuiltDependencies` foi
@@ -49,13 +53,12 @@ da entrega documental `idea-intake` na `main`.
 
 ## Próximo passo
 
-Integrar a Fase 2 e `docs/idea-intake` com CI verde sobre bases atualizadas.
-Depois disso, iniciar a Fase 3 — Telegram MVP em branch/worktree próprios.
+Iniciar a Fase 3 — Telegram MVP em branch/worktree próprios.
 
 ## Restrições ativas
 
-- não iniciar a Fase 3 antes de concluir a sequência de integração;
-- não implementar Telegram, supervisor, worker funcional ou fila ativa;
-- não fazer deploy ou merge;
+- não implementar a ideia de configuração de agentes antes da Fase 10;
+- não implementar features das Fases 4–5;
+- não fazer deploy;
 - não integrar credenciais reais;
 - não configurar produção.
