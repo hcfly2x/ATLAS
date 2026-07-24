@@ -2,11 +2,18 @@
 
 ## Fase
 
-Fase 3 — Telegram MVP concluída em branch/worktree próprios. A Fase 4 não está
-autorizada e exige confirmação explícita separada.
+Fase 3 — Telegram MVP concluída, aceita e integrada na `main`. A Fase 4 não está
+autorizada e exige confirmação explícita separada. Esta entrega documenta
+propostas de autonomia e ambientes sem implementar enforcement ou
+infraestrutura.
 
 ## Implementado
 
+- ADR-014 e ADR-015 registrados como Propostos, sem enforcement ou
+  provisionamento.
+- Nível de autonomia 2 registrado como padrão decidido de todos os projetos.
+- Modelo conceitual, políticas e configuração preparados documentalmente para
+  autonomia por projeto, staging automático e produção manual.
 - Gateway Telegram com webhook injetável e long-polling de desenvolvimento.
 - Webhook só é registrado com secret não vazio; polling opera sem expor a rota.
 - Replay idempotente não reenvia mensagens e ainda reconhece callbacks repetidos.
@@ -64,13 +71,15 @@ autorizada e exige confirmação explícita separada.
 
 ## Próximo passo
 
-Confirmar o CI do PR da Fase 3 após as correções da auditoria e aguardar
-autorização de merge. A Fase 4 só pode começar após autorização explícita
-separada.
+Validar e integrar esta entrega documental. A Fase 4 só pode começar após
+autorização explícita separada.
 
 ## Restrições ativas
 
 - não implementar a ideia de configuração de agentes antes da Fase 10;
+- não implementar enforcement de autonomia nesta branch;
+- não provisionar staging/produção, criar bot, webhook ou `render.yaml`;
+- não implementar features das Fases 4–5;
 - não iniciar a Fase 4;
 - não implementar LLM, supervisor ou execução do worker;
 - não fazer deploy;

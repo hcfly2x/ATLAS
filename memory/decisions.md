@@ -53,6 +53,14 @@
 - Ideias são capturadas via GitHub Issues com template `idea`, amadurecidas em
   triagem externa e só entram no repositório como escopo de fase ou ADR
   Proposto; nenhuma ideia é implementada fora da fase correspondente.
+- O nível de autonomia padrão decidido para todos os projetos é 2 — autonomia
+  limitada. O enforcement permanece pendente das Fases 4–5 conforme o ADR-014
+  Proposto.
+- Deploy em staging e deploy em produção são ações distintas: staging poderá ser
+  automático a partir do nível 2 após merge humano na `main` e CI verde;
+  produção permanece sempre humana.
+- A estratégia de ambientes proposta usa staging e produção no Render a partir
+  da mesma `main`, sem branch `develop`, conforme ADR-015 Proposto.
 - Na Fase 3, long-polling com `getUpdates` é o modo de desenvolvimento do
   Telegram enquanto não há URL HTTPS pública nem deploy autorizado; webhook e
   polling compartilham o mesmo serviço.

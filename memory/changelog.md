@@ -1,5 +1,20 @@
 # Changelog
 
+## Não publicado — autonomia e ambientes
+
+- ADR-014 criado como Proposto para níveis de autonomia 0–4 por projeto.
+- Nível 2 registrado como padrão decidido para todos os projetos.
+- Aprovação automática definida com Approval `actor=system`, alvo versionado,
+  hashes e AuditEvent.
+- Máquina conceitual ganhou apenas `TESTING → FINALIZING` quando a política
+  dispensa aprovação humana de resultado.
+- `autonomy_level` adicionado à configuração de projetos, com default 2.
+- Política `always_human` consolidada; staging e produção passaram a ser tipos de
+  deploy distintos.
+- ADR-015 criado como Proposto para staging e produção separados no Render.
+- Enforcement distribuído como obrigação das Fases 4–5 e infraestrutura
+  pós-Fase 3, sem implementação ou provisionamento.
+
 ## 0.0.6
 
 - Fase 3 — Telegram MVP concluída.

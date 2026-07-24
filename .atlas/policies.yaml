@@ -1,17 +1,24 @@
 policies:
-  require_human_approval:
-    - deploy
+  always_human:
     - merge_main
+    - deploy_production
     - destructive_migration
     - delete_data
     - payment_change
     - tracking_change
-    - production_secret_change
     - advertising_budget_increase
-    - atlas_protected_area_change
+    - protected_area_change
+
+  autonomy:
+    default_level: 2
+    deploy_staging:
+      minimum_level: 2
+      requires_merge_main: true
+      requires_green_ci: true
+    level_4_enabled: false
 
   prohibited_in_mvp:
     - unrestricted_production_access
     - autonomous_merge
-    - autonomous_deploy
+    - autonomous_production_deploy
     - unrestricted_ad_spend
