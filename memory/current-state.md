@@ -111,10 +111,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar a notificação Telegram de retrabalho após CI verde e observar uma
-amostra do ciclo Telegram → worker → QA → feedback. O usuário deve reformular a
-demanda antes de uma nova Specification; não existe retry funcional automático.
-Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
+Revisar o escopo documental de enforcement determinístico. A implementação deve
+começar por testes de caracterização da allowlist e de paths protegidos, sem
+alterar comportamento, e exige autorização própria por tocar worker, comandos,
+auditoria e áreas protegidas. Não iniciar a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — escopo de enforcement determinístico
+
+- Corrigido o gap analysis para refletir QA pós-execução e entregas Telegram já
+  integrados.
+- Definidos objetivo, precedência, critérios mensuráveis, fora de escopo e plano
+  incremental do próximo bloco, sem alteração comportamental ou de política.
+
 ## Unreleased — feedback Telegram de retrabalho do QA
 
 - Tasks Telegram devolvidas pelo QA a `SPECIFYING` recebem resumo, ações
