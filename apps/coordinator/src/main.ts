@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, TaskState } from "@prisma/client";
 import { fileURLToPath } from "node:url";
 
 import { OpenAIAgentRuntime } from "@atlas/agent-runtime";
@@ -164,14 +164,42 @@ const finalizationRecoveryTimer =
           app.log.error({ error }, "expired finalization reconciliation failed");
         });
       }, 15_000);
+const activeLeaseRecoveryTimer =
+  workerService === undefined
+    ? undefined
+    : setInterval(() => {
+        void workerService.reconcileExpiredActiveLeases().catch((error: unknown) => {
+          app.log.error({ error }, "expired active lease reconciliation failed");
+        });
+      }, 15_000);
 if (workerService !== undefined) {
   void workerService.reconcileExpiredFinalizations().catch((error: unknown) => {
     app.log.error({ error }, "initial expired finalization reconciliation failed");
   });
+  void workerService.reconcileExpiredActiveLeases().catch((error: unknown) => {
+    app.log.error({ error }, "initial expired active lease reconciliation failed");
+  });
+}
+if (supervisorService !== undefined) {
+  void prisma.task
+    .findMany({ where: { state: TaskState.NEW }, select: { id: true } })
+    .then(async (tasks) => {
+      for (const task of tasks) {
+        try {
+          await supervisorService.processTask(task.id, `task:${task.id}:startup-reconciliation`);
+        } catch (error: unknown) {
+          app.log.error({ error, taskId: task.id }, "new task reconciliation failed");
+        }
+      }
+    })
+    .catch((error: unknown) => {
+      app.log.error({ error }, "new task startup reconciliation failed");
+    });
 }
 app.addHook("onClose", () => {
   if (technicalRetryTimer !== undefined) clearInterval(technicalRetryTimer);
   if (finalizationRecoveryTimer !== undefined) clearInterval(finalizationRecoveryTimer);
+  if (activeLeaseRecoveryTimer !== undefined) clearInterval(activeLeaseRecoveryTimer);
 });
 
 const polling =

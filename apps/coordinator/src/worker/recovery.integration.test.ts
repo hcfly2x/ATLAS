@@ -10,6 +10,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { canonicalPayloadHash, executableSpecificationPayloadSchema } from "@atlas/shared";
+import { z } from "zod";
 
 import { WorkerService } from "./service.js";
 
@@ -40,7 +41,7 @@ describe("expired FINALIZING recovery", () => {
       objective: "Recover an expired finalization",
       out_of_scope: [],
       project_id: projectId,
-      required_tests: [],
+      required_tests: ["vitest recovery"],
       risk_level: "moderate",
       task_id: taskId,
       version: 1,
@@ -141,15 +142,147 @@ describe("expired FINALIZING recovery", () => {
       status: WorkerStatus.IDLE,
     });
     expect(await prisma.execution.count({ where: { taskId } })).toBe(1);
+    const finalizationAudit = await prisma.auditEvent.findFirst({
+      where: { action: "execution.finalization_reconciled", taskId },
+    });
+    expect(finalizationAudit).not.toBeNull();
     expect(
-      await prisma.auditEvent.findFirst({
-        where: { action: "execution.finalization_reconciled", taskId },
-      }),
+      z.object({ action: z.string(), reason: z.string() }).parse(finalizationAudit?.payload),
     ).toMatchObject({
-      payload: expect.objectContaining({
-        action: "failed_without_codex_retry",
-        reason: "lease_expired_before_finalization",
-      }),
+      action: "failed_without_codex_retry",
+      reason: "lease_expired_before_finalization",
+    });
+  });
+
+  it("fails and fences an expired active lease without replaying Codex", async () => {
+    const suffix = randomUUID();
+    const projectId = `active-recovery-${suffix}`;
+    const taskId = randomUUID();
+    const specificationId = randomUUID();
+    const workerId = randomUUID();
+    const executionId = randomUUID();
+    const before = new Date("2026-07-25T12:10:00.000Z");
+    const expiredAt = new Date(before.getTime() - 1_000);
+    const payload = executableSpecificationPayloadSchema.parse({
+      acceptance_criteria: ["ambiguous leases fail closed"],
+      allowed_commands: [],
+      approval_required_for: [],
+      authorized_scope: ["docs/**"],
+      constraints: [],
+      context: [],
+      expected_delivery: "terminal result",
+      implementation_strategy: ["do not replay Codex"],
+      objective: "Recover an expired active lease",
+      out_of_scope: [],
+      project_id: projectId,
+      required_tests: ["vitest recovery"],
+      risk_level: "moderate",
+      task_id: taskId,
+      version: 1,
+    });
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Active lease recovery test",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "low",
+        status: ProjectStatus.ACTIVE,
+      },
+    });
+    await prisma.task.create({
+      data: {
+        id: taskId,
+        idempotencyKey: `active-task-${suffix}`,
+        origin: "integration-test",
+        originalMessage: "Recover expired active lease",
+        projectId,
+        state: TaskState.RUNNING,
+        version: 4,
+      },
+    });
+    await prisma.specification.create({
+      data: {
+        id: specificationId,
+        payload,
+        payloadHash: canonicalPayloadHash(payload),
+        taskId,
+        version: 1,
+      },
+    });
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { activeSpecificationId: specificationId },
+    });
+    await prisma.worker.create({
+      data: {
+        capabilities: {},
+        id: workerId,
+        name: "Active recovery worker",
+        projectScopes: [projectId],
+        status: WorkerStatus.BUSY,
+        tokenHash: `active-token-${suffix}`,
+      },
+    });
+    await prisma.execution.create({
+      data: {
+        attempt: 1,
+        fencingToken: 7n,
+        id: executionId,
+        idempotencyKey: `active-execution-${suffix}`,
+        leaseExpiresAt: expiredAt,
+        leaseId: `active-lease-${suffix}`,
+        specificationId,
+        status: ExecutionStatus.RUNNING,
+        taskId,
+        workerId,
+      },
+    });
+
+    const service = new WorkerService({
+      codexMonthlyBudgetUsd: 75,
+      leaseDurationMs: 30_000,
+      prisma,
+      protectedGlobsByProject: new Map([[projectId, []]]),
+    });
+
+    expect(await service.reconcileExpiredActiveLeases(before)).toBe(1);
+    expect(await service.reconcileExpiredActiveLeases(before)).toBe(0);
+
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      failureStage: "lease_expired",
+      state: TaskState.FAILED,
+      version: 5,
+    });
+    expect(await prisma.execution.findUniqueOrThrow({ where: { id: executionId } })).toMatchObject({
+      failureStage: "lease_expired",
+      leaseExpiresAt: null,
+      leaseId: null,
+      reconciledAt: before,
+      status: ExecutionStatus.FAILED,
+    });
+    expect(await prisma.worker.findUniqueOrThrow({ where: { id: workerId } })).toMatchObject({
+      status: WorkerStatus.IDLE,
+    });
+    expect(await prisma.execution.count({ where: { taskId } })).toBe(1);
+    const activeLeaseAudit = await prisma.auditEvent.findFirst({
+      where: { action: "execution.lease_reconciled", taskId },
+    });
+    expect(activeLeaseAudit).not.toBeNull();
+    expect(
+      z.object({ action: z.string(), reason: z.string() }).parse(activeLeaseAudit?.payload),
+    ).toMatchObject({
+      action: "failed_without_codex_retry",
+      reason: "lease_expired_ambiguous_execution",
     });
   });
 });

@@ -179,3 +179,8 @@
   `FAILED/finalizing`, audita a decisão e libera a capacidade do worker para
   uma nova demanda; qualquer recuperação de Git/PR permanece humana e
   verificável.
+- A recuperação durável estende os mecanismos já existentes de idempotência,
+  lease, fencing e AuditEvent: no startup, somente Tasks ainda em `NEW` voltam
+  ao supervisor; lease expirado em execução, teste, cancelamento ou finalização
+  é tratado como ambíguo e falha de forma auditada. Nenhum desses caminhos cria
+  uma nova Execution ou reexecuta Codex automaticamente.

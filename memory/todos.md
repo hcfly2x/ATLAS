@@ -4,18 +4,15 @@
 
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na
   sessão.
-- Implementar reconciliador idempotente para Tasks em `NEW` na inicialização do
-  coordinator: queda entre criação Telegram e disparo do supervisor não pode
-  deixar demanda sem supervisão.
 - Reduzir o ambiente herdado pelo processo Codex ao mínimo necessário; hoje o
   adapter não precisa expor o token do worker ao executor.
 - Validar o Bloco 2 em um projeto real com `runtime` declarado, worktree limpa
   e dependências preparadas somente pelos comandos explícitos do manifesto.
   Nenhum bootstrap pode ser inferido ou executado fora da allowlist/negações do
   próprio Project.
-- Ampliar a recuperação durável além de `FINALIZING` para quedas em `NEW`,
-  deliberação, `RUNNING` e `TESTING`, sempre distinguindo estado externo
-  comprovado de lease ambíguo e sem reexecução automática de Codex no MVP.
+- Cobrir por teste explícito que uma falha de `validate` declarada em
+  `Project.runtime` reprova a Task com o estágio correto, além do caminho já
+  coberto de bootstrap e timeout.
 
 ## Epic de infraestrutura — após o fechamento da Fase 3
 
