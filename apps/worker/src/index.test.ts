@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   CommandNotAllowedError,
   WorkerConcurrencyGate,
+  authorizeRuntimeCommands,
   findProtectedPathMatches,
   parseSpecificationCommand,
 } from "./index.js";
@@ -31,6 +32,47 @@ describe("worker safety boundaries", () => {
       args: ["test"],
       executable: "pnpm",
     });
+  });
+
+  it("authorizes runtime bootstrap only when it is declared in the manifest", () => {
+    const runtime = {
+      allowed_commands: [
+        { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+        { executable: "pnpm", args: ["validate"] },
+      ],
+      bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+      forbidden_commands: [],
+      package_manager: "pnpm" as const,
+      timeout_minutes: 10,
+      validate: [{ executable: "pnpm", args: ["validate"] }],
+    };
+    expect(authorizeRuntimeCommands(runtime, "bootstrap", [])).toEqual([
+      { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+    ]);
+    expect(() =>
+      authorizeRuntimeCommands(
+        { ...runtime, bootstrap: [{ executable: "pnpm", args: ["test"] }] },
+        "bootstrap",
+        [],
+      ),
+    ).toThrow(CommandNotAllowedError);
+  });
+
+  it("denies a forbidden runtime command even when it is allowlisted", () => {
+    expect(() =>
+      authorizeRuntimeCommands(
+        {
+          allowed_commands: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+          bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+          forbidden_commands: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+          package_manager: "pnpm",
+          timeout_minutes: 10,
+          validate: [{ executable: "pnpm", args: ["validate"] }],
+        },
+        "bootstrap",
+        [],
+      ),
+    ).toThrow(CommandNotAllowedError);
   });
 
   it("matches protected paths including dotfiles", () => {

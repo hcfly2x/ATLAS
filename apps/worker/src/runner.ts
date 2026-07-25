@@ -14,7 +14,12 @@ import {
   type WorkerResult,
 } from "@atlas/shared";
 
-import { authorizeCommands, executeAllowedCommand, type AllowedCommand } from "./allowlist.js";
+import {
+  authorizeCommands,
+  authorizeRuntimeCommands,
+  executeAllowedCommand,
+  type AllowedCommand,
+} from "./allowlist.js";
 import type { WorkerCoordinatorClient } from "./client.js";
 import { runPreflight } from "./preflight.js";
 import { findProtectedPathMatches } from "./protected-paths.js";
@@ -30,6 +35,7 @@ export interface WorkerRunnerOptions {
   readonly api: WorkerApi;
   readonly codex: CodexAdapter;
   readonly codexEstimatedCostUsdPerExecution: number;
+  readonly executeCommand?: typeof executeAllowedCommand;
   readonly git: GitAdapter;
   readonly githubToken: string;
   readonly leaseRenewalMs: number;
@@ -37,6 +43,7 @@ export interface WorkerRunnerOptions {
   readonly preflight?: (
     requirements: WorkerAssignment["required_tools"],
   ) => Promise<WorkerCapabilities>;
+  readonly runtimeTimeoutMs?: (timeoutMinutes: number) => number;
   readonly timeoutMs: number;
   readonly workerId: string;
   readonly worktreeRoot: string;
@@ -152,10 +159,70 @@ export class WorkerRunner {
     let result: WorkerResult | undefined;
     let worktreeCreated = false;
     const metadataDirectory = await mkdtemp(join(tmpdir(), "atlas-worker-"));
+    const runRuntimePhase = async (phase: "bootstrap" | "validate"): Promise<void> => {
+      if (assignment.runtime === null) return;
+      const phaseAbortController = new AbortController();
+      const timeout = setTimeout(
+        () => {
+          phaseAbortController.abort();
+        },
+        (this.options.runtimeTimeoutMs ?? runtimeTimeoutMilliseconds)(
+          assignment.runtime.timeout_minutes,
+        ),
+      );
+      const signal = AbortSignal.any([abortController.signal, phaseAbortController.signal]);
+      try {
+        for (const command of authorizeRuntimeCommands(
+          assignment.runtime,
+          phase,
+          assignment.required_tools.gnu_tools,
+        )) {
+          const commandStartedAt = new Date();
+          const commandResult = await (this.options.executeCommand ?? executeAllowedCommand)(
+            command,
+            worktreePath,
+            signal,
+          );
+          const commandFinishedAt = new Date();
+          commands.push(
+            commandRecord(
+              command,
+              commandResult.resolvedExecutable,
+              commandStartedAt,
+              commandFinishedAt,
+              commandResult.exitCode,
+            ),
+          );
+          if (phase === "validate") {
+            tests.push({
+              command_index: commands.length - 1,
+              duration_ms: commandFinishedAt.getTime() - commandStartedAt.getTime(),
+              name: `${command.executable} ${command.args.join(" ")}`.trim(),
+              status: commandResult.exitCode === 0 ? "passed" : "failed",
+              summary: sanitize(commandResult.output).slice(0, 2_000),
+            });
+          }
+          if (phaseAbortController.signal.aborted && !abortController.signal.aborted) {
+            throw new RuntimeTimeoutError(`${phase} exceeded runtime.timeout_minutes`);
+          }
+          if (abortController.signal.aborted) {
+            throw new Error(`Execution aborted during runtime ${phase}`);
+          }
+          if (commandResult.exitCode !== 0 && phase === "bootstrap") {
+            throw new BootstrapCommandError(
+              `${command.executable} exited ${String(commandResult.exitCode)}`,
+            );
+          }
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
     try {
       await mkdir(this.options.worktreeRoot, { recursive: true });
       await this.options.git.createWorktree(worktree);
       worktreeCreated = true;
+      await runRuntimePhase("bootstrap");
       const specificationPath = join(metadataDirectory, "specification.json");
       const summaryPath = join(metadataDirectory, "codex-summary.json");
       await writeFile(specificationPath, JSON.stringify(assignment.specification, null, 2));
@@ -180,10 +247,11 @@ export class WorkerRunner {
         taskId: assignment.task_id,
         worktreePath,
       });
-      const authorized = authorizeCommands(assignment);
-      for (const command of authorized) {
+      const validationCommands =
+        assignment.runtime === null ? authorizeCommands(assignment) : undefined;
+      for (const command of validationCommands ?? []) {
         const commandStartedAt = new Date();
-        const commandResult = await executeAllowedCommand(
+        const commandResult = await (this.options.executeCommand ?? executeAllowedCommand)(
           command,
           worktreePath,
           abortController.signal,
@@ -206,6 +274,7 @@ export class WorkerRunner {
           summary: sanitize(commandResult.output).slice(0, 2_000),
         });
       }
+      await runRuntimePhase("validate");
       const diff = await this.options.git.diff(worktreePath);
       const protectedMatches = findProtectedPathMatches(
         diff.changedPaths,
@@ -314,7 +383,13 @@ export class WorkerRunner {
           message: sanitize(error instanceof Error ? error.message : "Unknown worker error"),
         },
         execution_id: assignment.execution_id,
-        failure_stage: cancelled ? null : abortController.signal.aborted ? "timeout" : "worker",
+        failure_stage: cancelled
+          ? null
+          : error instanceof RuntimeTimeoutError || abortController.signal.aborted
+            ? "timeout"
+            : error instanceof BootstrapCommandError
+              ? "bootstrap"
+              : "worker",
         finished_at: new Date().toISOString(),
         idempotency_key: `execution:${assignment.execution_id}:result`,
         log_chunks: orderedLogReferences,
@@ -347,6 +422,13 @@ export class WorkerRunner {
       await rm(metadataDirectory, { force: true, recursive: true });
     }
   }
+}
+
+class BootstrapCommandError extends Error {}
+class RuntimeTimeoutError extends Error {}
+
+function runtimeTimeoutMilliseconds(timeoutMinutes: number): number {
+  return timeoutMinutes * 60_000;
 }
 
 export class WorkerConcurrencyGate {

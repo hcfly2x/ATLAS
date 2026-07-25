@@ -17,6 +17,7 @@ import { z } from "zod";
 import {
   canonicalPayloadHash,
   executableSpecificationPayloadSchema,
+  workerRuntimeSchema,
   workerCapabilitiesSchema,
   workerResultSchema,
   type WorkerAssignment,
@@ -1150,6 +1151,7 @@ export class WorkerService {
         projectId: string;
         project: {
           allowedCommands: Prisma.JsonValue;
+          runtime: Prisma.JsonValue | null;
           autonomyLevel: number;
           repository: string | null;
           requiredTools: Prisma.JsonValue;
@@ -1172,6 +1174,10 @@ export class WorkerService {
     }
     return {
       allowed_commands: allowedCommandsSchema.parse(execution.task.project.allowedCommands),
+      runtime:
+        execution.task.project.runtime === null
+          ? null
+          : workerRuntimeSchema.parse(execution.task.project.runtime),
       autonomy_level: execution.task.project.autonomyLevel,
       execution_id: execution.id,
       fencing_token: execution.fencingToken.toString(),

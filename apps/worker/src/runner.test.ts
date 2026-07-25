@@ -47,6 +47,7 @@ function assignment(repositoryPath: string): WorkerAssignment {
     protected_globs: [".env*"],
     repository_path: repositoryPath,
     required_tools: { codex_cli: null, git: null, gnu_tools: [], node: null },
+    runtime: null,
     specification,
     specification_hash: canonicalPayloadHash(specification),
     specification_id: "10000000-0000-4000-8000-000000000004",
@@ -56,7 +57,178 @@ function assignment(repositoryPath: string): WorkerAssignment {
 }
 
 describe("WorkerRunner", () => {
-  it("uses fake Codex, finalizes only after policy approval and always cleans the worktree", async () => {
+  it("fails bootstrap without calling Codex and cleans the worktree", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-bootstrap-failure-"));
+    temporaryDirectories.push(root);
+    let codexCalled = false;
+    let cleaned = false;
+    let submitted: Awaited<ReturnType<WorkerRunner["execute"]>> | undefined;
+    const input = assignment(root);
+    input.runtime = {
+      allowed_commands: [
+        { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+        { executable: "pnpm", args: ["validate"] },
+      ],
+      bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+      forbidden_commands: [],
+      package_manager: "pnpm",
+      timeout_minutes: 1,
+      validate: [{ executable: "pnpm", args: ["validate"] }],
+    };
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => Promise.resolve(),
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: false,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submitted = result;
+          return Promise.resolve({ replayed: false, state: "FAILED" });
+        },
+      },
+      codex: {
+        execute: () => {
+          codexCalled = true;
+          return Promise.reject(new Error("Codex must not run after bootstrap failure"));
+        },
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      executeCommand: (command) =>
+        Promise.resolve({
+          aborted: false,
+          exitCode: 1,
+          output: "bootstrap failed",
+          resolvedExecutable: command.executable,
+        }),
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => Promise.reject(new Error("must not finalize")),
+        removeWorktree: () => {
+          cleaned = true;
+          return Promise.resolve();
+        },
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 10,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    expect((await runner.execute(input)).failure_stage).toBe("bootstrap");
+    expect(submitted?.commands[0]).toMatchObject({ exit_code: 1, status: "failed" });
+    expect(codexCalled).toBe(false);
+    expect(cleaned).toBe(true);
+  });
+
+  it("classifies an expired runtime bootstrap deadline as timeout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-bootstrap-timeout-"));
+    temporaryDirectories.push(root);
+    let submitted: Awaited<ReturnType<WorkerRunner["execute"]>> | undefined;
+    const input = assignment(root);
+    input.runtime = {
+      allowed_commands: [
+        { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+        { executable: "pnpm", args: ["validate"] },
+      ],
+      bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+      forbidden_commands: [],
+      package_manager: "pnpm",
+      timeout_minutes: 1,
+      validate: [{ executable: "pnpm", args: ["validate"] }],
+    };
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => Promise.resolve(),
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: false,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submitted = result;
+          return Promise.resolve({ replayed: false, state: "FAILED" });
+        },
+      },
+      codex: { execute: () => Promise.reject(new Error("must not call Codex")) },
+      codexEstimatedCostUsdPerExecution: 0,
+      executeCommand: (command, _cwd, signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener(
+            "abort",
+            () => {
+              resolve({
+                aborted: true,
+                exitCode: 124,
+                output: "timed out",
+                resolvedExecutable: command.executable,
+              });
+            },
+            { once: true },
+          );
+        }),
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => Promise.reject(new Error("must not finalize")),
+        removeWorktree: () => Promise.resolve(),
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 120_000,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      runtimeTimeoutMs: () => 1,
+      timeoutMs: 120_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    expect((await runner.execute(input)).failure_stage).toBe("timeout");
+    expect(submitted?.commands[0]).toMatchObject({ exit_code: 124, status: "failed" });
+  });
+
+  it("keeps legacy validation behavior without a runtime and cleans the worktree", async () => {
     const root = await mkdtemp(join(tmpdir(), "atlas-runner-test-"));
     temporaryDirectories.push(root);
     const calls: string[] = [];

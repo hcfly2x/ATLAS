@@ -30,6 +30,9 @@ async function main(): Promise<void> {
   for (const project of config.projects) {
     const data = {
       allowedCommands: project.allowed_commands ?? config.schema.defaults.allowed_commands,
+      ...(project.runtime === undefined || project.runtime === null
+        ? {}
+        : { runtime: project.runtime }),
       autonomyLevel: project.autonomy_level ?? config.schema.defaults.autonomy_level,
       dataClassification: project.data_classification,
       name: project.name,

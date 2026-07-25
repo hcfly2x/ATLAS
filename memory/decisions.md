@@ -167,3 +167,10 @@
   testes sem alteração de comportamento podem seguir com CI verde e revisão de
   escopo; segurança, dados, dinheiro, autenticação, autonomia e máquina de
   estados exigem auditoria completa. CI verde é obrigatório em todos os casos.
+- Runtime reproduzível é declarado opcionalmente por Project em
+  `.atlas/projects.yaml`. O manifesto é a única fonte de bootstrap e validate:
+  ambos reutilizam a allowlist estruturada existente, `forbidden_commands` tem
+  precedência e o worker nunca infere instalação de dependências. Bootstrap
+  roda somente na worktree, antes do Codex, com timeout e limpeza em todos os
+  desfechos; timeout permanece falha técnica sujeita apenas à política vigente
+  de retry do ADR-012/ADR-014.
