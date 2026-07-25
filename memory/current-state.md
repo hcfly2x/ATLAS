@@ -9,8 +9,8 @@ resultado terminal ao autor via Telegram estão integradas na `main`.
 A política de entrega proporcional ao risco e `autonomy_level: 3` para o
 projeto ATLAS estão integrados na `main`. O Bloco 2 — runtime reproduzível por
 projeto — também está integrado. O Bloco 3 — recuperação durável — está
-integrado. QA pós-execução está autorizado, em branch própria, e não autoriza
-Fase 8 ou ampliação de autonomia.
+integrado. QA pós-execução também está integrado; isso não autoriza Fase 8,
+Fase 10 ou ampliação de autonomia.
 
 ## Implementado
 
@@ -58,6 +58,10 @@ Fase 8 ou ampliação de autonomia.
   antes de liberar `FINALIZING`. O revisor usa papel distinto do supervisor;
   rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
   retrabalho por nova Specification e impedindo entrega final do resultado.
+- O escopo futuro da Fase 10 registra um escritório virtual prático: board por
+  estado, inbox humano e visibilidade preventiva de gastos. É somente um
+  roadmap documental: não altera o dashboard atual, não cria porta de escrita
+  nem autoriza a implementação da Fase 10.
 
 ## Testes e validações
 
@@ -101,7 +105,8 @@ Fase 8 ou ampliação de autonomia.
 
 Concluir a revisão de risco do PR de QA pós-execução, integrar somente após CI
 verde e observar uma amostra do ciclo Telegram → worker → QA → entrega terminal.
-Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
+O roadmap do board da Fase 10 aguarda revisão e não autoriza Fase 8, Fase 10 ou
+ampliação de autonomia.
 
 ## Restrições ativas
 
