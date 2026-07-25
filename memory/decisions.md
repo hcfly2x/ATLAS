@@ -184,6 +184,11 @@
   ao supervisor; lease expirado em execução, teste, cancelamento ou finalização
   é tratado como ambíguo e falha de forma auditada. Nenhum desses caminhos cria
   uma nova Execution ou reexecuta Codex automaticamente.
+- O escritório virtual futuro do ATLAS será um board somente-leitura por estado
+  da Task, não um mapa espacial. Ele priorizará inbox humano, estado e gastos
+  de relance; logs e diffs detalhados ficarão sob clique. Criar ou editar
+  agentes, personas e times continua fora desse board e dependente da decisão
+  do ADR-013 na Fase 10.
 
 ## QA pós-execução
 

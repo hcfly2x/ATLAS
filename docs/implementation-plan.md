@@ -144,9 +144,29 @@ Matriz de permissões completa, self-modification restricted fim a fim, proteç�
 
 ### Fase 10 — Dashboard
 
-Projetos, tarefas, aprovações, custos, logs, memória; criação e edição de agentes
-(nome, papel, habilidades, contexto) e organização em times via interface, como
-alternativa à edição direta de `.atlas/agents.yaml`.
+Evolui o dashboard operacional somente-leitura entregue no Bloco B, sobre os
+dados e a auditabilidade já estabilizados, para visibilidade operacional de
+relance. Depende dos Blocos 2 e 3 de estabilização concluídos e do QA
+pós-execução para representar corretamente Qualidade.
+
+- Board por estado da Task, não mapa espacial: Pensando
+  (`NORMALIZING`→`SPECIFYING`, incluindo conselho), Aprovação
+  (`WAITING_APPROVAL`), Executando (`RUNNING`→`TESTING`), Qualidade
+  (`WAITING_RESULT_APPROVAL`), Entregando (`FINALIZING`), Pronto
+  (`COMPLETED`) e Falhou/Cancelado.
+- Cada Task é um card mínimo com título, coluna atual, tempo na coluna, saúde
+  (correndo, aguardando humano ou travado) e custo estimado. Log cru e diff
+  detalhado ficam atrás de clique, nunca na visão principal.
+- Faixa destacada “precisa de você” para `WAITING_APPROVAL`; o restante do
+  board permanece calmo para tornar visível a autonomia progressiva sem criar
+  ruído operacional.
+- Visibilidade de gastos com duas barras mensais — deliberação (teto de
+  US$ 25) e Codex (teto lógico de US$ 75) —, percentual consumido, alerta em
+  aproximadamente 80% e no estouro, custo por Task e projeção de fim de mês no
+  ritmo atual.
+- Ações operacionais permanecem somente leitura e aprovação quando cabível. O
+  board não cria nem edita agentes, personas ou times; essa configuração segue
+  dependente do ADR-013 na própria Fase 10, como decisão separada.
 
 ### Fase 11 — Hardening
 

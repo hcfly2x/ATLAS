@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — roadmap de escritório virtual na dashboard
+
+- Registrado escopo da Fase 10 para board por estado da Task, inbox humano e
+  visibilidade preventiva de gastos, evoluindo o dashboard somente-leitura do
+  Bloco B sem alterar sua implementação atual.
+- Registradas as decisões anti-espacial (board, não mapa) e anti-log (stream e
+  diff detalhado somente sob clique), além da referência de benchmark e da
+  separação do ADR-013 para edição de agentes e times.
+
 ## Unreleased — QA pós-execução
 
 - Adicionado parecer pós-execução persistido, versionado e correlacionado à
