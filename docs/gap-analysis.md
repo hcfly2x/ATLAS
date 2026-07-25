@@ -42,9 +42,10 @@ existentes e ser tratados nos blocos de estabilização planejados:
   allowlist e negações duras; ele estende a allowlist e o executor existentes,
   sem criar executor paralelo. A conclusão ainda exige validação em worktree
   limpa de um projeto real configurado.
-- **Bloco 3 — recuperação durável:** estender idempotência, leases, fencing e
-  reconciliação do ADR-012; o backoff do worker já cobre indisponibilidade
-  transitória. Não criar dead-letter separado sem lacuna comprovada.
+- **Bloco 3 — recuperação durável:** implementação em revisão no PR próprio;
+  estende idempotência, leases, fencing e reconciliação do ADR-012 para Tasks
+  `NEW` e Execuções com lease expirado. O backoff do worker já cobre
+  indisponibilidade transitória. Não cria dead-letter separado.
 - **Enforcement determinístico:** estender a allowlist do worker e a checagem de
   paths protegidos do ADR-010, que já formam a base do futuro Policy Engine/Tool
   Gateway. Não duplicar essas fronteiras.

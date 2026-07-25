@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Bloco 3: recuperação durável
+
+- Startup do coordinator retoma idempotentemente Tasks ainda em `NEW`, cobrindo
+  a queda entre a captura Telegram e o disparo do supervisor.
+- Leases expirados em execução, teste, cancelamento ou finalização são cercados
+  com fencing e convertidos em falha auditada; nenhuma Execution é criada e
+  Codex nunca é reexecutado sob lease ambíguo.
+- A recuperação libera a capacidade do worker somente após a transação de Task,
+  Execution e AuditEvents; cenários `RUNNING` e `FINALIZING` entraram na suíte
+  de integração PostgreSQL.
+
 ## Unreleased — Bloco 2: runtime reproduzível por projeto
 
 - `Project.runtime` opcional passou a declarar package manager, bootstrap,

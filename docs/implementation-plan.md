@@ -112,9 +112,10 @@ não existe mecanismo equivalente a estender.
   fora de política. Conclusão mensurável: preflight e bootstrap explicitamente
   autorizados produzem o mesmo resultado para um projeto configurado em worktree
   limpa.
-- **Bloco 3 — recuperação durável:** reconciliar Tasks, leases e execuções após
-  queda; conclusão mensurável: cenários de queda definidos retomam ou falham de
-  forma auditada sem reexecutar Codex sob lease ambíguo.
+- **Bloco 3 — recuperação durável:** implementação em revisão no PR próprio;
+  reconciliar Tasks `NEW`, leases e execuções após queda. Conclusão mensurável:
+  cenários de queda definidos retomam ou falham de forma auditada sem
+  reexecutar Codex sob lease ambíguo.
 - **QA pós-execução:** depois dos Blocos 2 e 3, revisar o resultado do worker
   com revisor distinto do emissor da Specification; conclusão mensurável:
   todos os resultados da amostra definida recebem parecer pós-execução
