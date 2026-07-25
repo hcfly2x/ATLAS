@@ -156,8 +156,22 @@ const technicalRetryTimer =
           app.log.error({ error }, "technical retry reconciliation failed");
         });
       }, 15_000);
+const finalizationRecoveryTimer =
+  workerService === undefined
+    ? undefined
+    : setInterval(() => {
+        void workerService.reconcileExpiredFinalizations().catch((error: unknown) => {
+          app.log.error({ error }, "expired finalization reconciliation failed");
+        });
+      }, 15_000);
+if (workerService !== undefined) {
+  void workerService.reconcileExpiredFinalizations().catch((error: unknown) => {
+    app.log.error({ error }, "initial expired finalization reconciliation failed");
+  });
+}
 app.addHook("onClose", () => {
   if (technicalRetryTimer !== undefined) clearInterval(technicalRetryTimer);
+  if (finalizationRecoveryTimer !== undefined) clearInterval(finalizationRecoveryTimer);
 });
 
 const polling =

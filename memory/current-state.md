@@ -4,7 +4,9 @@
 
 Bloco C e Fase 7 — Conselho multiagente — estão integrados na `main` como
 v0.0.14. A Fase 8 não está autorizada. Correções pós-piloto e a entrega de
-resultado terminal ao autor via Telegram estão integradas na `main`.
+resultado terminal ao autor via Telegram estão integradas na `main`. A primeira
+fatia do Bloco 3 — recuperação durável de finalização expirada — está em branch
+própria, aguardando revisão; não autoriza as demais fases de estabilização.
 
 A política de entrega proporcional ao risco e `autonomy_level: 3` para o
 projeto ATLAS estão integrados na `main`. O Bloco 2 — runtime reproduzível por
@@ -48,6 +50,10 @@ autoriza o Bloco 3, QA pós-execução ou novas fases.
 - O runtime opcional por Project declara bootstrap, validate, allowlist,
   `forbidden_commands` e timeout. O worker executa bootstrap antes do Codex e
   limpa a worktree em sucesso, falha e cancelamento; nenhum bootstrap é inferido.
+- O coordinator reconcilia uma Execution em `FINALIZING` cujo lease expirou sem
+  assumir que Git/PR terminou: cerca o executor, encerra Task e Execution em
+  `FAILED` com estágio `finalizing`, gera AuditEvents e libera a capacidade do
+  worker. Não reexecuta Codex e não inventa commit/PR.
 
 ## Testes e validações
 
@@ -88,11 +94,16 @@ autoriza o Bloco 3, QA pós-execução ou novas fases.
 
 Aguardar auditoria e autorização de integração do Bloco 2. Não iniciar o Bloco
 3, QA pós-execução ou a Fase 8.
+Revisar a primeira fatia de recuperação durável, integrar somente após CI verde
+e então observar um novo ciclo Telegram → worker → entrega terminal. Não iniciar
+a Fase 8, QA pós-execução ou ampliação de autonomia sem autorização explícita.
 
 ## Restrições ativas
 
 - não iniciar a Fase 8;
 - não iniciar o Bloco 3, QA pós-execução ou ampliação de autonomia;
+- não iniciar novos blocos de estabilização, QA pós-execução ou ampliação de
+  autonomia além da recuperação de `FINALIZING` em revisão;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;

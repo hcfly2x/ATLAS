@@ -13,6 +13,9 @@
   e dependências preparadas somente pelos comandos explícitos do manifesto.
   Nenhum bootstrap pode ser inferido ou executado fora da allowlist/negações do
   próprio Project.
+- Ampliar a recuperação durável além de `FINALIZING` para quedas em `NEW`,
+  deliberação, `RUNNING` e `TESTING`, sempre distinguindo estado externo
+  comprovado de lease ambíguo e sem reexecução automática de Codex no MVP.
 
 ## Epic de infraestrutura — após o fechamento da Fase 3
 

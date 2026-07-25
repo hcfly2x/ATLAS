@@ -44,7 +44,9 @@ existentes e ser tratados nos blocos de estabilização planejados:
   limpa de um projeto real configurado.
 - **Bloco 3 — recuperação durável:** estender idempotência, leases, fencing e
   reconciliação do ADR-012; o backoff do worker já cobre indisponibilidade
-  transitória. Não criar dead-letter separado sem lacuna comprovada.
+  transitória. A primeira recuperação concreta trata uma Execution em
+  `FINALIZING` com lease expirado como falha terminal auditada, sem reexecutar
+  Codex sob ambiguidade. Não criar dead-letter separado sem lacuna comprovada.
 - **Enforcement determinístico:** estender a allowlist do worker e a checagem de
   paths protegidos do ADR-010, que já formam a base do futuro Policy Engine/Tool
   Gateway. Não duplicar essas fronteiras.

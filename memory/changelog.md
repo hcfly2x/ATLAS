@@ -20,6 +20,14 @@
 - Aceleração do fluxo não autoriza pular runtime reproduzível ou recuperação
   durável.
 
+## Unreleased — recuperação durável de finalização
+
+- Coordinator reconcilia Execution em `FINALIZING` com lease expirado para
+  `FAILED/finalizing`, cercando lease e executor antigos e liberando a
+  capacidade do worker.
+- A reconciliação é auditada e idempotente; não presume commit/PR, não reexecuta
+  Codex e permite que a publicação Telegram entregue a falha ao autor.
+
 ## Unreleased — entrega de resultado Telegram
 
 - Coordinator publica o resumo terminal no chat Telegram de origem, incluindo

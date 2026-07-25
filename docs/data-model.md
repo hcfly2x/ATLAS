@@ -125,6 +125,12 @@ NORMALIZING | ROUTING | SPECIFYING | QUEUED | RUNNING | TESTING | FINALIZING
 
 Toda falha terminal registra `failure_stage`, código/motivo estruturado e AuditEvent. Falha em `FINALIZING` pode ser repetida sem executar Codex novamente, desde que a aprovação e o `diff_hash` continuem válidos.
 
+Quando o lease de uma Execution em `FINALIZING` expira, o coordinator não assume
+que o passo Git terminou e não tenta reexecutar Codex. A reconciliação cerca o
+lease antigo, marca Task e Execution como `FAILED` com `failure_stage=finalizing`
+e grava AuditEvents correlacionados. A recuperação humana pode então verificar o
+estado externo de Git/PR sem a fila permanecer bloqueada.
+
 ### Cancelamento cooperativo
 
 ```text

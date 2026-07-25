@@ -1109,6 +1109,125 @@ export class WorkerService {
     return scheduled;
   }
 
+  /**
+   * A submitted result can be waiting for Git finalization when a worker dies.
+   * The lease expiry does not prove whether Git completed, so this recovery is
+   * intentionally terminal: it fences the old worker and records a FAILED
+   * Task. It never schedules Codex again or invents a commit/PR.
+   */
+  async reconcileExpiredFinalizations(now = new Date()): Promise<number> {
+    const candidates = await this.options.prisma.execution.findMany({
+      where: {
+        leaseExpiresAt: { lt: now },
+        reconciledAt: null,
+        status: ExecutionStatus.FINALIZING,
+        task: { state: TaskState.FINALIZING },
+      },
+      select: { id: true },
+    });
+    let reconciled = 0;
+    for (const candidate of candidates) {
+      if (await this.reconcileExpiredFinalization(candidate.id, now)) reconciled += 1;
+    }
+    return reconciled;
+  }
+
+  private async reconcileExpiredFinalization(executionId: string, now: Date): Promise<boolean> {
+    const idempotencyKey = `execution:${executionId}:lease-expired-finalization`;
+    return this.options.prisma.$transaction(async (transaction) => {
+      const execution = await transaction.execution.findUnique({
+        where: { id: executionId },
+        include: { task: true },
+      });
+      if (
+        execution === null ||
+        execution.status !== ExecutionStatus.FINALIZING ||
+        execution.task.state !== TaskState.FINALIZING ||
+        execution.reconciledAt !== null ||
+        execution.leaseExpiresAt === null ||
+        execution.leaseExpiresAt >= now
+      ) {
+        return false;
+      }
+      const transitioned = await transaction.task.updateMany({
+        where: {
+          id: execution.taskId,
+          state: TaskState.FINALIZING,
+          version: execution.task.version,
+        },
+        data: {
+          failureStage: "finalizing",
+          state: TaskState.FAILED,
+          version: { increment: 1 },
+        },
+      });
+      if (transitioned.count !== 1) return false;
+      const fenced = await transaction.execution.updateMany({
+        where: {
+          id: execution.id,
+          leaseExpiresAt: { lt: now },
+          status: ExecutionStatus.FINALIZING,
+        },
+        data: {
+          failureStage: "finalizing",
+          leaseExpiresAt: null,
+          leaseId: null,
+          reconciledAt: now,
+          status: ExecutionStatus.FAILED,
+        },
+      });
+      if (fenced.count !== 1) {
+        throw new WorkerConflictError("expired finalization changed during reconciliation");
+      }
+      if (execution.workerId !== null) {
+        await transaction.worker.update({
+          where: { id: execution.workerId },
+          data: { status: WorkerStatus.IDLE },
+        });
+      }
+      await transaction.auditEvent.create({
+        data: {
+          action: "execution.finalization_reconciled",
+          actor: "SYSTEM",
+          correlationId: idempotencyKey,
+          idempotencyKey,
+          payload: json({
+            action: "failed_without_codex_retry",
+            priorFencingToken: execution.fencingToken.toString(),
+            reason: "lease_expired_before_finalization",
+          }),
+          projectId: execution.task.projectId,
+          targetId: execution.id,
+          targetType: "EXECUTION",
+          taskId: execution.taskId,
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "task.transition.accepted",
+          actor: "SYSTEM",
+          correlationId: idempotencyKey,
+          idempotencyKey: `audit:${idempotencyKey}:task-transition`,
+          payload: json({
+            fromState: TaskState.FINALIZING,
+            task: {
+              failureStage: "finalizing",
+              id: execution.taskId,
+              projectId: execution.task.projectId,
+              state: TaskState.FAILED,
+              version: execution.task.version + 1,
+            },
+          }),
+          projectId: execution.task.projectId,
+          targetId: execution.taskId,
+          targetType: "task",
+          taskId: execution.taskId,
+        },
+      });
+      return true;
+    });
+  }
+
   private async assertLease(input: {
     executionId: string;
     fencingToken: bigint;

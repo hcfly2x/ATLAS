@@ -174,3 +174,8 @@
   roda somente na worktree, antes do Codex, com timeout e limpeza em todos os
   desfechos; timeout permanece falha técnica sujeita apenas à política vigente
   de retry do ADR-012/ADR-014.
+- Lease expirado em `FINALIZING` não autoriza assumir que Git/PR terminou nem
+  reexecutar Codex. O coordinator cerca o lease, encerra Task e Execution como
+  `FAILED/finalizing`, audita a decisão e libera a capacidade do worker para
+  uma nova demanda; qualquer recuperação de Git/PR permanece humana e
+  verificável.

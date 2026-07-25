@@ -114,7 +114,10 @@ não existe mecanismo equivalente a estender.
   limpa.
 - **Bloco 3 — recuperação durável:** reconciliar Tasks, leases e execuções após
   queda; conclusão mensurável: cenários de queda definidos retomam ou falham de
-  forma auditada sem reexecutar Codex sob lease ambíguo.
+  forma auditada sem reexecutar Codex sob lease ambíguo. A primeira fatia
+  implementada reconcilia `FINALIZING` com lease expirado para `FAILED`, cerca o
+  executor antigo e libera a capacidade; não inventa commit/PR nem reexecuta
+  Codex.
 - **QA pós-execução:** depois dos Blocos 2 e 3, revisar o resultado do worker
   com revisor distinto do emissor da Specification; conclusão mensurável:
   todos os resultados da amostra definida recebem parecer pós-execução
