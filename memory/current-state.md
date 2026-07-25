@@ -58,6 +58,10 @@ ampliação de autonomia.
   antes de liberar `FINALIZING`. O revisor usa papel distinto do supervisor;
   rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
   retrabalho por nova Specification e impedindo entrega final do resultado.
+- O retorno do QA a `SPECIFYING` publica ao autor Telegram uma mensagem
+  idempotente por Task e versão, com resumo, ações requeridas e próximo passo.
+  A publicação não dispara supervisor, não cria Specification e não repete a
+  Execution rejeitada.
 - A perda de lease pelo worker encerra a execução local de forma fail-closed,
   interrompe Codex quando necessário e limpa a worktree. O worker não continua
   renovando, finalizando ou repetindo uma Assignment cuja posse deixou de poder
@@ -107,11 +111,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar e integrar a dashboard web única após CI verde; depois configurar o
-token remoto e observar uma amostra do ciclo Telegram → worker → QA → entrega
-terminal. Uma Task que o QA devolve a `SPECIFYING` requer retrabalho versionado;
-ela não deve manter um worker preso. Não iniciar a Fase 8 ou ampliar autonomia
-sem autorização explícita.
+Revisar a notificação Telegram de retrabalho após CI verde e observar uma
+amostra do ciclo Telegram → worker → QA → feedback. O usuário deve reformular a
+demanda antes de uma nova Specification; não existe retry funcional automático.
+Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
 
 ## Restrições ativas
 
