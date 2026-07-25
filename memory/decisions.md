@@ -184,6 +184,10 @@
   ao supervisor; lease expirado em execução, teste, cancelamento ou finalização
   é tratado como ambíguo e falha de forma auditada. Nenhum desses caminhos cria
   uma nova Execution ou reexecuta Codex automaticamente.
+- Se a renovação de lease falhar no worker, a execução local termina de forma
+  fail-closed: o worker interrompe Codex, para de renovar e limpa a worktree,
+  sem finalizar, reenviar resultado ou repetir a mesma Assignment. A autoridade
+  para a execução ambígua permanece no reconciliador durável do coordinator.
 
 ## QA pós-execução
 
