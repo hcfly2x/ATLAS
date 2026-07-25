@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — caracterização do enforcement atual
+
+- Testes registram repetibilidade e imutabilidade da autorização de comandos,
+  precedência de negação e matching exato da allowlist.
+- Matching de paths fica caracterizado como lexical, sensível a separadores,
+  sem normalização de traversal e preservando ordem/duplicatas.
+- Nenhum caller ou comportamento de runtime foi alterado.
+
 ## Unreleased — escopo de enforcement determinístico
 
 - Corrigido o gap analysis para refletir QA pós-execução e entregas Telegram já
