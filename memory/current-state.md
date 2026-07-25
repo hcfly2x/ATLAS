@@ -6,6 +6,10 @@ Bloco C e Fase 7 — Conselho multiagente — estão integrados na `main` como
 v0.0.14. A Fase 8 não está autorizada. Correções pós-piloto e a entrega de
 resultado terminal ao autor via Telegram estão integradas na `main`.
 
+A política de entrega proporcional ao risco e `autonomy_level: 3` para o
+projeto ATLAS estão em branch própria aguardando revisão. Isso não autoriza
+novas fases, nem pula runtime reproduzível ou recuperação durável.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
@@ -38,6 +42,8 @@ resultado terminal ao autor via Telegram estão integradas na `main`.
   A única peça estrutural ausente é QA pós-execução; runtime reproduzível e
   recuperação durável devem precedê-la, e ela deve preceder qualquer ampliação
   de autonomia.
+- A profundidade de revisão passa a ser proporcional ao risco, com CI verde em
+  toda integração e merge em lote apenas para PRs independentes já aprovados.
 
 ## Testes e validações
 

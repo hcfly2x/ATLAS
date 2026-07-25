@@ -16,6 +16,15 @@ pnpm install
 pnpm validate
 ```
 
+## Fluxo de integração
+
+Use `docs/merge-policy.md` para definir a profundidade de revisão pelo risco do
+diff. CI verde continua obrigatório em todos os casos. PRs já aprovados,
+independentes e de baixo risco podem ser integrados em lote na mesma sessão:
+rebaseie cada um sobre a `main` resultante do merge anterior e confirme CI verde
+sobre a base atualizada antes de integrar o próximo. Essa aceleração não altera
+a ordem dos Blocos 2 e 3 de estabilização.
+
 Para iniciar apenas o PostgreSQL local do coordinator:
 
 ```bash

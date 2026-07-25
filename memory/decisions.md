@@ -153,3 +153,17 @@
 - Competências novas entram preferencialmente como skills anexáveis e
   especialistas temporários, não como novos agentes permanentes; ADR-016 e
   ADR-017 continuam Propostos e não autorizam implementação.
+- Somente o projeto `atlas` usa `autonomy_level: 3` para reduzir aprovação
+  síncrona em demandas reversíveis; o default global e todos os demais projetos
+  permanecem no nível 2. A lista `always_human` permanece intacta: merge na
+  `main`, deploy em produção, migração destrutiva, alteração de secret de
+  produção, exclusão de dados, pagamentos, tracking, orçamento de anúncios e
+  áreas protegidas continuam humanos.
+- No enforcement vigente, nível 3 dispensa aprovação prévia para criticidade
+  genérica; ações críticas que correspondem a `always_human` continuam humanas.
+  Manter toda Task `critical` sob aprovação humana exigiria mudança explícita de
+  política/enforcement e não foi feita nesta entrega.
+- Revisão externa é proporcional ao risco: documentação, memória, texto e
+  testes sem alteração de comportamento podem seguir com CI verde e revisão de
+  escopo; segurança, dados, dinheiro, autenticação, autonomia e máquina de
+  estados exigem auditoria completa. CI verde é obrigatório em todos os casos.
