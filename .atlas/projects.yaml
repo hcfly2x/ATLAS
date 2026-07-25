@@ -39,7 +39,7 @@ projects:
     risk: critical
     data_classification: internal_sensitive
     policy: self_modification_restricted
-    autonomy_level: 2
+    autonomy_level: 3
     repository: null
     protected_paths_profile: atlas
     allowed_commands: []

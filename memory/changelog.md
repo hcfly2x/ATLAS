@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — fluxo de entrega proporcional ao risco
+
+- Projeto `atlas` configurado com `autonomy_level: 3`; a lista `always_human`
+  permanece inalterada.
+- Política de merge proporcional ao risco e procedimento de merge em lote
+  documentados, mantendo CI verde obrigatório.
+- Aceleração do fluxo não autoriza pular runtime reproduzível ou recuperação
+  durável.
+
 ## Unreleased — entrega de resultado Telegram
 
 - Coordinator publica o resumo terminal no chat Telegram de origem, incluindo
