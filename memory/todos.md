@@ -10,6 +10,14 @@
 - Na etapa de observabilidade, expor métricas de falhas consecutivas dos
   reconciliadores duráveis e do QA pós-execução.
 
+## Enforcement determinístico — escopo definido
+
+- Revisar e autorizar `backlog/epic-deterministic-enforcement.md`.
+- Começar a implementação somente por testes de caracterização da allowlist e
+  da proteção de paths; não alterar callers até demonstrar equivalência.
+- Definir a amostra versionada que comprovará hashes idênticos para a mesma
+  entrada e configuração.
+
 ## Fases 4–5
 
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na
