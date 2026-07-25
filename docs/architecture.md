@@ -58,6 +58,9 @@ independente antes da finalização. Ele reutiliza `AgentRuntime`, `Execution`,
 canal de entrega ou máquina de estados. Parecer aprovado libera a finalização
 somente se a Approval de resultado já for válida; parecer rejeitado ou
 indisponível retorna a demanda para retrabalho versionado.
+Quando a origem é Telegram, o coordinator publica de forma idempotente o resumo
+do QA, as ações requeridas e o próximo passo no chat codificado em `Task.origin`.
+Essa publicação não cria Specification, Execution ou retry funcional.
 
 Na Fase 7, o roteamento versionado de `.atlas/routing.yaml` seleciona pareceres
 independentes dos papéis registrados em `.atlas/agents.yaml`: contexto no fluxo

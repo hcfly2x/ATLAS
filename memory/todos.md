@@ -4,6 +4,9 @@
 
 - Definir e executar a amostra mensurável de resultados reais para comprovar
   100% de parecer pós-execução antes de considerar o loop autônomo confiável.
+- Validar no piloto que cada retorno a `SPECIFYING` entrega exatamente uma
+  orientação de retrabalho ao chat de origem e que uma nova versão permite uma
+  orientação posterior distinta.
 - Na etapa de observabilidade, expor métricas de falhas consecutivas dos
   reconciliadores duráveis e do QA pós-execução.
 

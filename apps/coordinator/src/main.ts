@@ -21,6 +21,7 @@ import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
+import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
 import { PostExecutionQaService } from "./post-execution/service.js";
 
 const prisma = new PrismaClient();
@@ -268,10 +269,17 @@ const resultPublisher = new TelegramResultPublisher(
   new PrismaTelegramResultStore(prisma),
   telegramClient,
 );
+const reworkPublisher = new TelegramReworkPublisher(
+  new PrismaTelegramReworkStore(prisma),
+  telegramClient,
+);
 const telegramResultTimer = setInterval(
   () => {
     void resultPublisher.poll().catch((error: unknown) => {
       app.log.error({ error }, "telegram result publication failed");
+    });
+    void reworkPublisher.poll().catch((error: unknown) => {
+      app.log.error({ error }, "telegram QA rework publication failed");
     });
   },
   Number(process.env.TELEGRAM_RESULT_INTERVAL_MS ?? "2000"),

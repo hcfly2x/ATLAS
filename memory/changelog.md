@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — feedback Telegram de retrabalho do QA
+
+- Tasks Telegram devolvidas pelo QA a `SPECIFYING` recebem resumo, ações
+  requeridas e próximo passo no chat derivado exclusivamente de `Task.origin`.
+- A claim usa AuditEvent idempotente por Task e versão antes do envio; falha,
+  ausência de canal e sucesso também são auditados.
+- A publicação não cria nova Specification ou Execution, não chama o supervisor
+  e não introduz retry funcional automático.
+
 ## Unreleased — dashboard web única
 
 - Dashboard somente-leitura pode ser exposta no Render somente mediante flag
