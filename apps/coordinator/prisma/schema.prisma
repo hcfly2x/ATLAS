@@ -103,23 +103,31 @@ enum DeliberationStatus {
   COMPLETED
 }
 
+enum PostExecutionReviewStatus {
+  PENDING
+  RUNNING
+  APPROVED
+  REJECTED
+  FAILED
+}
+
 model Project {
-  id                    String            @id
+  id                    String                 @id
   name                  String
   risk                  String
-  dataClassification    String            @map("data_classification")
+  dataClassification    String                 @map("data_classification")
   policy                String
-  autonomyLevel         Int               @default(2) @map("autonomy_level")
+  autonomyLevel         Int                    @default(2) @map("autonomy_level")
   repository            String?
-  protectedPathsProfile String            @map("protected_paths_profile")
-  allowedCommands       Json              @map("allowed_commands")
-  runtime               Json?             @map("runtime")
-  requiredTools         Json              @map("required_tools")
-  taskCostLimitUsd      Decimal?          @map("task_cost_limit_usd") @db.Decimal(10, 2)
+  protectedPathsProfile String                 @map("protected_paths_profile")
+  allowedCommands       Json                   @map("allowed_commands")
+  runtime               Json?                  @map("runtime")
+  requiredTools         Json                   @map("required_tools")
+  taskCostLimitUsd      Decimal?               @map("task_cost_limit_usd") @db.Decimal(10, 2)
   retention             Json
-  status                ProjectStatus     @default(DRAFT)
-  createdAt             DateTime          @default(now()) @map("created_at")
-  updatedAt             DateTime          @updatedAt @map("updated_at")
+  status                ProjectStatus          @default(DRAFT)
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
   tasks                 Task[]
   auditEvents           AuditEvent[]
   telegramSessions      TelegramSession[]
@@ -132,22 +140,22 @@ model Project {
 }
 
 model Task {
-  id                    String          @id @default(uuid())
-  projectId             String          @map("project_id")
+  id                    String                @id @default(uuid())
+  projectId             String                @map("project_id")
   origin                String
-  originalMessage       String          @map("original_message")
-  normalizedDemand      Json?           @map("normalized_demand")
+  originalMessage       String                @map("original_message")
+  normalizedDemand      Json?                 @map("normalized_demand")
   complexity            TaskComplexity?
-  state                 TaskState       @default(NEW)
-  failureStage          String?         @map("failure_stage")
-  version               Int             @default(0)
-  idempotencyKey        String          @unique @map("idempotency_key")
-  activeSpecificationId String?         @unique @map("active_specification_id")
-  createdAt             DateTime        @default(now()) @map("created_at")
-  updatedAt             DateTime        @updatedAt @map("updated_at")
-  project               Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  activeSpecification   Specification?  @relation("ActiveSpecification", fields: [activeSpecificationId], references: [id], onDelete: Restrict)
-  specifications        Specification[] @relation("TaskSpecifications")
+  state                 TaskState             @default(NEW)
+  failureStage          String?               @map("failure_stage")
+  version               Int                   @default(0)
+  idempotencyKey        String                @unique @map("idempotency_key")
+  activeSpecificationId String?               @unique @map("active_specification_id")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  project               Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  activeSpecification   Specification?        @relation("ActiveSpecification", fields: [activeSpecificationId], references: [id], onDelete: Restrict)
+  specifications        Specification[]       @relation("TaskSpecifications")
   approvals             Approval[]
   executions            Execution[]
   auditEvents           AuditEvent[]
@@ -156,6 +164,7 @@ model Task {
   memoryItems           MemoryItem[]
   telegramDelivery      TelegramTaskDelivery?
   deliberations         Deliberation[]
+  postExecutionReviews  PostExecutionReview[]
 
   @@index([projectId, state])
   @@map("tasks")
@@ -195,15 +204,16 @@ model AgentOpinion {
 }
 
 model Specification {
-  id            String      @id @default(uuid())
-  taskId        String      @map("task_id")
-  version       Int
-  payload       Json
-  payloadHash   String      @map("payload_hash")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  task          Task        @relation("TaskSpecifications", fields: [taskId], references: [id], onDelete: Restrict)
-  activeForTask Task?       @relation("ActiveSpecification")
-  executions    Execution[]
+  id                   String                @id @default(uuid())
+  taskId               String                @map("task_id")
+  version              Int
+  payload              Json
+  payloadHash          String                @map("payload_hash")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  task                 Task                  @relation("TaskSpecifications", fields: [taskId], references: [id], onDelete: Restrict)
+  activeForTask        Task?                 @relation("ActiveSpecification")
+  executions           Execution[]
+  postExecutionReviews PostExecutionReview[]
 
   @@unique([taskId, version])
   @@unique([taskId, payloadHash])
@@ -257,44 +267,73 @@ model LlmCall {
 }
 
 model Execution {
-  id                   String          @id @default(uuid())
-  taskId               String          @map("task_id")
-  specificationId      String          @map("specification_id")
-  workerId             String?         @map("worker_id")
-  attempt              Int
-  status               ExecutionStatus @default(QUEUED)
-  branch               String?
-  worktree             String?
-  commands             Json?
-  exitCodes            Json?           @map("exit_codes")
-  logsRef              String?         @map("logs_ref")
-  diffSummary          Json?           @map("diff_summary")
-  diffHash             String?         @map("diff_hash")
-  testResult           Json?           @map("test_result")
-  failureStage         String?         @map("failure_stage")
-  idempotencyKey       String          @unique @map("idempotency_key")
-  leaseId              String?         @unique @map("lease_id")
-  leaseExpiresAt       DateTime?       @map("lease_expires_at")
-  fencingToken         BigInt          @default(0) @map("fencing_token")
-  claimIdempotencyKey  String?         @unique @map("claim_idempotency_key")
-  resultIdempotencyKey String?         @unique @map("result_idempotency_key")
-  resultHash           String?         @map("result_hash")
-  resultPayload        Json?           @map("result_payload")
-  resultSequence       Int?            @map("result_sequence")
-  finalizationIdempotencyKey String?   @unique @map("finalization_idempotency_key")
-  finalizationHash     String?         @map("finalization_hash")
-  reconciledAt         DateTime?       @map("reconciled_at")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
-  task                 Task            @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  specification        Specification   @relation(fields: [specificationId], references: [id], onDelete: Restrict)
-  worker               Worker?         @relation(fields: [workerId], references: [id], onDelete: Restrict)
-  logChunks            WorkerLogChunk[]
-  codexUsage           CodexUsage?
+  id                         String               @id @default(uuid())
+  taskId                     String               @map("task_id")
+  specificationId            String               @map("specification_id")
+  workerId                   String?              @map("worker_id")
+  attempt                    Int
+  status                     ExecutionStatus      @default(QUEUED)
+  branch                     String?
+  worktree                   String?
+  commands                   Json?
+  exitCodes                  Json?                @map("exit_codes")
+  logsRef                    String?              @map("logs_ref")
+  diffSummary                Json?                @map("diff_summary")
+  diffHash                   String?              @map("diff_hash")
+  testResult                 Json?                @map("test_result")
+  failureStage               String?              @map("failure_stage")
+  idempotencyKey             String               @unique @map("idempotency_key")
+  leaseId                    String?              @unique @map("lease_id")
+  leaseExpiresAt             DateTime?            @map("lease_expires_at")
+  fencingToken               BigInt               @default(0) @map("fencing_token")
+  claimIdempotencyKey        String?              @unique @map("claim_idempotency_key")
+  resultIdempotencyKey       String?              @unique @map("result_idempotency_key")
+  resultHash                 String?              @map("result_hash")
+  resultPayload              Json?                @map("result_payload")
+  resultSequence             Int?                 @map("result_sequence")
+  finalizationIdempotencyKey String?              @unique @map("finalization_idempotency_key")
+  finalizationHash           String?              @map("finalization_hash")
+  reconciledAt               DateTime?            @map("reconciled_at")
+  createdAt                  DateTime             @default(now()) @map("created_at")
+  updatedAt                  DateTime             @updatedAt @map("updated_at")
+  task                       Task                 @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  specification              Specification        @relation(fields: [specificationId], references: [id], onDelete: Restrict)
+  worker                     Worker?              @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  logChunks                  WorkerLogChunk[]
+  codexUsage                 CodexUsage?
+  postExecutionReview        PostExecutionReview?
 
   @@unique([taskId, attempt])
   @@index([status, leaseExpiresAt])
   @@map("executions")
+}
+
+model PostExecutionReview {
+  id              String                    @id @default(uuid())
+  taskId          String                    @map("task_id")
+  executionId     String                    @unique @map("execution_id")
+  specificationId String                    @map("specification_id")
+  version         Int                       @default(1)
+  reviewerId      String                    @map("reviewer_id")
+  model           String?
+  status          PostExecutionReviewStatus @default(PENDING)
+  payload         Json?
+  payloadHash     String?                   @map("payload_hash")
+  idempotencyKey  String                    @unique @map("idempotency_key")
+  claimToken      String?                   @map("claim_token")
+  claimExpiresAt  DateTime?                 @map("claim_expires_at")
+  failureReason   String?                   @map("failure_reason")
+  reviewedAt      DateTime?                 @map("reviewed_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  task            Task                      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  execution       Execution                 @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  specification   Specification             @relation(fields: [specificationId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, version])
+  @@index([status, claimExpiresAt])
+  @@index([taskId, createdAt])
+  @@map("post_execution_reviews")
 }
 
 model Worker {

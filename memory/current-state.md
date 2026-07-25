@@ -8,9 +8,9 @@ resultado terminal ao autor via Telegram estão integradas na `main`.
 
 A política de entrega proporcional ao risco e `autonomy_level: 3` para o
 projeto ATLAS estão integrados na `main`. O Bloco 2 — runtime reproduzível por
-projeto — também está integrado. O Bloco 3 — recuperação durável — está em
-branch própria para revisão de risco; sua implementação não autoriza QA
-pós-execução, Fase 8 ou ampliação de autonomia.
+projeto — também está integrado. O Bloco 3 — recuperação durável — está
+integrado. QA pós-execução está autorizado, em branch própria, e não autoriza
+Fase 8 ou ampliação de autonomia.
 
 ## Implementado
 
@@ -49,11 +49,15 @@ pós-execução, Fase 8 ou ampliação de autonomia.
 - O runtime opcional por Project declara bootstrap, validate, allowlist,
   `forbidden_commands` e timeout. O worker executa bootstrap antes do Codex e
   limpa a worktree em sucesso, falha e cancelamento; nenhum bootstrap é inferido.
-- O Bloco 3 em revisão retoma idempotentemente Tasks ainda em `NEW` no startup
+- O Bloco 3 retoma idempotentemente Tasks ainda em `NEW` no startup
   do coordinator. Ele também reconcilia leases expirados de Execuções em
   `RUNNING`, `TESTING`, `CANCEL_REQUESTED` e `FINALIZING`: cerca o executor,
   encerra Task e Execution de forma auditada e libera capacidade sem reexecutar
   Codex nem assumir estado externo de Git/PR.
+- QA pós-execução persiste um parecer versionado e correlacionado por Execution
+  antes de liberar `FINALIZING`. O revisor usa papel distinto do supervisor;
+  rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
+  retrabalho por nova Specification e impedindo entrega final do resultado.
 
 ## Testes e validações
 
@@ -95,16 +99,15 @@ pós-execução, Fase 8 ou ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar o PR do Bloco 3, integrar somente após CI verde e então observar um novo
-ciclo Telegram → worker → entrega terminal. Não iniciar QA pós-execução, a Fase
-8 ou ampliação de autonomia sem autorização explícita.
+Concluir a revisão de risco do PR de QA pós-execução, integrar somente após CI
+verde e observar uma amostra do ciclo Telegram → worker → QA → entrega terminal.
+Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
 
 ## Restrições ativas
 
 - não iniciar a Fase 8;
-- não iniciar QA pós-execução, a Fase 8 ou ampliação de autonomia;
-- não iniciar novos blocos de estabilização além da recuperação durável em
-  revisão;
+- não iniciar a Fase 8 ou ampliação de autonomia;
+- não iniciar novos blocos de estabilização além do QA pós-execução em revisão;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;

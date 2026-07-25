@@ -43,6 +43,13 @@ Specification executável, versionada e com hash canônico. A política combina
 encaminhar a Task a `QUEUED` ou `WAITING_APPROVAL`. Dispensa de aprovação humana
 gera Approval explícita de sistema e AuditEvent; não reduz a auditabilidade.
 
+Após o worker entregar testes e diff, o coordinator aplica um QA pós-execução
+independente antes da finalização. Ele reutiliza `AgentRuntime`, `Execution`,
+`Approval`, `AuditEvent` e a fila de estados existentes: não cria segundo worker,
+canal de entrega ou máquina de estados. Parecer aprovado libera a finalização
+somente se a Approval de resultado já for válida; parecer rejeitado ou
+indisponível retorna a demanda para retrabalho versionado.
+
 Na Fase 7, o roteamento versionado de `.atlas/routing.yaml` seleciona pareceres
 independentes dos papéis registrados em `.atlas/agents.yaml`: contexto no fluxo
 simples, contexto+arquitetura+qualidade no moderado e conselho completo no

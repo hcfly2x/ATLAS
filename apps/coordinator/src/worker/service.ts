@@ -678,14 +678,15 @@ export class WorkerService {
     }
     const testsGreen =
       result.tests.length > 0 && result.tests.every((test) => test.status === "passed");
-    const autoFinalize =
+    const policyAutoApproval =
       testsGreen &&
       result.protected_path_matches.length === 0 &&
       execution.task.project.autonomyLevel >= 2;
-    const taskState = autoFinalize ? TaskState.FINALIZING : TaskState.WAITING_RESULT_APPROVAL;
-    const executionStatus = autoFinalize
-      ? ExecutionStatus.FINALIZING
-      : ExecutionStatus.AWAITING_RESULT_APPROVAL;
+    // The post-execution reviewer is the mandatory gate between a valid worker
+    // result and FINALIZING. The existing Approval still expresses whether the
+    // result policy requires a human decision after QA has approved it.
+    const taskState = TaskState.WAITING_RESULT_APPROVAL;
+    const executionStatus = ExecutionStatus.AWAITING_RESULT_APPROVAL;
     const transitioned = await this.options.prisma.$transaction(async (transaction) => {
       const testingTransition = await transaction.task.updateMany({
         where: {
@@ -756,17 +757,17 @@ export class WorkerService {
       });
       await transaction.approval.create({
         data: {
-          actor: autoFinalize ? ApprovalActor.SYSTEM : ApprovalActor.USER,
-          channel: autoFinalize ? ApprovalChannel.POLICY : ApprovalChannel.TELEGRAM,
-          decidedBy: autoFinalize ? "autonomy-policy" : null,
+          actor: policyAutoApproval ? ApprovalActor.SYSTEM : ApprovalActor.USER,
+          channel: policyAutoApproval ? ApprovalChannel.POLICY : ApprovalChannel.TELEGRAM,
+          decidedBy: policyAutoApproval ? "autonomy-policy" : null,
           idempotencyKey: `execution:${execution.id}:result-approval`,
           presentedPayload: json({
             diffHash: result.diff_hash,
             resultHash: result.result_hash,
           }),
           requestedBy: "worker",
-          respondedAt: autoFinalize ? new Date() : null,
-          status: autoFinalize ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+          respondedAt: policyAutoApproval ? new Date() : null,
+          status: policyAutoApproval ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
           targetHash: result.result_hash,
           targetId: execution.id,
           targetType: ApprovalTargetType.EXECUTION_RESULT,
@@ -784,7 +785,7 @@ export class WorkerService {
       });
       await transaction.auditEvent.create({
         data: {
-          action: autoFinalize ? "approval.auto_approved" : "approval.requested",
+          action: policyAutoApproval ? "approval.auto_approved" : "approval.requested",
           actor: "SYSTEM",
           correlationId: result.idempotency_key,
           idempotencyKey: `audit:${result.idempotency_key}`,

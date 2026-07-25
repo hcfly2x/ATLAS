@@ -84,6 +84,15 @@ export class ApprovalTargetHashMismatchError extends Error {
   }
 }
 
+export class PostExecutionReviewPendingError extends Error {
+  readonly code = "POST_EXECUTION_REVIEW_PENDING";
+
+  constructor(readonly approvalId: string) {
+    super(`Post-execution review is not approved for ${approvalId}`);
+    this.name = "PostExecutionReviewPendingError";
+  }
+}
+
 export interface TelegramStore {
   findProcessedUpdate(updateId: bigint): Promise<readonly TelegramResponse[] | undefined>;
   recordProcessedUpdate(input: {
@@ -383,6 +392,29 @@ export class PrismaTelegramStore implements TelegramStore {
             recordedHash: approval.targetHash,
           };
         }
+        if (input.decision === "APPROVED") {
+          const review = await transaction.postExecutionReview.findUnique({
+            where: { executionId: execution.id },
+          });
+          if (review?.status !== "APPROVED") {
+            await transaction.auditEvent.upsert({
+              where: { idempotencyKey: `${idempotencyKey}:qa-pending` },
+              create: {
+                action: "approval.post_execution_review_pending",
+                actor: "USER",
+                correlationId: input.correlationId,
+                idempotencyKey: `${idempotencyKey}:qa-pending`,
+                payload: json({ approvalId: approval.id, reviewStatus: review?.status ?? null }),
+                projectId: approval.task.projectId,
+                targetId: approval.targetId,
+                targetType: approval.targetType,
+                taskId: approval.taskId,
+              },
+              update: {},
+            });
+            return { approvalId: approval.id, kind: "qa_pending" as const };
+          }
+        }
       }
       const updated = await transaction.approval.updateMany({
         where: { id: approval.id, status: ApprovalStatus.PENDING },
@@ -466,6 +498,9 @@ export class PrismaTelegramStore implements TelegramStore {
         outcome.expectedHash,
         outcome.recordedHash,
       );
+    }
+    if (outcome.kind === "qa_pending") {
+      throw new PostExecutionReviewPendingError(outcome.approvalId);
     }
     return outcome.result;
   }
