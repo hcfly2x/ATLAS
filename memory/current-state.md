@@ -10,6 +10,9 @@ resultado terminal ao autor via Telegram estão integradas na `main`.
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
   Telegram e dashboard somente-leitura permanecem integrados.
+- A hierarquia de comando efetivamente implementada está resumida, com fontes
+  rastreáveis, em `docs/command-hierarchy.md`; o documento não amplia as
+  permissões, a política de aprovação ou os canais de saída existentes.
 - Registro de papéis e instruções carregado de `.atlas/agents.yaml` e `agents/`;
   roteamento canônico carregado de `.atlas/routing.yaml`.
 - Rotas: simples usa contexto+supervisor; moderada acrescenta arquitetura e QA;
