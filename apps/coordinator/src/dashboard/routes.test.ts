@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createCoordinatorApp } from "../app.js";
+import { assertRemoteDashboardConfiguration } from "./routes.js";
 import type { DashboardService } from "./service.js";
 
 const dashboard = {
@@ -27,6 +28,21 @@ afterEach(async () => {
 });
 
 describe("read-only dashboard", () => {
+  it("requires a high-entropy token before remote access can be enabled", () => {
+    expect(() => {
+      assertRemoteDashboardConfiguration(true, undefined);
+    }).toThrow("DASHBOARD_TOKEN must contain at least 32 characters for remote access");
+    expect(() => {
+      assertRemoteDashboardConfiguration(true, "too-short");
+    }).toThrow("DASHBOARD_TOKEN must contain at least 32 characters for remote access");
+    expect(() => {
+      assertRemoteDashboardConfiguration(true, "a".repeat(32));
+    }).not.toThrow();
+    expect(() => {
+      assertRemoteDashboardConfiguration(false, undefined);
+    }).not.toThrow();
+  });
+
   it("serves a loopback shell and protects all data with a token", async () => {
     const app = createCoordinatorApp({
       dashboardService: dashboard,
@@ -50,6 +66,8 @@ describe("read-only dashboard", () => {
     expect(accepted.statusCode).toBe(200);
     expect(accepted.body).toContain('"capUsd":75');
     expect(accepted.body).toContain('"capUsd":25');
+    expect(page.headers["referrer-policy"]).toBe("no-referrer");
+    expect(page.headers["x-content-type-options"]).toBe("nosniff");
   });
 
   it("does not expose write methods under /dashboard", async () => {
@@ -92,5 +110,36 @@ describe("read-only dashboard", () => {
 
     expect(page.statusCode).toBe(403);
     expect(data.statusCode).toBe(403);
+  });
+
+  it("allows the read-only dashboard remotely only when explicitly enabled", async () => {
+    const app = createCoordinatorApp({
+      dashboardRemoteAccessEnabled: true,
+      dashboardService: dashboard,
+      dashboardToken: "local-dashboard-token",
+      logger: false,
+    });
+    apps.push(app);
+
+    const page = await app.inject({
+      method: "GET",
+      url: "/dashboard",
+      remoteAddress: "192.0.2.10",
+    });
+    const denied = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/overview",
+      remoteAddress: "192.0.2.10",
+    });
+    const accepted = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/overview",
+      headers: { authorization: "Bearer local-dashboard-token" },
+      remoteAddress: "192.0.2.10",
+    });
+
+    expect(page.statusCode).toBe(200);
+    expect(denied.statusCode).toBe(401);
+    expect(accepted.statusCode).toBe(200);
   });
 });

@@ -224,6 +224,28 @@ O shell inicial contém apenas a tela de desbloqueio; nenhum dado operacional é
 carregado antes da validação do token. Este painel operacional somente-leitura é
 independente da decisão futura do ADR-013 sobre edição de agentes na Fase 10.
 
+## Dashboard web única no Render
+
+Para acompanhar as mesmas Tasks recebidas pelo Telegram, use a dashboard do
+coordinator hospedado, não uma segunda instância local. No ambiente do Render,
+configure somente no secret store:
+
+```text
+DASHBOARD_REMOTE_ACCESS_ENABLED=true
+DASHBOARD_TOKEN=<token aleatório com pelo menos 32 caracteres>
+```
+
+Gere o token localmente, sem registrá-lo no repositório:
+
+```bash
+openssl rand -base64 32
+```
+
+Depois do deploy, abra `https://<servico-render>/dashboard` e informe o token.
+O shell público não contém dados; todas as APIs continuam exigindo Bearer token
+e aceitam somente leitura. Não inicie `pnpm coordinator:local` apenas para usar
+a dashboard quando a instância web remota estiver habilitada.
+
 ## Worker local
 
 O worker roda fora do Docker e não possui dependência de PostgreSQL. O perfil MVP

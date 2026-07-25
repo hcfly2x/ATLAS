@@ -28,6 +28,15 @@ Cérebro do sistema:
 - memória;
 - prompts.
 
+### Dashboard operacional
+
+Há uma única dashboard web operacional no coordinator hospedado. Ela consulta o
+mesmo PostgreSQL das Tasks recebidas pelo Telegram e é somente leitura, com
+aprovação apenas quando a política já a exige. A exposição pública no Render é
+desabilitada por default e depende de flag explícita e Bearer token de alta
+entropia; não cria um segundo banco, dashboard local concorrente ou rota de
+escrita.
+
 ### Agent Runtime
 
 Expõe uma interface própria, independente do provedor, para executar agentes com

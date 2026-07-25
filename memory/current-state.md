@@ -9,8 +9,8 @@ resultado terminal ao autor via Telegram estão integradas na `main`.
 A política de entrega proporcional ao risco e `autonomy_level: 3` para o
 projeto ATLAS estão integrados na `main`. O Bloco 2 — runtime reproduzível por
 projeto — também está integrado. O Bloco 3 — recuperação durável — está
-integrado. QA pós-execução está autorizado, em branch própria, e não autoriza
-Fase 8 ou ampliação de autonomia.
+integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
+ampliação de autonomia.
 
 ## Implementado
 
@@ -62,6 +62,10 @@ Fase 8 ou ampliação de autonomia.
   interrompe Codex quando necessário e limpa a worktree. O worker não continua
   renovando, finalizando ou repetindo uma Assignment cuja posse deixou de poder
   comprovar; o reconciliador durável do coordinator trata o estado ambíguo.
+- A unificação da dashboard em um único destino web no coordinator do Render
+  está preparada em PR próprio: exige flag explícita e Bearer token e mantém
+  dados/rotas somente leitura. Ainda não está habilitada nem autoriza escrita de
+  configuração, agentes ou times.
 
 ## Testes e validações
 
@@ -103,10 +107,11 @@ Fase 8 ou ampliação de autonomia.
 
 ## Próximo passo
 
-Integrar o hotfix de perda de lease após CI verde e observar uma amostra do
-ciclo Telegram → worker → QA → entrega terminal. Uma Task que o QA devolve a
-`SPECIFYING` requer retrabalho versionado; ela não deve manter um worker preso.
-Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
+Revisar e integrar a dashboard web única após CI verde; depois configurar o
+token remoto e observar uma amostra do ciclo Telegram → worker → QA → entrega
+terminal. Uma Task que o QA devolve a `SPECIFYING` requer retrabalho versionado;
+ela não deve manter um worker preso. Não iniciar a Fase 8 ou ampliar autonomia
+sem autorização explícita.
 
 ## Restrições ativas
 
