@@ -1,5 +1,12 @@
 # Pendências
 
+## QA pós-execução — acompanhamento após integração
+
+- Definir e executar a amostra mensurável de resultados reais para comprovar
+  100% de parecer pós-execução antes de considerar o loop autônomo confiável.
+- Na etapa de observabilidade, expor métricas de falhas consecutivas dos
+  reconciliadores duráveis e do QA pós-execução.
+
 ## Fases 4–5
 
 - Fazer `/status` e `/cancel` sem argumento respeitarem o projeto selecionado na

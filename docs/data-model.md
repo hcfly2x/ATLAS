@@ -22,6 +22,12 @@ append-only.
 
 **Execution** — id, task_id, specification_id, worker_id, attempt, status (`queued|running|testing|awaiting_result_approval|finalizing|succeeded|failed|cancel_requested|cancelled`), branch, worktree, comandos executados, exit codes, logs sanitizados/referenciados, diff resumido, diff_hash, resultado de testes, failure_stage?, timestamps. Retry técnico gera nova Execution para a mesma Specification.
 
+**PostExecutionReview** — id, task_id, execution_id único, specification_id,
+versão, revisor, modelo?, status (`pending|running|approved|rejected|failed`),
+payload validado, hash canônico, chave idempotente, claim com expiração, motivo de
+falha? e timestamps. O parecer final é imutável e fica ligado ao resultado exato
+da Execution; o revisor não pode ser o emissor da Specification.
+
 **Worker** — id, nome, token hash, escopo de projetos, capacidades/preflight, limite de concorrência, último heartbeat, status.
 
 **WorkerLogChunk** — id, execution_id, sequência, checksum, tamanho, conteúdo
@@ -59,6 +65,7 @@ Task 1—N Execution
 Specification 1—N Execution
 Execution 1—N WorkerLogChunk
 Execution 1—1 CodexUsage
+Execution 1—1 PostExecutionReview
 Approval N—1 alvo versionado (Specification, Execution/result ou ação sensível)
 Task 1—N AuditEvent
 Project 1—N MemoryItem
@@ -72,6 +79,11 @@ Project 1—N MemoryItem
 - Aprovação não é transferível entre versões, executions, diffs ou ações.
 - Aprovação de resultado referencia `execution_id` e `diff_hash`.
 - Commit e abertura de PR só ocorrem em `FINALIZING`, depois de aprovação válida do resultado.
+- Todo resultado de worker aguarda QA pós-execução antes de `FINALIZING`. A
+  aprovação de política ou do usuário continua necessária quando aplicável, mas
+  não substitui o parecer independente. QA aprovado + Approval automática válida
+  permite `FINALIZING`; QA rejeitado ou indisponível retorna a Task a
+  `SPECIFYING` para retrabalho versionado, sem entregar o resultado.
 - Aprovação automática também cria Approval com `actor=system`, `target_type`,
   `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
   e não pode produzir trilha mais fraca que a aprovação manual.
@@ -93,10 +105,11 @@ WAITING_APPROVAL → QUEUED        (aprovação válida para a Specification ati
 WAITING_APPROVAL → CANCELLED     (rejeição definitiva)
 
 QUEUED → RUNNING → TESTING
-TESTING → WAITING_RESULT_APPROVAL  (política exige aprovação humana do resultado)
-TESTING → FINALIZING               (política dispensa aprovação humana do resultado;
-                                    Approval automática é registrada)
-WAITING_RESULT_APPROVAL → FINALIZING  (resultado/diff aprovado)
+TESTING → WAITING_RESULT_APPROVAL  (resultado aguarda QA pós-execução e,
+                                    quando aplicável, Approval humana)
+TESTING → FINALIZING               (transição canônica preservada para fluxos
+                                    explicitamente isentos de revisão)
+WAITING_RESULT_APPROVAL → FINALIZING  (QA aprovado e Approval válida quando exigida)
 FINALIZING → COMPLETED
 ```
 

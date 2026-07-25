@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — QA pós-execução
+
+- Adicionado parecer pós-execução persistido, versionado e correlacionado à
+  Task, Execution e Specification; o revisor é distinto do supervisor e usa o
+  contrato Zod compartilhado.
+- Resultados de worker passam por `WAITING_RESULT_APPROVAL` para QA antes de
+  `FINALIZING`; QA reprovado ou indisponível retorna a Task a `SPECIFYING` sem
+  entregar resultado nem reexecutar a mesma Execution.
+- Registrado consumo de LLM, hash canônico, AuditEvents e claim com expiração
+  do parecer para preservar custo, idempotência e recuperação segura.
+
 ## Unreleased — Bloco 3: recuperação durável
 
 - Startup do coordinator retoma idempotentemente Tasks ainda em `NEW`, cobrindo

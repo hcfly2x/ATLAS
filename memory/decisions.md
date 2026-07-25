@@ -184,3 +184,13 @@
   ao supervisor; lease expirado em execução, teste, cancelamento ou finalização
   é tratado como ambíguo e falha de forma auditada. Nenhum desses caminhos cria
   uma nova Execution ou reexecuta Codex automaticamente.
+
+## QA pós-execução
+
+- Todo resultado do worker passa por QA pós-execução independente antes de
+  `FINALIZING`. O parecer reutiliza o runtime, Execution, Approval e AuditEvent
+  existentes; não cria outro executor, fila, estado ou canal de entrega.
+- O revisor não pode ser o supervisor que emitiu a Specification. Parecer
+  aprovado só libera finalização com Approval de resultado válida; parecer
+  rejeitado ou indisponível retorna a Task para retrabalho versionado em
+  `SPECIFYING` e impede entrega final.

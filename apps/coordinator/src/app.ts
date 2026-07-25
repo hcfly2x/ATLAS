@@ -21,7 +21,10 @@ import {
 
 import { dispatchTelegram, type TelegramClient } from "./telegram/client.js";
 import { TelegramUnauthorizedError, type TelegramGateway } from "./telegram/service.js";
-import { ApprovalTargetHashMismatchError } from "./telegram/store.js";
+import {
+  ApprovalTargetHashMismatchError,
+  PostExecutionReviewPendingError,
+} from "./telegram/store.js";
 import {
   LlmMonthlyBudgetExceededError,
   TaskNotReadyForSupervisionError,
@@ -48,6 +51,7 @@ import {
 } from "./memory/service.js";
 import { registerDashboardRoutes } from "./dashboard/routes.js";
 import type { DashboardService } from "./dashboard/service.js";
+import type { PostExecutionQaService } from "./post-execution/service.js";
 
 const createTaskSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
@@ -82,6 +86,7 @@ export interface CoordinatorAppOptions {
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
   readonly memoryService?: MemoryService;
+  readonly postExecutionQaService?: Pick<PostExecutionQaService, "reviewExecution">;
   readonly projectConfigStore?: ProjectConfigStore;
   readonly supervisorService?: Pick<SupervisorService, "processTask">;
   readonly taskStore?: TaskCoreStore;
@@ -359,12 +364,23 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
           result: workerResultSchema,
         })
         .parse(request.body);
-      return workerService.submitResult({
+      const submitted = await workerService.submitResult({
         fencingToken: BigInt(body.fencingToken),
         leaseId: body.leaseId,
         result: body.result,
         workerId,
       });
+      if (!submitted.replayed && options.postExecutionQaService !== undefined) {
+        void options.postExecutionQaService
+          .reviewExecution(body.result.execution_id)
+          .catch((error: unknown) => {
+            request.log.error(
+              { error, executionId: body.result.execution_id },
+              "post-execution QA failed",
+            );
+          });
+      }
+      return submitted;
     });
     app.post("/internal/worker/:workerId/finalize", async (request) => {
       const { workerId } = workerParamsSchema.parse(request.params);
@@ -435,6 +451,16 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       request.log.warn(
         { approvalId: error.approvalId, correlationId: request.id },
         "approval target hash mismatch",
+      );
+      return reply.code(409).send({
+        code: error.code,
+        correlationId: request.id,
+      });
+    }
+    if (error instanceof PostExecutionReviewPendingError) {
+      request.log.warn(
+        { approvalId: error.approvalId, correlationId: request.id },
+        "post-execution review is pending",
       );
       return reply.code(409).send({
         code: error.code,

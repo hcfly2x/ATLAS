@@ -1,6 +1,6 @@
 # Epic — QA pós-execução
 
-> Trilha 2 — execução não autorizada.
+> Trilha 2 — execução autorizada, em implementação e revisão de risco.
 
 ## Objetivo
 

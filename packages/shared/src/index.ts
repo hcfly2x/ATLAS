@@ -92,6 +92,16 @@ export const specialistOpinionSchema = z.object({
 });
 export type SpecialistOpinion = z.infer<typeof specialistOpinionSchema>;
 
+export const postExecutionReviewSchema = z.object({
+  confidence: z.number().min(0).max(1),
+  decision: z.enum(["approved", "rejected"]),
+  findings: z.array(z.string()),
+  required_actions: z.array(z.string()),
+  risks: z.array(z.string()),
+  summary: z.string().min(1),
+});
+export type PostExecutionReview = z.infer<typeof postExecutionReviewSchema>;
+
 export const materialDivergenceSchema = z.object({
   topic: z.string().min(1),
   agent_ids: z.array(z.string().min(1)).min(2),

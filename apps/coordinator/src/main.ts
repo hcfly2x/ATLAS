@@ -20,6 +20,7 @@ import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
+import { PostExecutionQaService } from "./post-execution/service.js";
 
 const prisma = new PrismaClient();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -61,8 +62,12 @@ const council =
         process.env.ATLAS_ROUTING_PATH ??
           fileURLToPath(new URL("../../../.atlas/routing.yaml", import.meta.url)),
       );
+const agentRuntime =
+  openaiApiKey === undefined || openaiApiKey.trim().length === 0
+    ? undefined
+    : new OpenAIAgentRuntime(openaiApiKey);
 const supervisorService =
-  openaiApiKey === undefined || openaiApiKey.trim().length === 0 || council === undefined
+  agentRuntime === undefined || council === undefined
     ? undefined
     : new SupervisorService({
         alwaysHuman: await loadAlwaysHumanActions(process.env.ATLAS_POLICIES_PATH),
@@ -72,9 +77,19 @@ const supervisorService =
           : { councilModel: process.env.ATLAS_COUNCIL_MODEL }),
         monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
         memoryContextProvider: memoryService,
-        runtime: new OpenAIAgentRuntime(openaiApiKey),
+        runtime: agentRuntime,
         store: new PrismaSupervisorStore(prisma),
         taskStore,
+      });
+const postExecutionQaService =
+  agentRuntime === undefined || council === undefined
+    ? undefined
+    : new PostExecutionQaService({
+        claimDurationMs: Number(process.env.ATLAS_POST_EXECUTION_QA_CLAIM_MS ?? "300000"),
+        council,
+        monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
+        prisma,
+        runtime: agentRuntime,
       });
 function logAutomaticSupervisionError(
   level: "error" | "warn",
@@ -140,6 +155,7 @@ const app = createCoordinatorApp({
   internalAuthToken,
   logger: true,
   memoryService,
+  ...(postExecutionQaService === undefined ? {} : { postExecutionQaService }),
   ...(projectConfigStore === undefined ? {} : { projectConfigStore }),
   ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,
@@ -196,10 +212,24 @@ if (supervisorService !== undefined) {
       app.log.error({ error }, "new task startup reconciliation failed");
     });
 }
+const postExecutionQaTimer =
+  postExecutionQaService === undefined
+    ? undefined
+    : setInterval(() => {
+        void postExecutionQaService.processPendingReviews().catch((error: unknown) => {
+          app.log.error({ error }, "post-execution QA reconciliation failed");
+        });
+      }, 15_000);
+if (postExecutionQaService !== undefined) {
+  void postExecutionQaService.processPendingReviews().catch((error: unknown) => {
+    app.log.error({ error }, "initial post-execution QA reconciliation failed");
+  });
+}
 app.addHook("onClose", () => {
   if (technicalRetryTimer !== undefined) clearInterval(technicalRetryTimer);
   if (finalizationRecoveryTimer !== undefined) clearInterval(finalizationRecoveryTimer);
   if (activeLeaseRecoveryTimer !== undefined) clearInterval(activeLeaseRecoveryTimer);
+  if (postExecutionQaTimer !== undefined) clearInterval(postExecutionQaTimer);
 });
 
 const polling =

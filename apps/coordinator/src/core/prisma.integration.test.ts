@@ -690,12 +690,12 @@ describe("Prisma core persistence", () => {
         result,
         workerId: registration.workerId,
       }),
-    ).toEqual({ replayed: false, state: "FINALIZING" });
+    ).toEqual({ replayed: false, state: "WAITING_RESULT_APPROVAL" });
     const persisted = await prisma.execution.findUniqueOrThrow({
       where: { id: assignment.execution_id },
       include: { codexUsage: true, task: { include: { approvals: true } } },
     });
-    expect(persisted.status).toBe("FINALIZING");
+    expect(persisted.status).toBe("AWAITING_RESULT_APPROVAL");
     expect(Number(persisted.codexUsage?.estimatedCostUsd)).toBe(1);
     expect(persisted.task.approvals).toEqual([
       expect.objectContaining({ actor: "SYSTEM", channel: "POLICY", status: "APPROVED" }),
