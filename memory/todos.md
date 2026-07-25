@@ -12,9 +12,12 @@
 
 ## Enforcement determinístico — escopo definido
 
-- Revisar e autorizar `backlog/epic-deterministic-enforcement.md`.
-- Começar a implementação somente por testes de caracterização da allowlist e
-  da proteção de paths; não alterar callers até demonstrar equivalência.
+- Revisar os testes de caracterização da allowlist e da proteção de paths.
+- Na extração da decisão pura, tratar explicitamente normalização com
+  `path.posix`, traversal que escape da raiz, separadores não POSIX e
+  deduplicação sem perder evidência.
+- Cobrir o caso combinado: comando permitido + path protegido deve resultar em
+  escalada humana antes de qualquer commit/PR.
 - Definir a amostra versionada que comprovará hashes idênticos para a mesma
   entrada e configuração.
 

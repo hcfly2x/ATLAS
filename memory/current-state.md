@@ -111,10 +111,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar o escopo documental de enforcement determinístico. A implementação deve
-começar por testes de caracterização da allowlist e de paths protegidos, sem
-alterar comportamento, e exige autorização própria por tocar worker, comandos,
-auditoria e áreas protegidas. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar os testes de caracterização do enforcement atual. Eles registram
+precedência de negação, matching exato, repetibilidade e o comportamento lexical
+atual de paths sem alterar callers. A extração da decisão pura continua uma
+entrega separada. Não iniciar a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 
