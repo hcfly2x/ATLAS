@@ -81,6 +81,7 @@ const leaseSchema = z.object({
 });
 
 export interface CoordinatorAppOptions {
+  readonly dashboardRemoteAccessEnabled?: boolean;
   readonly dashboardService?: DashboardService;
   readonly dashboardToken?: string;
   readonly internalAuthToken?: string;
@@ -135,7 +136,9 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     if (options.dashboardToken === undefined || options.dashboardToken.trim().length === 0) {
       throw new Error("dashboardToken is required when dashboard routes are enabled");
     }
-    registerDashboardRoutes(app, options.dashboardService, options.dashboardToken);
+    registerDashboardRoutes(app, options.dashboardService, options.dashboardToken, {
+      remoteAccessEnabled: options.dashboardRemoteAccessEnabled,
+    });
   }
 
   if (options.projectConfigStore !== undefined) {

@@ -6,14 +6,29 @@ import type { DashboardService } from "./service.js";
 
 const loopback = new Set(["127.0.0.1", "::1"]);
 
+export interface DashboardRouteOptions {
+  readonly remoteAccessEnabled?: boolean | undefined;
+}
+
+export function assertRemoteDashboardConfiguration(
+  remoteAccessEnabled: boolean,
+  token: string | undefined,
+): void {
+  if (remoteAccessEnabled && (token === undefined || token.trim().length < 32)) {
+    throw new Error("DASHBOARD_TOKEN must contain at least 32 characters for remote access");
+  }
+}
+
 export function registerDashboardRoutes(
   app: FastifyInstance,
   service: DashboardService,
   token: string,
+  options: DashboardRouteOptions = {},
 ): void {
   if (token.trim().length === 0) throw new Error("DASHBOARD_TOKEN must not be empty");
+  const remoteAccessEnabled = options.remoteAccessEnabled ?? false;
   const local = async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!loopback.has(request.ip)) {
+    if (!remoteAccessEnabled && !loopback.has(request.ip)) {
       await reply.code(403).send({ code: "DASHBOARD_LOOPBACK_ONLY" });
     }
   };
@@ -38,6 +53,8 @@ export function registerDashboardRoutes(
         "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
       )
       .header("cache-control", "no-store")
+      .header("referrer-policy", "no-referrer")
+      .header("x-content-type-options", "nosniff")
       .header("x-frame-options", "DENY")
       .type("text/html; charset=utf-8")
       .send(dashboardPage),

@@ -46,6 +46,22 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
 - limite de recursos e uma execução concorrente por padrão (ADR-011);
 - logs sanitizados.
 
+## Dashboard web
+
+O dashboard é somente leitura e permanece bloqueado fora do loopback por
+default. Para a interface web única hospedada no Render, a exposição remota é
+uma escolha explícita: `DASHBOARD_REMOTE_ACCESS_ENABLED=true` e um
+`DASHBOARD_TOKEN` com ao menos 32 caracteres, ambos configurados somente no
+secret store do provedor. A conexão pública usa HTTPS do Render; cada API de
+dados exige `Authorization: Bearer <token>` e não existem rotas de escrita sob
+`/dashboard`.
+
+O shell não contém dados e usa `no-store`, CSP com `connect-src 'self'`,
+`frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options:
+nosniff` e `Referrer-Policy: no-referrer`. O token permanece no fragmento do
+navegador e é enviado apenas como header às APIs; nunca entra em query string,
+logs ou repositório.
+
 ## Retenção
 
 - política configurável por classificação de dados;

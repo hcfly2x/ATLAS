@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — dashboard web única
+
+- Dashboard somente-leitura pode ser exposta no Render somente mediante flag
+  explícita e Bearer token com pelo menos 32 caracteres; sem a flag, permanece
+  restrita ao loopback.
+- A dashboard web usa o mesmo banco do fluxo Telegram, sem segunda instância
+  operacional local, sem rotas de escrita e com headers adicionais de proteção.
+
 ## Unreleased — hotfix de perda de lease do worker
 
 - Falha de renovação de lease agora encerra a execução local de forma

@@ -18,6 +18,7 @@ import { WorkerService } from "./worker/service.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
 import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
+import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PostExecutionQaService } from "./post-execution/service.js";
@@ -38,6 +39,8 @@ const projectConfigStore = setupWizardEnabled
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
 const dashboardToken = process.env.DASHBOARD_TOKEN;
+const dashboardRemoteAccessEnabled = process.env.DASHBOARD_REMOTE_ACCESS_ENABLED === "true";
+assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardToken);
 const dashboardService =
   dashboardToken === undefined || dashboardToken.trim().length === 0
     ? undefined
@@ -151,7 +154,7 @@ const workerAppOptions =
 const app = createCoordinatorApp({
   ...(dashboardService === undefined || dashboardToken === undefined
     ? {}
-    : { dashboardService, dashboardToken }),
+    : { dashboardRemoteAccessEnabled, dashboardService, dashboardToken }),
   internalAuthToken,
   logger: true,
   memoryService,

@@ -188,6 +188,10 @@
   fail-closed: o worker interrompe Codex, para de renovar e limpa a worktree,
   sem finalizar, reenviar resultado ou repetir a mesma Assignment. A autoridade
   para a execução ambígua permanece no reconciliador durável do coordinator.
+- O ATLAS terá uma única dashboard web no coordinator do Render, consultando o
+  mesmo banco do fluxo Telegram. A exposição remota é explícita, somente leitura
+  e protegida por HTTPS + Bearer token de alta entropia; dashboard local não é
+  uma segunda fonte operacional.
 
 ## QA pós-execução
 
