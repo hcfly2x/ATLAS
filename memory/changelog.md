@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Bloco 2: runtime reproduzível por projeto
+
+- `Project.runtime` opcional passou a declarar package manager, bootstrap,
+  validate, allowlist, comandos proibidos e timeout por projeto.
+- Worker reutiliza a allowlist existente para bootstrap e validate; negações
+  duras prevalecem e não há inferência de instalação de dependências.
+- Bootstrap ocorre antes do Codex, registra comandos/exit codes no resultado
+  auditável, classifica falha como `bootstrap` e timeout como falha técnica.
+- Worktree é removida em sucesso, falha e cancelamento; projeto sem runtime
+  mantém o comportamento legado.
+
 ## Unreleased — fluxo de entrega proporcional ao risco
 
 - Projeto `atlas` configurado com `autonomy_level: 3`; a lista `always_human`

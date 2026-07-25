@@ -107,10 +107,11 @@ não existe mecanismo equivalente a estender.
 - **Bloco 1 — fechar bloqueios do piloto:** consolidar os bloqueios observados
   no fluxo real; conclusão mensurável: uma Task de piloto percorre entrada,
   supervisão, execução e término sem intervenção operacional não documentada.
-- **Bloco 2 — runtime reproduzível por projeto:** tornar o ambiente de execução
-  previsível sem instalar dependências fora de política; conclusão mensurável:
-  preflight e bootstrap explicitamente autorizados produzem o mesmo resultado
-  para um projeto configurado em worktree limpa.
+- **Bloco 2 — runtime reproduzível por projeto:** implementação em revisão no
+  PR próprio; tornar o ambiente de execução previsível sem instalar dependências
+  fora de política. Conclusão mensurável: preflight e bootstrap explicitamente
+  autorizados produzem o mesmo resultado para um projeto configurado em worktree
+  limpa.
 - **Bloco 3 — recuperação durável:** reconciliar Tasks, leases e execuções após
   queda; conclusão mensurável: cenários de queda definidos retomam ou falham de
   forma auditada sem reexecutar Codex sob lease ambíguo.

@@ -37,9 +37,11 @@ existentes e ser tratados nos blocos de estabilização planejados:
 - **Bloco 1 — bloqueios do piloto:** supervisor, worker e adapter já possuem
   correções pós-piloto em integração; a base permanece o fluxo atual, não um
   novo orquestrador.
-- **Bloco 2 — runtime reproduzível por projeto:** completar o contrato de
-  bootstrap de dependências e preflight a partir de `Project.required_tools` e
-  da allowlist existente. Não criar um executor paralelo.
+- **Bloco 2 — runtime reproduzível por projeto:** implementação em revisão no
+  PR próprio. O contrato `Project.runtime` declara bootstrap, validate, timeout,
+  allowlist e negações duras; ele estende a allowlist e o executor existentes,
+  sem criar executor paralelo. A conclusão ainda exige validação em worktree
+  limpa de um projeto real configurado.
 - **Bloco 3 — recuperação durável:** estender idempotência, leases, fencing e
   reconciliação do ADR-012; o backoff do worker já cobre indisponibilidade
   transitória. Não criar dead-letter separado sem lacuna comprovada.

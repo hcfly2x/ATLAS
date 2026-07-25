@@ -7,6 +7,17 @@ schema:
       allowed_values: [0, 1, 2, 3, 4]
       default: 2
       level_4_enabled: false
+    runtime:
+      type: object
+      optional: true
+      required_fields:
+        - package_manager
+        - bootstrap
+        - validate
+        - allowed_commands
+        - forbidden_commands
+        - timeout_minutes
+      description: Runtime declarado por projeto; sem este bloco, o worker mantém a validação legada.
 
   activation_required_fields:
     - repository

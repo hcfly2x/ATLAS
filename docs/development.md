@@ -238,6 +238,56 @@ que o worker use os adapters atuais em `dist/`:
 pnpm -r build
 ```
 
+## Runtime reproduzível por projeto
+
+Uma worktree nova não herda `node_modules` nem outros artefatos do checkout
+principal. Se um projeto precisar preparar dependências, declare um bloco
+`runtime` no próprio Project com `package_manager`, `bootstrap`, `validate`,
+`allowed_commands`, `forbidden_commands` e `timeout_minutes`. O manifesto é a
+única fonte de bootstrap e validação: o worker não infere `pnpm install`,
+`npm install` ou qualquer outro comando.
+
+`bootstrap` roda antes do Codex e `validate` depois dele, sempre sem shell e
+dentro da worktree. Ambos passam pela mesma allowlist estruturada do runtime;
+`forbidden_commands` tem precedência inclusive sobre uma entrada acidental em
+`allowed_commands`. Uma entrada proibida sem argumentos bloqueia todas as
+invocações daquele executável. Cada comando fica no resultado auditável.
+
+`timeout_minutes` limita toda fase de bootstrap ou validação. Estouro é uma
+falha técnica classificada como `timeout`; falha não nula de bootstrap é
+`failure_stage=bootstrap` e impede a chamada ao Codex. A remoção da worktree
+ocorre em sucesso, falha e cancelamento, portanto dependências instaladas não
+vazam para o checkout principal.
+
+Projeto sem `runtime` preserva o comportamento legado: somente os comandos de
+teste da Specification que coincidirem com `allowed_commands` do Project são
+executados. Revise o diff do arquivo protegido antes de ativar um runtime.
+
+Exemplo mínimo, que autoriza somente os dois comandos declarados:
+
+```yaml
+runtime:
+  package_manager: pnpm
+  bootstrap:
+    - executable: pnpm
+      args: [install, --frozen-lockfile]
+  validate:
+    - executable: pnpm
+      args: [validate]
+  allowed_commands:
+    - executable: pnpm
+      args: [install, --frozen-lockfile]
+    - executable: pnpm
+      args: [validate]
+  forbidden_commands:
+    - executable: rm
+      args: []
+  timeout_minutes: 10
+```
+
+O exemplo não é um default nem autoriza `pnpm install` em outro projeto. Cada
+projeto deve declarar e revisar sua própria política antes de ativá-la.
+
 Em falhas transitórias de conexão com o coordinator, registro e claim usam
 backoff exponencial de 5 segundos até 60 segundos por default. Erros permanentes
 de autenticação/autorização (`401`/`403`) ou requisição inválida (`400`/`422`)

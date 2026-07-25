@@ -344,6 +344,20 @@ export const workerCapabilitiesSchema = z.object({
 });
 export type WorkerCapabilities = z.infer<typeof workerCapabilitiesSchema>;
 
+export const runtimeCommandSchema = z.object({
+  executable: z.string().min(1),
+  args: z.array(z.string()),
+});
+export const workerRuntimeSchema = z.object({
+  package_manager: z.enum(["npm", "pnpm", "yarn", "bun", "pip", "poetry", "uv", "make", "custom"]),
+  bootstrap: z.array(runtimeCommandSchema).max(16),
+  validate: z.array(runtimeCommandSchema).min(1).max(16),
+  allowed_commands: z.array(runtimeCommandSchema).min(1).max(32),
+  forbidden_commands: z.array(runtimeCommandSchema).max(32),
+  timeout_minutes: z.number().int().min(1).max(60),
+});
+export type WorkerRuntime = z.infer<typeof workerRuntimeSchema>;
+
 export const workerAssignmentSchema = z.object({
   execution_id: z.string().uuid(),
   task_id: z.string().uuid(),
@@ -363,6 +377,7 @@ export const workerAssignmentSchema = z.object({
       args: z.array(z.string()),
     }),
   ),
+  runtime: workerRuntimeSchema.nullable(),
   required_tools: z.object({
     node: z.string().nullable(),
     git: z.string().nullable(),

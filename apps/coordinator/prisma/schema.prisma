@@ -113,6 +113,7 @@ model Project {
   repository            String?
   protectedPathsProfile String            @map("protected_paths_profile")
   allowedCommands       Json              @map("allowed_commands")
+  runtime               Json?             @map("runtime")
   requiredTools         Json              @map("required_tools")
   taskCostLimitUsd      Decimal?          @map("task_cost_limit_usd") @db.Decimal(10, 2)
   retention             Json

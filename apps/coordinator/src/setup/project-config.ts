@@ -4,6 +4,8 @@ import { basename, isAbsolute, join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
 
+import { workerRuntimeSchema } from "@atlas/shared";
+
 export const projectCommandSchema = z.object({
   executable: z.string().min(1).max(255),
   args: z.array(z.string().min(1).max(255)).max(32),
@@ -46,6 +48,7 @@ export const storedProjectSchema = z
     repository: z.string().nullable(),
     protected_paths_profile: z.string().min(1).optional(),
     allowed_commands: z.array(z.union([z.string().min(1), projectCommandSchema])).optional(),
+    runtime: workerRuntimeSchema.nullable().optional(),
     required_tools: requiredToolsSchema.optional(),
     task_cost_limit_usd: z.number().nonnegative().nullable().optional(),
     retention: retentionSchema.optional(),
@@ -74,6 +77,9 @@ export const editableProjectSchema = z.object({
   repository: z.string().nullable(),
   protected_paths_profile: z.string().min(1),
   allowed_commands: z.array(projectCommandSchema).max(32),
+  // The pilot wizard does not edit runtime yet. Keep it optional on writes so
+  // existing manifests retain their declared runtime instead of requiring it.
+  runtime: workerRuntimeSchema.nullable().optional(),
   required_tools: requiredToolsSchema,
   task_cost_limit_usd: z.number().nonnegative().nullable(),
   retention: retentionSchema,
@@ -114,6 +120,7 @@ function editable(config: ProjectConfig, project: StoredProject): EditableProjec
     repository: project.repository,
     protected_paths_profile: project.protected_paths_profile ?? defaults.protected_paths_profile,
     allowed_commands: (project.allowed_commands ?? defaults.allowed_commands).map(command),
+    runtime: project.runtime ?? null,
     required_tools: project.required_tools ?? defaults.required_tools,
     task_cost_limit_usd: project.task_cost_limit_usd ?? defaults.task_cost_limit_usd,
     retention: project.retention ?? defaults.retention,
@@ -258,8 +265,15 @@ export class ProjectConfigStore {
       throw new ProjectConfigConflictError("another project already uses this name");
     }
     const existingIndex = config.projects.findIndex((candidate) => candidate.id === project.id);
-    const existing = existingIndex === -1 ? {} : config.projects[existingIndex];
-    const stored = storedProjectSchema.parse({ ...existing, ...project });
+    const existing = existingIndex === -1 ? undefined : config.projects[existingIndex];
+    // Runtime is intentionally not exposed by the pilot wizard. Preserve a
+    // manifest already declared outside that UI instead of silently clearing it.
+    const runtime = project.runtime ?? existing?.runtime;
+    const stored = storedProjectSchema.parse({
+      ...(existing ?? {}),
+      ...project,
+      ...(runtime === undefined || runtime === null ? {} : { runtime }),
+    });
     if (existingIndex === -1) {
       config.projects.push(stored);
     } else {

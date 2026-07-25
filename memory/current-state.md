@@ -7,8 +7,9 @@ v0.0.14. A Fase 8 não está autorizada. Correções pós-piloto e a entrega de
 resultado terminal ao autor via Telegram estão integradas na `main`.
 
 A política de entrega proporcional ao risco e `autonomy_level: 3` para o
-projeto ATLAS estão em branch própria aguardando revisão. Isso não autoriza
-novas fases, nem pula runtime reproduzível ou recuperação durável.
+projeto ATLAS estão integrados na `main`. O Bloco 2 — runtime reproduzível por
+projeto — está implementado em branch própria e aguarda auditoria; isso não
+autoriza o Bloco 3, QA pós-execução ou novas fases.
 
 ## Implementado
 
@@ -44,6 +45,9 @@ novas fases, nem pula runtime reproduzível ou recuperação durável.
   de autonomia.
 - A profundidade de revisão passa a ser proporcional ao risco, com CI verde em
   toda integração e merge em lote apenas para PRs independentes já aprovados.
+- O runtime opcional por Project declara bootstrap, validate, allowlist,
+  `forbidden_commands` e timeout. O worker executa bootstrap antes do Codex e
+  limpa a worktree em sucesso, falha e cancelamento; nenhum bootstrap é inferido.
 
 ## Testes e validações
 
@@ -54,6 +58,9 @@ novas fases, nem pula runtime reproduzível ou recuperação durável.
   banco real.
 - Testes unitários cobrem configuração, roteamento moderado, independência do
   supervisor, segunda rodada focada, contratos Zod e limite de rodadas.
+- No PR do Bloco 2, `pnpm test`, typecheck, lint, formatação e build passaram;
+  a migração `Project.runtime` será exercitada pelo PostgreSQL limpo da CI, pois
+  o Docker local não estava disponível nesta validação.
 
 ## Decisões vigentes
 
@@ -73,20 +80,19 @@ novas fases, nem pula runtime reproduzível ou recuperação durável.
   Task já iniciada.
 - A escrita real do Codex em worktree exigiu rebuild dos packages: a tentativa
   anterior executou o `dist` antigo do adapter.
-- Após o rebuild, o Codex alterou corretamente uma única linha autorizada em
-  worktree com `workspace-write`; a validação seguinte falhou porque worktree
-  nova não possui dependências e não existe bootstrap permitido/configurado.
+- A validação em worktree limpa de um projeto real ainda depende de configurar
+  explicitamente seu `runtime`; a ausência desse bloco mantém o modo legado e
+  nunca autoriza instalação implícita de dependências.
 
 ## Próximo passo
 
-Não iniciar a Fase 8, os blocos de estabilização ou QA pós-execução sem
-autorização explícita.
+Aguardar auditoria e autorização de integração do Bloco 2. Não iniciar o Bloco
+3, QA pós-execução ou a Fase 8.
 
 ## Restrições ativas
 
 - não iniciar a Fase 8;
-- não iniciar os blocos de estabilização, QA pós-execução ou ampliação de
-  autonomia;
+- não iniciar o Bloco 3, QA pós-execução ou ampliação de autonomia;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;

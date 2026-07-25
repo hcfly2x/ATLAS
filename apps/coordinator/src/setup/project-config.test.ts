@@ -63,6 +63,7 @@ function validProject(repository: string): EditableProject {
     repository,
     protected_paths_profile: "project_default",
     allowed_commands: [{ executable: "pnpm", args: ["test"] }],
+    runtime: null,
     required_tools: {
       node: null,
       git: null,
@@ -178,5 +179,34 @@ describe("ProjectConfigStore", () => {
     expect(persisted.projects[0]?.allowed_commands).toEqual([
       { executable: "pnpm", args: ["test"] },
     ]);
+  });
+
+  it("preserves a declared runtime that the pilot wizard does not edit", async () => {
+    const { root, store } = await fixture([
+      {
+        id: "pilot-project",
+        name: "Pilot Project",
+        risk: "moderate",
+        data_classification: "internal",
+        repository: null,
+        runtime: {
+          package_manager: "pnpm",
+          bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+          validate: [{ executable: "pnpm", args: ["validate"] }],
+          allowed_commands: [
+            { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+            { executable: "pnpm", args: ["validate"] },
+          ],
+          forbidden_commands: [{ executable: "rm", args: [] }],
+          timeout_minutes: 10,
+        },
+      },
+    ]);
+    const repository = join(root, "repository");
+    await mkdir(join(repository, ".git"), { recursive: true });
+
+    const project = validProject(repository);
+    project.runtime = null;
+    expect((await store.save(project)).runtime).toMatchObject({ package_manager: "pnpm" });
   });
 });

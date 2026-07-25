@@ -7,6 +7,7 @@ import {
   createWorkerResult,
   divergenceAnalysisSchema,
   specialistOpinionSchema,
+  workerRuntimeSchema,
   workerResultSchema,
 } from "./index.js";
 
@@ -145,5 +146,23 @@ describe("workerResultSchema", () => {
 
     expect(_hash).toBe(result.result_hash);
     expect(result.result_hash).toBe(canonicalPayloadHash(content));
+  });
+});
+
+describe("workerRuntimeSchema", () => {
+  it("parses a declared runtime manifest and rejects an incomplete one", () => {
+    const manifest = {
+      allowed_commands: [
+        { executable: "pnpm", args: ["install", "--frozen-lockfile"] },
+        { executable: "pnpm", args: ["validate"] },
+      ],
+      bootstrap: [{ executable: "pnpm", args: ["install", "--frozen-lockfile"] }],
+      forbidden_commands: [{ executable: "rm", args: [] }],
+      package_manager: "pnpm",
+      timeout_minutes: 10,
+      validate: [{ executable: "pnpm", args: ["validate"] }],
+    };
+    expect(workerRuntimeSchema.safeParse(manifest).success).toBe(true);
+    expect(workerRuntimeSchema.safeParse({ ...manifest, validate: [] }).success).toBe(false);
   });
 });
