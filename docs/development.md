@@ -309,5 +309,11 @@ renovação de lease é configurada separadamente e deve ocorrer antes da expira
 O coordinator bloqueia claims novos ao atingir o teto lógico mensal Codex de
 US$ 75, sem interromper execução em andamento.
 
+Se uma renovação de lease falhar, o worker encerra imediatamente a execução
+local, interrompe o Codex caso ainda esteja ativo e remove a worktree. Ele não
+tenta renovar, finalizar, reenviar resultado ou reexecutar a mesma Assignment
+sem conseguir provar posse do lease; a reconciliação durável do coordinator é a
+autoridade para tratar a execução ambígua.
+
 Testes nunca usam Codex real, push ou GitHub: o adapter Codex recebe um binário
 falso e o adapter Git trabalha em repositórios temporários locais.

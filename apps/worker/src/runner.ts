@@ -142,6 +142,12 @@ export class WorkerRunner {
           if (lifecycle.cancelRequested) abortController.abort();
         })
         .catch(() => {
+          // A failed renewal means this worker can no longer prove it owns the
+          // execution. Stop renewing immediately and leave reconciliation to
+          // the coordinator; continuing would create a 409 loop and could
+          // never safely finalize or retry the same assignment.
+          lifecycle.terminalFailure = true;
+          clearInterval(leaseTimer);
           abortController.abort();
         });
     }, this.options.leaseRenewalMs);

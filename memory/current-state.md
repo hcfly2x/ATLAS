@@ -58,6 +58,10 @@ Fase 8 ou ampliação de autonomia.
   antes de liberar `FINALIZING`. O revisor usa papel distinto do supervisor;
   rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
   retrabalho por nova Specification e impedindo entrega final do resultado.
+- A perda de lease pelo worker encerra a execução local de forma fail-closed,
+  interrompe Codex quando necessário e limpa a worktree. O worker não continua
+  renovando, finalizando ou repetindo uma Assignment cuja posse deixou de poder
+  comprovar; o reconciliador durável do coordinator trata o estado ambíguo.
 
 ## Testes e validações
 
@@ -99,8 +103,9 @@ Fase 8 ou ampliação de autonomia.
 
 ## Próximo passo
 
-Concluir a revisão de risco do PR de QA pós-execução, integrar somente após CI
-verde e observar uma amostra do ciclo Telegram → worker → QA → entrega terminal.
+Integrar o hotfix de perda de lease após CI verde e observar uma amostra do
+ciclo Telegram → worker → QA → entrega terminal. Uma Task que o QA devolve a
+`SPECIFYING` requer retrabalho versionado; ela não deve manter um worker preso.
 Não iniciar a Fase 8 ou ampliar autonomia sem autorização explícita.
 
 ## Restrições ativas

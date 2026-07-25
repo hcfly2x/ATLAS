@@ -309,6 +309,92 @@ describe("WorkerRunner", () => {
     expect(calls).toEqual(["create", "finalize", "coordinator-finalize", "cleanup"]);
   });
 
+  it("stops cleanly when the lease is lost while waiting for result approval", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-lease-loss-"));
+    temporaryDirectories.push(root);
+    const calls: string[] = [];
+    let renewalCalls = 0;
+    let resultSubmitted = false;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => {
+          calls.push("coordinator-finalize");
+          return Promise.resolve();
+        },
+        renew: () => {
+          renewalCalls += 1;
+          if (!resultSubmitted) {
+            return Promise.resolve({
+              cancelRequested: false,
+              leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+              readyToFinalize: false,
+              terminalFailure: false,
+            });
+          }
+          return Promise.reject(new Error("lease is no longer valid"));
+        },
+        submitResult: () => {
+          resultSubmitted = true;
+          return Promise.resolve({ replayed: false, state: "WAITING_RESULT_APPROVAL" });
+        },
+      },
+      codex: {
+        execute: () =>
+          Promise.resolve({
+            exitCode: 0,
+            summary: { pendingItems: [], risks: [], summary: "done" },
+          }),
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => {
+          calls.push("create");
+          return Promise.resolve();
+        },
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => {
+          calls.push("git-finalize");
+          return Promise.resolve({
+            commitSha: "abcdef123456",
+            pullRequestUrl: "https://example.test/1",
+          });
+        },
+        removeWorktree: () => {
+          calls.push("cleanup");
+          return Promise.resolve();
+        },
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 5,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    await expect(runner.execute(assignment(root))).resolves.toMatchObject({ status: "succeeded" });
+
+    expect(renewalCalls).toBeGreaterThanOrEqual(1);
+    expect(calls).toEqual(["create", "cleanup"]);
+  });
+
   it("orders result log references when concurrent stream callbacks complete out of order", async () => {
     const root = await mkdtemp(join(tmpdir(), "atlas-runner-log-order-"));
     temporaryDirectories.push(root);

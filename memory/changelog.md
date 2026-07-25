@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — hotfix de perda de lease do worker
+
+- Falha de renovação de lease agora encerra a execução local de forma
+  fail-closed, interrompe Codex se necessário e para o timer de renovação.
+- O worker não entra mais em loop de `409`, não finaliza nem reexecuta uma
+  Assignment após perder a capacidade de provar posse do lease; a reconciliação
+  durável do coordinator continua sendo a autoridade para o estado ambíguo.
+
 ## Unreleased — QA pós-execução
 
 - Adicionado parecer pós-execução persistido, versionado e correlacionado à
