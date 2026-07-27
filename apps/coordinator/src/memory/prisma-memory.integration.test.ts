@@ -121,7 +121,24 @@ describe("Prisma project memory", () => {
     });
     const specification = await prisma.specification.create({
       data: {
-        payload: {},
+        payload: {
+          acceptance_criteria: ["Persist the completion summary"],
+          allowed_commands: [],
+          approval_required_for: [],
+          authorized_scope: ["task completion memory"],
+          constraints: [],
+          context: [],
+          delivery_mode: "repository_change",
+          expected_delivery: "Audited task summary",
+          implementation_strategy: ["Finalize the completed execution"],
+          objective: "Persist completion memory during finalization",
+          out_of_scope: [],
+          project_id: projectRecord.id,
+          required_tests: ["Prisma memory integration"],
+          risk_level: "moderate",
+          task_id: task.id,
+          version: 1,
+        },
         payloadHash: `sha256:${"a".repeat(64)}`,
         taskId: task.id,
         version: 1,

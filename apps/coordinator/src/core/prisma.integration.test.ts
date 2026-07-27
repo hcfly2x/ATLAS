@@ -439,6 +439,7 @@ describe("Prisma core persistence", () => {
         name: "Supervisor Integration Test",
         policy: "least_privilege",
         protectedPathsProfile: "project_default",
+        repository: "/tmp/atlas-supervisor-integration",
         requiredTools: {},
         retention: { audit_events_expire: false, files_days: 1, logs_days: 1 },
         risk: "low",
