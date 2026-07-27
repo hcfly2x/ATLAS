@@ -30,7 +30,14 @@
   `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
 - Autorizar o cutover do caller de paths em fase própria, preservando corpus e
   fallback até a revisão completa.
-- Migrar o caller de comandos somente depois, em entrega independente.
+- Revisar completamente a paridade de comandos antes de observar qualquer
+  caller.
+- Manter `parseSpecificationCommand` no caller até fase própria; a decisão pura
+  recebe somente comandos já estruturados.
+- Implementar shadow de comandos em entrega independente e bloquear o cutover
+  enquanto houver qualquer divergência `MORE_PERMISSIVE`.
+- Migrar `authorizeCommands`/`authorizeRuntimeCommands` somente depois da
+  amostra shadow com zero divergência mais permissiva.
 - Revisar e aprovar separadamente o merge da substituição de `.env*` por
   `**/.env*` na área `secrets` e em `effective_globs`.
 - Manter explícito que o caller legado é case-sensitive até sua migração para a

@@ -8,6 +8,7 @@ export const ENFORCEMENT_REASON_CODES = {
   ALLOWED: "allowed",
   AMBIGUOUS_INPUT: "ambiguous_input",
   COMMAND_FORBIDDEN: "command_forbidden",
+  COMMAND_GNU_TOOL_NOT_DECLARED: "command_gnu_tool_not_declared",
   COMMAND_NOT_ALLOWED: "command_not_allowed",
   INVALID_INPUT: "invalid_input",
   PATH_ABSOLUTE: "path_absolute",
@@ -31,6 +32,8 @@ export interface EnforcementInput {
   readonly command?: EnforcementCommand;
   readonly allowedCommands: readonly EnforcementCommand[];
   readonly forbiddenCommands: readonly EnforcementCommand[];
+  readonly gnuOnlyExecutables?: readonly string[];
+  readonly gnuTools?: readonly string[];
   readonly changedPaths: readonly string[];
   readonly protectedGlobs: readonly string[];
 }
@@ -46,6 +49,8 @@ export interface EnforcementEvidence {
   readonly changedPaths: readonly NormalizedPathEvidence[];
   readonly command?: EnforcementCommand;
   readonly forbiddenCommands: readonly EnforcementCommand[];
+  readonly gnuOnlyExecutables?: readonly string[];
+  readonly gnuTools?: readonly string[];
   readonly protectedGlobs: readonly string[];
   readonly protectedPaths: readonly string[];
 }
@@ -102,8 +107,12 @@ function parseCommandArray(value: unknown): readonly EnforcementCommand[] | unde
 function parseInput(value: unknown): EnforcementInput | undefined {
   if (!isRecord(value) || typeof value.action !== "string") return undefined;
   if (!ACTIONS.has(value.action as EnforcementAction)) return undefined;
+  const action = value.action as EnforcementAction;
   const allowedCommands = parseCommandArray(value.allowedCommands);
   const forbiddenCommands = parseCommandArray(value.forbiddenCommands);
+  const gnuOnlyExecutables =
+    value.gnuOnlyExecutables === undefined ? undefined : parseStringArray(value.gnuOnlyExecutables);
+  const gnuTools = value.gnuTools === undefined ? undefined : parseStringArray(value.gnuTools);
   const changedPaths = parseStringArray(value.changedPaths);
   const protectedGlobs = parseStringArray(value.protectedGlobs);
   if (
@@ -114,11 +123,19 @@ function parseInput(value: unknown): EnforcementInput | undefined {
   ) {
     return undefined;
   }
+  if (
+    action === "execute_command" &&
+    (gnuOnlyExecutables === undefined || gnuTools === undefined)
+  ) {
+    return undefined;
+  }
   const common = {
-    action: value.action as EnforcementAction,
+    action,
     allowedCommands,
     changedPaths,
     forbiddenCommands,
+    gnuOnlyExecutables: gnuOnlyExecutables ?? [],
+    gnuTools: gnuTools ?? [],
     protectedGlobs,
   };
   if (value.command === undefined) return common;
@@ -137,18 +154,20 @@ function normalizeCommand(command: EnforcementCommand): EnforcementCommand | und
   return { args: [...command.args], executable: command.executable };
 }
 
-function normalizeCommands(
+function canonicalizeCommands(
   commands: readonly EnforcementCommand[],
-): readonly EnforcementCommand[] | undefined {
-  const normalized: EnforcementCommand[] = [];
-  for (const command of commands) {
-    const candidate = normalizeCommand(command);
-    if (candidate === undefined) return undefined;
-    normalized.push(candidate);
-  }
-  return [...new Map(normalized.map((command) => [commandKey(command), command])).values()].sort(
+): readonly EnforcementCommand[] {
+  const copies = commands.map((command) => ({
+    args: [...command.args],
+    executable: command.executable,
+  }));
+  return [...new Map(copies.map((command) => [commandKey(command), command])).values()].sort(
     (left, right) => compareText(commandKey(left), commandKey(right)),
   );
+}
+
+function canonicalizeStrings(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort(compareText);
 }
 
 type PathNormalization =
@@ -249,15 +268,13 @@ export function decideEnforcement(rawInput: unknown): EnforcementDecision {
     return finish("deny", ENFORCEMENT_REASON_CODES.INVALID_INPUT, ["input.valid"], evidence);
   }
 
-  const allowedCommands = normalizeCommands(input.allowedCommands);
-  const forbiddenCommands = normalizeCommands(input.forbiddenCommands);
+  const allowedCommands = canonicalizeCommands(input.allowedCommands);
+  const forbiddenCommands = canonicalizeCommands(input.forbiddenCommands);
+  const gnuOnlyExecutables = canonicalizeStrings(input.gnuOnlyExecutables ?? []);
+  const gnuTools = canonicalizeStrings(input.gnuTools ?? []);
   const command = input.command === undefined ? undefined : normalizeCommand(input.command);
   const paths = normalizePaths(input.changedPaths);
-  if (
-    allowedCommands === undefined ||
-    forbiddenCommands === undefined ||
-    (input.command !== undefined && command === undefined)
-  ) {
+  if (input.command !== undefined && command === undefined) {
     const evidence = emptyEvidence(input);
     return finish("deny", ENFORCEMENT_REASON_CODES.INVALID_INPUT, ["command.valid"], evidence);
   }
@@ -268,6 +285,7 @@ export function decideEnforcement(rawInput: unknown): EnforcementDecision {
       changedPaths: [],
       ...(command === undefined ? {} : { command }),
       forbiddenCommands,
+      ...(input.action === "execute_command" ? { gnuOnlyExecutables, gnuTools } : {}),
       protectedGlobs: [...new Set(input.protectedGlobs)].sort(compareText),
       protectedPaths: [],
     };
@@ -288,6 +306,7 @@ export function decideEnforcement(rawInput: unknown): EnforcementDecision {
     changedPaths: paths.evidence,
     ...(command === undefined ? {} : { command }),
     forbiddenCommands,
+    ...(input.action === "execute_command" ? { gnuOnlyExecutables, gnuTools } : {}),
     protectedGlobs,
     protectedPaths,
   };
@@ -300,6 +319,18 @@ export function decideEnforcement(rawInput: unknown): EnforcementDecision {
       "deny",
       ENFORCEMENT_REASON_CODES.AMBIGUOUS_INPUT,
       ["action.required_evidence"],
+      evidence,
+    );
+  }
+  if (
+    command !== undefined &&
+    gnuOnlyExecutables.includes(command.executable) &&
+    !gnuTools.includes(command.executable)
+  ) {
+    return finish(
+      "deny",
+      ENFORCEMENT_REASON_CODES.COMMAND_GNU_TOOL_NOT_DECLARED,
+      ["command.gnu_tool_declared"],
       evidence,
     );
   }

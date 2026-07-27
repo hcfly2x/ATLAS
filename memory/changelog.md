@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — comandos, Fase 1: paridade da decisão pura
+
+- `decideEnforcement` passa a receber a lista de ferramentas GNU declaradas e o
+  conjunto de executáveis GNU-only para reproduzir o gate do autorizador legado.
+- A precedência de comandos permanece fail-closed: token seguro, gate GNU,
+  negação por executável ou match exato e, por fim, allowlist exata.
+- Testes de paridade executam a decisão pura e
+  `authorizeCommands`/`authorizeRuntimeCommands` sobre o mesmo corpus, incluindo
+  a propriedade de nunca liberar o que o legado nega.
+- `parseSpecificationCommand` permanece no caller. Nenhum caller, shadow,
+  cutover, AuditEvent, path, política ou estado foi alterado.
+
 ## Unreleased — Fase A: delivery mode
 
 - Specification passa a persistir `delivery_mode=answer_only|repository_change`
