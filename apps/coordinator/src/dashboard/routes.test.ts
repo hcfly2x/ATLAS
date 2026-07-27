@@ -4,8 +4,10 @@ import { createCoordinatorApp } from "../app.js";
 import { assertRemoteDashboardConfiguration } from "./routes.js";
 import type { DashboardService } from "./service.js";
 
+const deliveriesMock = vi.fn(() => Promise.resolve([]));
 const dashboard = {
   audit: vi.fn(() => Promise.resolve([])),
+  deliveries: deliveriesMock,
   memory: vi.fn(() => Promise.resolve([])),
   overview: vi.fn(() =>
     Promise.resolve({
@@ -13,6 +15,14 @@ const dashboard = {
         codex: { capUsd: 75, spentUsd: 0 },
         llm: { capUsd: 25, spentUsd: 0 },
         periodDays: 30,
+      },
+      delivery: {
+        delivered: 1,
+        deliveryFailed: 0,
+        missingOutbox: 0,
+        pending: 0,
+        pendingOverdue: 0,
+        slaMs: 300_000,
       },
       projects: [{ id: "atlas", name: "ATLAS" }],
       states: [{ count: 1, state: "NEW" }],
@@ -66,6 +76,13 @@ describe("read-only dashboard", () => {
     expect(accepted.statusCode).toBe(200);
     expect(accepted.body).toContain('"capUsd":75');
     expect(accepted.body).toContain('"capUsd":25');
+    const deliveries = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/deliveries",
+      headers: { authorization: "Bearer local-dashboard-token" },
+    });
+    expect(deliveries.statusCode).toBe(200);
+    expect(deliveriesMock).toHaveBeenCalledWith(undefined);
     expect(page.headers["referrer-policy"]).toBe("no-referrer");
     expect(page.headers["x-content-type-options"]).toBe("nosniff");
   });
@@ -81,7 +98,7 @@ describe("read-only dashboard", () => {
     for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
       const response = await app.inject({
         method,
-        url: "/dashboard/api/tasks",
+        url: "/dashboard/api/deliveries",
         headers: { authorization: "Bearer local-dashboard-token" },
       });
       expect(response.statusCode).toBe(404);

@@ -23,6 +23,11 @@ import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegr
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
 import { PostExecutionQaService } from "./post-execution/service.js";
+import {
+  DeliveryWatchdog,
+  parseDeliveryWatchdogSlaMs,
+  PrismaDeliveryWatchdogStore,
+} from "./telegram/delivery-watchdog.js";
 
 const prisma = new PrismaClient();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -39,13 +44,14 @@ const projectConfigStore = setupWizardEnabled
   : undefined;
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
+const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_MS);
 const dashboardToken = process.env.DASHBOARD_TOKEN;
 const dashboardRemoteAccessEnabled = process.env.DASHBOARD_REMOTE_ACCESS_ENABLED === "true";
 assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardToken);
 const dashboardService =
   dashboardToken === undefined || dashboardToken.trim().length === 0
     ? undefined
-    : new DashboardService(prisma);
+    : new DashboardService(prisma, { deliverySlaMs });
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -269,13 +275,36 @@ const resultPublisher = new TelegramResultPublisher(
   new PrismaTelegramResultStore(prisma),
   telegramClient,
 );
+const deliveryWatchdog = new DeliveryWatchdog(
+  new PrismaDeliveryWatchdogStore(prisma),
+  deliverySlaMs,
+);
 const reworkPublisher = new TelegramReworkPublisher(
   new PrismaTelegramReworkStore(prisma),
   telegramClient,
 );
-void resultPublisher.poll().catch(() => {
-  app.log.error("initial telegram result publication failed");
-});
+void (async () => {
+  try {
+    await resultPublisher.poll();
+  } catch {
+    app.log.error("initial telegram result publication failed");
+    return;
+  }
+  try {
+    const result = await deliveryWatchdog.poll();
+    if (result.alertsCreated > 0) {
+      app.log.warn(
+        {
+          alertsCreated: result.alertsCreated,
+          issuesObserved: result.issuesObserved,
+        },
+        "delivery watchdog recorded terminal delivery alerts",
+      );
+    }
+  } catch {
+    app.log.error("initial delivery watchdog reconciliation failed");
+  }
+})();
 const telegramResultTimer = setInterval(
   () => {
     void resultPublisher.poll().catch(() => {
@@ -287,8 +316,27 @@ const telegramResultTimer = setInterval(
   },
   Number(process.env.TELEGRAM_RESULT_INTERVAL_MS ?? "2000"),
 );
+const deliveryWatchdogTimer = setInterval(() => {
+  void deliveryWatchdog
+    .poll()
+    .then((result) => {
+      if (result.alertsCreated > 0) {
+        app.log.warn(
+          {
+            alertsCreated: result.alertsCreated,
+            issuesObserved: result.issuesObserved,
+          },
+          "delivery watchdog recorded terminal delivery alerts",
+        );
+      }
+    })
+    .catch(() => {
+      app.log.error("delivery watchdog reconciliation failed");
+    });
+}, 15_000);
 app.addHook("onClose", () => {
   clearInterval(telegramResultTimer);
+  clearInterval(deliveryWatchdogTimer);
 });
 
 try {

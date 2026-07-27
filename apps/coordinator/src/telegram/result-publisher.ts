@@ -116,11 +116,34 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
   constructor(private readonly prisma: PrismaClient) {}
 
   async listTerminalCandidates(): Promise<readonly TelegramResultCandidate[]> {
-    const tasks = await this.prisma.task.findMany({
+    const terminalTasks = await this.prisma.task.findMany({
       where: {
         state: { in: TERMINAL_STATES },
-        OR: [{ telegramDelivery: null }, { telegramDelivery: { is: { resultDeliveryKey: null } } }],
       },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        deliveryOutbox: { select: { taskVersion: true } },
+        id: true,
+        state: true,
+        telegramDelivery: { select: { resultDeliveryKey: true } },
+        version: true,
+      },
+    });
+    const candidateIds = terminalTasks
+      .filter((task) => {
+        const currentVersionHasOutbox = task.deliveryOutbox.some(
+          (delivery) => delivery.taskVersion === task.version,
+        );
+        const currentDeliveryKey = `telegram:result:${task.id}:v${String(task.version)}:${task.state}`;
+        const currentVersionWasClaimedByLegacyPublisher =
+          task.telegramDelivery?.resultDeliveryKey === currentDeliveryKey;
+        return !currentVersionHasOutbox && !currentVersionWasClaimedByLegacyPublisher;
+      })
+      .slice(0, 500)
+      .map((task) => task.id);
+    if (candidateIds.length === 0) return [];
+    const tasks = await this.prisma.task.findMany({
+      where: { id: { in: candidateIds } },
       include: {
         activeSpecification: true,
         auditEvents: {
@@ -194,7 +217,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
         const legacy = await transaction.telegramTaskDelivery.findUnique({
           where: { taskId: candidate.taskId },
         });
-        if (legacy?.resultDeliveryKey !== null && legacy?.resultDeliveryKey !== undefined) {
+        if (legacy?.resultDeliveryKey === deliveryKey) {
           return false;
         }
         const outbox = await transaction.resultDeliveryOutbox.create({

@@ -13,8 +13,9 @@ integrado. QA pós-execução também está integrado; isso não autoriza Fase 8
 ampliação de autonomia.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
-paridade de comandos e a Fase B de entrega durável também estão integradas;
-nenhum caller de comandos foi migrado e a Fase C não está autorizada.
+paridade de comandos e a Fase B de entrega durável também estão integradas. A
+Fase C de watchdog/SLA está em branch própria; nenhum caller de comandos foi
+migrado.
 
 ## Implementado
 
@@ -48,6 +49,11 @@ nenhum caller de comandos foi migrado e a Fase C não está autorizada.
   aprovação do conteúdo de confirmação do transporte. Somente falha
   comprovadamente anterior ao despacho recebe retry limitado; ambiguidade ou
   claim expirado resulta em `DELIVERY_FAILED` sem alterar o estado da Task.
+- O watchdog da Fase C observa falha, SLA vencido e Task terminal sem outbox,
+  cria alerta auditado idempotente e expõe metadados seguros na dashboard. Ele
+  não altera estados nem reenvia mensagens.
+- A seleção do result-publisher compara a claim legada com a versão terminal
+  atual; uma chave de versão anterior não impede a criação da nova outbox.
 - A direção de longo prazo está registrada como organização autônoma de agentes.
   A única peça estrutural ausente é QA pós-execução; runtime reproduzível e
   recuperação durável devem precedê-la, e ela deve preceder qualquer ampliação
@@ -123,6 +129,9 @@ nenhum caller de comandos foi migrado e a Fase C não está autorizada.
 - Na Fase 1 de comandos, testes de paridade exercitam a decisão pura contra os
   autorizadores legados, incluindo GNU declarado/não declarado, tokens
   inseguros, negação e allowlist exata.
+- Na Fase C, testes unitários cobrem SLA, idempotência, projeção segura da
+  dashboard e ausência de mutação; integração PostgreSQL cobre os três sinais
+  operacionais e a unicidade do alerta.
 
 ## Decisões vigentes
 
@@ -137,8 +146,8 @@ nenhum caller de comandos foi migrado e a Fase C não está autorizada.
 - A classificação de `delivery_mode` é conservadora e lexical: formulações
   incomuns podem cair em `repository_change`, mas nunca ampliam o canal de
   entrega; o guard então exige repositório configurado.
-- `DELIVERY_FAILED` ainda não possui watchdog/SLA nem superfície própria na
-  dashboard; essa observabilidade pertence à Fase C.
+- A Fase C ainda requer revisão empírica antes do merge. A dashboard não oferece
+  resolução ou reenvio; qualquer ação administrativa futura exige fase própria.
 - A paridade de comandos ainda não altera runtime: sem shadow e cutover, os
   autorizadores legados continuam sendo a única decisão efetiva do worker.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
@@ -157,10 +166,9 @@ nenhum caller de comandos foi migrado e a Fase C não está autorizada.
 
 ## Próximo passo
 
-Aguardar autorização explícita para o shadow do caller de comandos ou para a
-Fase C. O shadow deve exigir zero divergência `MORE_PERMISSIVE` antes de
-qualquer cutover; a Fase C deve tornar `DELIVERY_FAILED` operacionalmente
-visível sem reenviar sob incerteza.
+Revisar empiricamente a Fase C e provar que os alertas são idempotentes,
+sanitizados e somente leitura. Não iniciar shadow de comandos, ação
+administrativa de reenvio ou outra fase antes dessa revisão.
 
 ## Restrições ativas
 
@@ -168,8 +176,7 @@ visível sem reenviar sob incerteza.
 - não iniciar a Fase 8 ou ampliação de autonomia;
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
-- não iniciar watchdog/SLA ou exposição de `DELIVERY_FAILED` sem autorização
-  explícita da Fase C;
+- não adicionar retry ou reenvio administrativo à Fase C;
 - não iniciar shadow ou cutover de comandos sem autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;

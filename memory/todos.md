@@ -4,10 +4,12 @@
 
 - A revisão empírica da outbox, da migração e dos cenários de crash foi
   concluída; manter a Fase C condicionada a autorização explícita.
-- Implementar watchdog/SLA para Tasks sem resposta visível e expor a falha na
-  dashboard.
-- Definir procedimento humano para inspecionar e resolver
-  `DELIVERY_FAILED`, sem reenvio automático sob incerteza.
+- Revisar empiricamente o watchdog/SLA, a projeção da dashboard e a ausência de
+  qualquer rota de reenvio antes do merge.
+- Validar no piloto que `DELIVERY_FAILED`, SLA excedido e ausência de outbox
+  aparecem na dashboard e geram exatamente um alerta auditado.
+- Definir somente em fase futura, com autorização própria, se algum desfecho
+  comprovadamente não despachado admite ação administrativa manual.
 - Manter modo consulta, bypass de worker e reclassificação de complexidade fora
   da Fase A.
 

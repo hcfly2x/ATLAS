@@ -172,4 +172,33 @@ describe("Prisma durable result delivery outbox", () => {
       0,
     );
   });
+
+  it("enqueues a later Task version even when an older version used the legacy claim", async () => {
+    const candidate = await fixture(10);
+    await prisma.telegramTaskDelivery.create({
+      data: {
+        chatId: 100n,
+        projectId: candidate.projectId,
+        resultClaimedAt: new Date(),
+        resultDeliveryKey: `telegram:result:${candidate.taskId}:v9:COMPLETED`,
+        taskId: candidate.taskId,
+        userId: 42n,
+      },
+    });
+
+    const listed = (await store.listTerminalCandidates()).find(
+      (item) => item.taskId === candidate.taskId,
+    );
+    expect(listed).toMatchObject({ taskId: candidate.taskId, taskVersion: 10 });
+    if (listed === undefined) throw new Error("expected the later Task version");
+    expect(await store.enqueue(listed, 100n, 42n)).toBe(true);
+    expect(
+      (await store.listTerminalCandidates()).some((item) => item.taskId === candidate.taskId),
+    ).toBe(false);
+    expect(
+      await prisma.resultDeliveryOutbox.findUniqueOrThrow({
+        where: { taskId_taskVersion: { taskId: candidate.taskId, taskVersion: 10 } },
+      }),
+    ).toMatchObject({ status: DeliveryOutboxStatus.PENDING, taskVersion: 10 });
+  });
 });

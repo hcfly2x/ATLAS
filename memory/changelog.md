@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Fase C: watchdog e visibilidade da entrega
+
+- Watchdog idempotente observa `DELIVERY_FAILED`, pendência além do SLA e Task
+  Telegram terminal sem outbox da versão vigente.
+- Alertas usam AuditEvent sanitizado e não alteram Task, outbox, retry ou
+  máquina de estados.
+- Dashboard somente-leitura passa a exibir resumo e lista segura da saúde das
+  entregas, sem mensagem, destino ou ação de reenvio.
+- O publisher distingue a chave legada por versão: uma claim antiga não
+  mascara a outbox da versão terminal atual, que continua sendo enfileirada uma
+  única vez.
+- Procedimento operacional documenta inspeção humana e mantém desfechos
+  ambíguos sem retry automático.
+
 ## Unreleased — Fase B: outbox de entrega durável
 
 - O resultado terminal passa por uma outbox persistente, única por Task e

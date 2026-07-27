@@ -67,6 +67,10 @@ export function registerDashboardRoutes(
     const query = filterSchema.pick({ projectId: true }).parse(request.query);
     return service.tasks(query.projectId);
   });
+  app.get("/dashboard/api/deliveries", { preHandler: authorized }, async (request) => {
+    const query = filterSchema.pick({ projectId: true }).parse(request.query);
+    return service.deliveries(query.projectId);
+  });
   app.get("/dashboard/api/tasks/:taskId", { preHandler: authorized }, async (request, reply) => {
     const result = await service.task(taskSchema.parse(request.params).taskId);
     return result === null ? reply.code(404).send({ code: "TASK_NOT_FOUND" }) : result;

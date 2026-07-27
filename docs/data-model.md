@@ -51,6 +51,10 @@ mensagem sanitizada, status (`PENDING|DELIVERED|DELIVERY_FAILED`), tentativas,
 backoff, claim de despacho e último erro sanitizado. O status é do transporte,
 nunca da Task.
 
+O watchdog de entrega não cria entidade nem status adicional. Condições de SLA
+e ausência de outbox são projeções sobre Task, ResultDeliveryOutbox e
+TelegramTaskDelivery; o alerta persistente é um AuditEvent idempotente.
+
 **CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
 início, fim e timestamp de registro. É separado de `LlmCall`.
 
