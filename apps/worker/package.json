@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@atlas/codex-adapter": "workspace:*",
+    "@atlas/core": "workspace:*",
     "@atlas/git-adapter": "workspace:*",
     "@atlas/shared": "workspace:*",
     "minimatch": "^10.2.5",

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — shadow do caller de paths protegidos
+
+- O runner mantém `findProtectedPathMatches` como decisão autoritativa e observa
+  `decideEnforcement` em paralelo nos caminhos de sucesso e falha.
+- Cada avaliação bem-sucedida gera log estruturado local correlacionado à Task e
+  Execution, com decisão, motivo, hashes e divergência
+  `none|stricter|MORE_PERMISSIVE`; erro do shadow ou do logger não afeta o
+  resultado do worker.
+- Testes adversariais comprovam que `protected_path_matches` permanece
+  byte-idêntico e que as divergências esperadas ocorrem somente na direção mais
+  estrita.
+- Nenhum cutover, caller de comandos, AuditEvent, política, estado ou `.atlas/**`
+  foi alterado.
+
 ## Unreleased — decisão pura de enforcement
 
 - `@atlas/core` passa a expor decisão pura `allow|deny|require_human` com códigos
