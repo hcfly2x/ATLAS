@@ -75,6 +75,10 @@ ampliação de autonomia.
   `protected_path_matches`; o shadow apenas registra decisão, hashes e se a
   divergência é igual, mais estrita ou indevidamente mais permissiva. Falha do
   shadow não afeta execução, finalização ou lease.
+- O perfil protegido `atlas` cobre arquivos `.env*` na raiz e em subdiretórios
+  com `**/.env*`, de forma equivalente na área semântica `secrets` e em
+  `effective_globs`. O caller legado permanece case-sensitive até cutover
+  próprio.
 - A decisão pura de enforcement está integrada em `@atlas/core`, com
   `allow|deny|require_human`, precedência fail-closed, matching protegido
   case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
@@ -120,10 +124,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar o modo shadow do primeiro caller de paths protegidos. O cutover só pode
-ser considerado em fase própria depois de comprovar que nenhuma amostra produz
-`MORE_PERMISSIVE`; o caller de comandos e a persistência de AuditEvent continuam
-entregas separadas. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar a correção protegida de `**/.env*` e coletar a amostra real versionada
+do modo shadow. O cutover só pode ser considerado depois de comprovar zero
+`MORE_PERMISSIVE`; o caller de comandos e AuditEvent continuam entregas
+separadas. Não iniciar a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 

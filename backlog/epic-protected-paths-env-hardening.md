@@ -2,8 +2,9 @@
 
 ## Status
 
-Escopo documental definido. A alteração de `.atlas/protected-paths.yaml` não é
-autorizada por este epic e continua sujeita à aprovação humana do ADR-010.
+Implementação autorizada explicitamente em 27/07/2026 e em revisão. O merge da
+alteração de `.atlas/protected-paths.yaml` continua sujeito à aprovação humana
+do ADR-010.
 
 ## Problema comprovado
 
@@ -79,5 +80,5 @@ necessário manter também `.env*`.
 4. Validar que a área semântica e a união efetiva permanecem consistentes.
 5. Rodar `pnpm validate`, entregar ZIP limpo e parar para revisão.
 
-Essa implementação é uma mudança de área protegida e exige aprovação humana
-explícita antes de começar e antes do merge.
+Essa implementação é uma mudança de área protegida. O início foi autorizado
+explicitamente; o merge ainda exige aprovação humana.

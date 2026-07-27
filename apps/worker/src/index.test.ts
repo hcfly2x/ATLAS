@@ -75,13 +75,19 @@ describe("worker safety boundaries", () => {
     ).toThrow(CommandNotAllowedError);
   });
 
-  it("matches protected paths including dotfiles", () => {
+  it("matches root and nested env paths without matching an unrelated path", () => {
     expect(
       findProtectedPathMatches(
-        ["src/app.ts", ".env.local", "apps/worker/src/main.ts"],
-        [".env*", "apps/worker/**"],
+        [
+          ".env",
+          ".env.local",
+          "apps/coordinator/.env.local",
+          "packages/example/.env.test",
+          "apps/coordinator/src/main.ts",
+        ],
+        ["**/.env*"],
       ),
-    ).toEqual([".env.local", "apps/worker/src/main.ts"]);
+    ).toEqual([".env", ".env.local", "apps/coordinator/.env.local", "packages/example/.env.test"]);
   });
 
   it("has no Docker, database or coordinator runtime dependency", async () => {
