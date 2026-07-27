@@ -111,10 +111,11 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar os testes de caracterização do enforcement atual. Eles registram
-precedência de negação, matching exato, repetibilidade e o comportamento lexical
-atual de paths sem alterar callers. A extração da decisão pura continua uma
-entrega separada. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar a decisão pura de enforcement em `@atlas/core`. A nova fronteira produz
+`allow|deny|require_human`, códigos estáveis, evidência normalizada e hashes
+canônicos, mas nenhum caller usa essa função ainda. A migração de callers e a
+persistência de AuditEvent continuam entregas separadas. Não iniciar a Fase 8
+ou ampliar autonomia.
 
 ## Restrições ativas
 
