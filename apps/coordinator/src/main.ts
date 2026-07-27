@@ -273,10 +273,13 @@ const reworkPublisher = new TelegramReworkPublisher(
   new PrismaTelegramReworkStore(prisma),
   telegramClient,
 );
+void resultPublisher.poll().catch(() => {
+  app.log.error("initial telegram result publication failed");
+});
 const telegramResultTimer = setInterval(
   () => {
-    void resultPublisher.poll().catch((error: unknown) => {
-      app.log.error({ error }, "telegram result publication failed");
+    void resultPublisher.poll().catch(() => {
+      app.log.error("telegram result publication failed");
     });
     void reworkPublisher.poll().catch((error: unknown) => {
       app.log.error({ error }, "telegram QA rework publication failed");

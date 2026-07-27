@@ -1,15 +1,13 @@
 # Pendências
 
-## Entrega durável — fora da Fase A
+## Entrega durável — acompanhamento após a Fase B
 
-- Projetar outbox persistente reutilizando `TelegramTaskDelivery`, com tentativas
-  limitadas, backoff, erro sanitizado e reconciliação de claims abandonadas.
-- Decidir em fase própria como representar `DELIVERY_FAILED`, sem alterar a
-  máquina de estados silenciosamente.
-- Separar aprovação do conteúdo da confirmação de transporte somente após
-  definir o registro e a idempotência correspondentes.
+- A revisão empírica da outbox, da migração e dos cenários de crash foi
+  concluída; manter a Fase C condicionada a autorização explícita.
 - Implementar watchdog/SLA para Tasks sem resposta visível e expor a falha na
   dashboard.
+- Definir procedimento humano para inspecionar e resolver
+  `DELIVERY_FAILED`, sem reenvio automático sob incerteza.
 - Manter modo consulta, bypass de worker e reclassificação de complexidade fora
   da Fase A.
 
@@ -30,8 +28,8 @@
   `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
 - Autorizar o cutover do caller de paths em fase própria, preservando corpus e
   fallback até a revisão completa.
-- Revisar completamente a paridade de comandos antes de observar qualquer
-  caller.
+- A revisão completa da paridade de comandos foi concluída; observar caller
+  somente em fase shadow explicitamente autorizada.
 - Manter `parseSpecificationCommand` no caller até fase própria; a decisão pura
   recebe somente comandos já estruturados.
 - Implementar shadow de comandos em entrega independente e bloquear o cutover

@@ -45,6 +45,12 @@ estado antes do envio; o destino vem exclusivamente de `Task.origin`
 compatibilidade com Tasks legadas de conversa privada, `telegram:user_id` usa o
 mesmo valor como `chat_id`.
 
+**ResultDeliveryOutbox** — registro durável por `task_id + task_version`, com
+destino derivado de `Task.origin`, referência e hash do conteúdo terminal,
+mensagem sanitizada, status (`PENDING|DELIVERED|DELIVERY_FAILED`), tentativas,
+backoff, claim de despacho e último erro sanitizado. O status é do transporte,
+nunca da Task.
+
 **CodexUsage** — id, project_id, task_id, execution_id, custo lógico estimado,
 início, fim e timestamp de registro. É separado de `LlmCall`.
 
@@ -72,7 +78,9 @@ Execution 1—1 CodexUsage
 Execution 1—1 PostExecutionReview
 Approval N—1 alvo versionado (Specification, Execution/result ou ação sensível)
 Task 1—N AuditEvent
+Task 1—N ResultDeliveryOutbox
 Project 1—N MemoryItem
+Project 1—N ResultDeliveryOutbox
 ```
 
 ## Invariantes de contratos e aprovação
@@ -89,6 +97,9 @@ Project 1—N MemoryItem
 - Em `answer_only`, `FINALIZING` conclui sem commit/PR e a entrega textual usa o
   result-publisher terminal existente; em `repository_change`, a exigência de
   artefatos Git permanece.
+- A entrega terminal cria no máximo uma outbox por Task e versão. Approval do
+  conteúdo e `DELIVERED` são registros distintos; desfecho de transporte
+  ambíguo vira `DELIVERY_FAILED` sem alterar a Task nem repetir o trabalho.
 - Todo resultado de worker aguarda QA pós-execução antes de `FINALIZING`. A
   aprovação de política ou do usuário continua necessária quando aplicável, mas
   não substitui o parecer independente. QA aprovado + Approval automática válida

@@ -13,8 +13,8 @@ integrado. QA pós-execução também está integrado; isso não autoriza Fase 8
 ampliação de autonomia.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
-paridade de comandos está implementada em branch própria e aguarda revisão
-completa; nenhum caller foi migrado.
+paridade de comandos e a Fase B de entrega durável também estão integradas;
+nenhum caller de comandos foi migrado e a Fase C não está autorizada.
 
 ## Implementado
 
@@ -44,6 +44,10 @@ completa; nenhum caller foi migrado.
   `failure_stage` em falhas. A chave de entrega é persistida antes do envio para
   impedir duplicação após reinício; origens legadas de conversa privada usam o
   `user_id` como chat. Ausência de canal também gera AuditEvent.
+- A entrega terminal usa outbox persistente por Task e versão, separando
+  aprovação do conteúdo de confirmação do transporte. Somente falha
+  comprovadamente anterior ao despacho recebe retry limitado; ambiguidade ou
+  claim expirado resulta em `DELIVERY_FAILED` sem alterar o estado da Task.
 - A direção de longo prazo está registrada como organização autônoma de agentes.
   A única peça estrutural ausente é QA pós-execução; runtime reproduzível e
   recuperação durável devem precedê-la, e ela deve preceder qualquer ampliação
@@ -113,13 +117,16 @@ completa; nenhum caller foi migrado.
 - Na correção do classificador da Fase A, o corpus adversarial e a propriedade
   afirmativa/negada passam em 26 testes focados; `pnpm validate` também passa,
   incluindo 104 testes do coordinator.
+- Na Fase B, testes unitários cobrem retry limitado, backoff, ambiguidade,
+  crash entre despacho e persistência, idempotência e sanitização; a integração
+  PostgreSQL cobre unicidade, tentativas, confirmação e reconciliação.
 - Na Fase 1 de comandos, testes de paridade exercitam a decisão pura contra os
   autorizadores legados, incluindo GNU declarado/não declarado, tokens
   inseguros, negação e allowlist exata.
 
 ## Decisões vigentes
 
-- ADRs 001–012 aceitos; ADRs 013–018 permanecem Propostos.
+- ADRs 001–012 aceitos; ADRs 013–019 permanecem Propostos.
 - ADR-003 é aplicado com pareceres independentes, supervisor consolidando e no
   máximo duas rodadas.
 - GPT-5.6 Luna é o default configurável dos pareceristas; GPT-5.6 Terra permanece
@@ -130,8 +137,8 @@ completa; nenhum caller foi migrado.
 - A classificação de `delivery_mode` é conservadora e lexical: formulações
   incomuns podem cair em `repository_change`, mas nunca ampliam o canal de
   entrega; o guard então exige repositório configurado.
-- A entrega durável segue em PR independente; esta fase de comandos não altera
-  publisher, retry de transporte ou status de entrega.
+- `DELIVERY_FAILED` ainda não possui watchdog/SLA nem superfície própria na
+  dashboard; essa observabilidade pertence à Fase C.
 - A paridade de comandos ainda não altera runtime: sem shadow e cutover, os
   autorizadores legados continuam sendo a única decisão efetiva do worker.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
@@ -150,9 +157,10 @@ completa; nenhum caller foi migrado.
 
 ## Próximo passo
 
-Revisar empiricamente a paridade de comandos. Depois, autorizar em entrega
-própria o shadow do caller e exigir zero divergência `MORE_PERMISSIVE` antes de
-qualquer cutover.
+Aguardar autorização explícita para o shadow do caller de comandos ou para a
+Fase C. O shadow deve exigir zero divergência `MORE_PERMISSIVE` antes de
+qualquer cutover; a Fase C deve tornar `DELIVERY_FAILED` operacionalmente
+visível sem reenviar sob incerteza.
 
 ## Restrições ativas
 
@@ -160,9 +168,10 @@ qualquer cutover.
 - não iniciar a Fase 8 ou ampliação de autonomia;
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
-- não iniciar shadow ou cutover de comandos antes da revisão completa desta
-  paridade;
+- não iniciar watchdog/SLA ou exposição de `DELIVERY_FAILED` sem autorização
+  explícita da Fase C;
+- não iniciar shadow ou cutover de comandos sem autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–018;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–019;
 - não executar deploy nem integrar credenciais reais.

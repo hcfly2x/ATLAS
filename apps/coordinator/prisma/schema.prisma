@@ -116,6 +116,12 @@ enum SpecificationDeliveryMode {
   REPOSITORY_CHANGE
 }
 
+enum DeliveryOutboxStatus {
+  PENDING
+  DELIVERED
+  DELIVERY_FAILED
+}
+
 model Project {
   id                    String                 @id
   name                  String
@@ -140,6 +146,7 @@ model Project {
   codexUsages           CodexUsage[]
   memoryItems           MemoryItem[]
   telegramDeliveries    TelegramTaskDelivery[]
+  deliveryOutbox        ResultDeliveryOutbox[]
 
   @@map("projects")
 }
@@ -170,6 +177,7 @@ model Task {
   telegramDelivery      TelegramTaskDelivery?
   deliberations         Deliberation[]
   postExecutionReviews  PostExecutionReview[]
+  deliveryOutbox        ResultDeliveryOutbox[]
 
   @@index([projectId, state])
   @@map("tasks")
@@ -464,6 +472,35 @@ model TelegramTaskDelivery {
 
   @@index([projectId, updatedAt])
   @@map("telegram_task_deliveries")
+}
+
+model ResultDeliveryOutbox {
+  id                     String               @id @default(uuid())
+  taskId                 String               @map("task_id")
+  projectId              String               @map("project_id")
+  taskVersion            Int                  @map("task_version")
+  deliveryKey            String               @unique @map("delivery_key")
+  destinationUserId      BigInt               @map("destination_user_id")
+  destinationChatId      BigInt               @map("destination_chat_id")
+  contentReference       String               @map("content_reference")
+  contentHash            String               @map("content_hash")
+  messageText            String               @map("message_text")
+  status                 DeliveryOutboxStatus @default(PENDING)
+  attempts               Int                  @default(0)
+  nextAttemptAt          DateTime             @default(now()) @map("next_attempt_at")
+  dispatchStartedAt      DateTime?            @map("dispatch_started_at")
+  dispatchClaimExpiresAt DateTime?            @map("dispatch_claim_expires_at")
+  deliveredAt            DateTime?            @map("delivered_at")
+  lastError              String?              @map("last_error")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  task                   Task                 @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  project                Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, taskVersion])
+  @@index([status, nextAttemptAt])
+  @@index([projectId, createdAt])
+  @@map("result_delivery_outbox")
 }
 
 model TelegramUpdate {
