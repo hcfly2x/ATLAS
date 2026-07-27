@@ -12,9 +12,9 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
-A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase B de
-entrega durável está implementada em branch própria e aguarda revisão completa;
-Fase C não está autorizada.
+A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
+paridade de comandos e a Fase B de entrega durável também estão integradas;
+nenhum caller de comandos foi migrado e a Fase C não está autorizada.
 
 ## Implementado
 
@@ -91,6 +91,11 @@ Fase C não está autorizada.
   `allow|deny|require_human`, precedência fail-closed, matching protegido
   case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
   novo foi introduzido.
+- A decisão pura de comandos reproduz o gate legado de ferramentas GNU
+  declaradas, além de token seguro, precedência da negação e allowlist exata.
+  `parseSpecificationCommand` continua no caller e
+  `authorizeCommands`/`authorizeRuntimeCommands` permanecem autoritativos até
+  fases próprias de shadow e cutover.
 - O classificador de `delivery_mode` usa uma única fonte de formas verbais para
   detectar mudança e neutralizar negações. Entregáveis textuais com mudança
   apenas futura usam `answer_only`; mudança efetiva não negada e ambiguidade
@@ -115,6 +120,9 @@ Fase C não está autorizada.
 - Na Fase B, testes unitários cobrem retry limitado, backoff, ambiguidade,
   crash entre despacho e persistência, idempotência e sanitização; a integração
   PostgreSQL cobre unicidade, tentativas, confirmação e reconciliação.
+- Na Fase 1 de comandos, testes de paridade exercitam a decisão pura contra os
+  autorizadores legados, incluindo GNU declarado/não declarado, tokens
+  inseguros, negação e allowlist exata.
 
 ## Decisões vigentes
 
@@ -131,6 +139,8 @@ Fase C não está autorizada.
   entrega; o guard então exige repositório configurado.
 - `DELIVERY_FAILED` ainda não possui watchdog/SLA nem superfície própria na
   dashboard; essa observabilidade pertence à Fase C.
+- A paridade de comandos ainda não altera runtime: sem shadow e cutover, os
+  autorizadores legados continuam sendo a única decisão efetiva do worker.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -147,9 +157,10 @@ Fase C não está autorizada.
 
 ## Próximo passo
 
-Revisar empiricamente a Fase B, incluindo migração aditiva, idempotência,
-destino derivado da origem, retry apenas sob não-despacho comprovado e
-reconciliação ambígua fail-closed. Não iniciar a Fase C antes da revisão.
+Aguardar autorização explícita para o shadow do caller de comandos ou para a
+Fase C. O shadow deve exigir zero divergência `MORE_PERMISSIVE` antes de
+qualquer cutover; a Fase C deve tornar `DELIVERY_FAILED` operacionalmente
+visível sem reenviar sob incerteza.
 
 ## Restrições ativas
 
@@ -157,8 +168,9 @@ reconciliação ambígua fail-closed. Não iniciar a Fase C antes da revisão.
 - não iniciar a Fase 8 ou ampliação de autonomia;
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
-- não iniciar watchdog/SLA ou exposição de `DELIVERY_FAILED` antes da revisão
-  completa da Fase B;
+- não iniciar watchdog/SLA ou exposição de `DELIVERY_FAILED` sem autorização
+  explícita da Fase C;
+- não iniciar shadow ou cutover de comandos sem autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–019;

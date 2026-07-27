@@ -2,8 +2,8 @@
 
 ## Entrega durável — acompanhamento após a Fase B
 
-- Revisar empiricamente a outbox, a migração e os cenários de crash antes de
-  qualquer Fase C.
+- A revisão empírica da outbox, da migração e dos cenários de crash foi
+  concluída; manter a Fase C condicionada a autorização explícita.
 - Implementar watchdog/SLA para Tasks sem resposta visível e expor a falha na
   dashboard.
 - Definir procedimento humano para inspecionar e resolver
@@ -28,7 +28,14 @@
   `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
 - Autorizar o cutover do caller de paths em fase própria, preservando corpus e
   fallback até a revisão completa.
-- Migrar o caller de comandos somente depois, em entrega independente.
+- A revisão completa da paridade de comandos foi concluída; observar caller
+  somente em fase shadow explicitamente autorizada.
+- Manter `parseSpecificationCommand` no caller até fase própria; a decisão pura
+  recebe somente comandos já estruturados.
+- Implementar shadow de comandos em entrega independente e bloquear o cutover
+  enquanto houver qualquer divergência `MORE_PERMISSIVE`.
+- Migrar `authorizeCommands`/`authorizeRuntimeCommands` somente depois da
+  amostra shadow com zero divergência mais permissiva.
 - Revisar e aprovar separadamente o merge da substituição de `.env*` por
   `**/.env*` na área `secrets` e em `effective_globs`.
 - Manter explícito que o caller legado é case-sensitive até sua migração para a
