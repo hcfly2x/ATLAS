@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — escopo de cobertura de `.env*`
+
+- Documentado o gap de `.env*` aninhado causado pela combinação do glob atual
+  com `matchBase: false`.
+- Proposta uma entrega separada para substituir `.env*` por `**/.env*` nos dois
+  pontos equivalentes do perfil `atlas`, com testes de contrato.
+- `.atlas/**`, callers, política, autonomia e runtime não foram alterados.
+
 ## Unreleased — decisão pura de enforcement
 
 - `@atlas/core` passa a expor decisão pura `allow|deny|require_human` com códigos

@@ -70,6 +70,10 @@ ampliação de autonomia.
   está preparada em PR próprio: exige flag explícita e Bearer token e mantém
   dados/rotas somente leitura. Ainda não está habilitada nem autoriza escrita de
   configuração, agentes ou times.
+- A decisão pura de enforcement está integrada em `@atlas/core`, com
+  `allow|deny|require_human`, precedência fail-closed, matching protegido
+  case-insensitive, evidência normalizada e hashes canônicos. Nenhum caller foi
+  migrado e nenhum AuditEvent novo foi introduzido.
 
 ## Testes e validações
 
@@ -111,11 +115,11 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar a decisão pura de enforcement em `@atlas/core`. A nova fronteira produz
-`allow|deny|require_human`, códigos estáveis, evidência normalizada e hashes
-canônicos, mas nenhum caller usa essa função ainda. A migração de callers e a
-persistência de AuditEvent continuam entregas separadas. Não iniciar a Fase 8
-ou ampliar autonomia.
+Revisar o escopo isolado para cobrir arquivos `.env*` em qualquer subdiretório
+com `**/.env*`. O documento não altera `.atlas/protected-paths.yaml`; a futura
+implementação continua sujeita à aprovação humana do ADR-010. Migração de
+callers e persistência de AuditEvent permanecem entregas separadas. Não iniciar
+a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 

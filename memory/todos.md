@@ -12,7 +12,12 @@
 
 ## Enforcement determinístico — escopo definido
 
-- Revisar a decisão pura antes de migrar qualquer caller.
+- Revisar o escopo de cobertura de `.env*` aninhado antes de autorizar qualquer
+  alteração em `.atlas/protected-paths.yaml`.
+- Após aprovação própria, substituir `.env*` por `**/.env*` na área `secrets` e
+  em `effective_globs`, com testes de raiz, subdiretório e não-match.
+- Manter explícito que o caller legado é case-sensitive até sua migração para a
+  decisão pura; não misturar essa migração com a correção de configuração.
 - Planejar resolução física de symlinks dentro da worktree em entrega própria;
   a decisão atual permanece lexical e não pode considerar symlink seguro por
   ausência de match.
