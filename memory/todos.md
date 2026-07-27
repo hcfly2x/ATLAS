@@ -12,6 +12,12 @@
 
 ## Enforcement determinístico — escopo definido
 
+- Revisar o primeiro caller em modo shadow antes de qualquer cutover.
+- Executar uma amostra real versionada e bloquear o cutover se houver
+  `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
+- Autorizar o cutover do caller de paths em fase própria, preservando corpus e
+  fallback até a revisão completa.
+- Migrar o caller de comandos somente depois, em entrega independente.
 - Revisar o escopo de cobertura de `.env*` aninhado antes de autorizar qualquer
   alteração em `.atlas/protected-paths.yaml`.
 - Após aprovação própria, substituir `.env*` por `**/.env*` na área `secrets` e
@@ -21,8 +27,6 @@
 - Planejar resolução física de symlinks dentro da worktree em entrega própria;
   a decisão atual permanece lexical e não pode considerar symlink seguro por
   ausência de match.
-- Migrar um caller por vez, comparando a nova decisão com os testes de
-  caracterização antes de remover lógica existente.
 - Persistir AuditEvent somente depois da equivalência dos callers.
 - Definir a amostra versionada que comprovará hashes idênticos para a mesma
   entrada e configuração.

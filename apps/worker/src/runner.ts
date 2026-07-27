@@ -22,7 +22,7 @@ import {
 } from "./allowlist.js";
 import type { WorkerCoordinatorClient } from "./client.js";
 import { runPreflight } from "./preflight.js";
-import { findProtectedPathMatches } from "./protected-paths.js";
+import { findProtectedPathMatchesWithShadow } from "./protected-path-shadow.js";
 
 export interface WorkerApi {
   appendLog: WorkerCoordinatorClient["appendLog"];
@@ -282,9 +282,13 @@ export class WorkerRunner {
       }
       await runRuntimePhase("validate");
       const diff = await this.options.git.diff(worktreePath);
-      const protectedMatches = findProtectedPathMatches(
+      const protectedMatches = findProtectedPathMatchesWithShadow(
         diff.changedPaths,
         assignment.protected_globs,
+        {
+          executionId: assignment.execution_id,
+          taskId: assignment.task_id,
+        },
       );
       // Streaming callbacks may finish out of order even though each receives a
       // monotonically increasing sequence. The result contract requires its
@@ -402,7 +406,10 @@ export class WorkerRunner {
         logs_truncated: logsTruncated,
         pending_items: [],
         protected_path_matches: [
-          ...findProtectedPathMatches(diff.changedPaths, assignment.protected_globs),
+          ...findProtectedPathMatchesWithShadow(diff.changedPaths, assignment.protected_globs, {
+            executionId: assignment.execution_id,
+            taskId: assignment.task_id,
+          }),
         ],
         redaction_applied: true,
         risks: [],

@@ -78,6 +78,9 @@ importers:
       '@atlas/codex-adapter':
         specifier: workspace:*
         version: link:../../packages/codex-adapter
+      '@atlas/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@atlas/git-adapter':
         specifier: workspace:*
         version: link:../../packages/git-adapter

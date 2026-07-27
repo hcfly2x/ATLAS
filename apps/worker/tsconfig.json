@@ -8,6 +8,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../../packages/shared" },
+    { "path": "../../packages/core" },
     { "path": "../../packages/codex-adapter" },
     { "path": "../../packages/git-adapter" }
   ]

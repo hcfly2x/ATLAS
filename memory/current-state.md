@@ -70,10 +70,15 @@ ampliação de autonomia.
   está preparada em PR próprio: exige flag explícita e Bearer token e mantém
   dados/rotas somente leitura. Ainda não está habilitada nem autoriza escrita de
   configuração, agentes ou times.
+- O primeiro caller de paths protegidos executa a decisão pura em modo shadow.
+  `findProtectedPathMatches` continua autoritativo e produz o mesmo
+  `protected_path_matches`; o shadow apenas registra decisão, hashes e se a
+  divergência é igual, mais estrita ou indevidamente mais permissiva. Falha do
+  shadow não afeta execução, finalização ou lease.
 - A decisão pura de enforcement está integrada em `@atlas/core`, com
   `allow|deny|require_human`, precedência fail-closed, matching protegido
-  case-insensitive, evidência normalizada e hashes canônicos. Nenhum caller foi
-  migrado e nenhum AuditEvent novo foi introduzido.
+  case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
+  novo foi introduzido.
 
 ## Testes e validações
 
@@ -115,11 +120,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar o escopo isolado para cobrir arquivos `.env*` em qualquer subdiretório
-com `**/.env*`. O documento não altera `.atlas/protected-paths.yaml`; a futura
-implementação continua sujeita à aprovação humana do ADR-010. Migração de
-callers e persistência de AuditEvent permanecem entregas separadas. Não iniciar
-a Fase 8 ou ampliar autonomia.
+Revisar o modo shadow do primeiro caller de paths protegidos. O cutover só pode
+ser considerado em fase própria depois de comprovar que nenhuma amostra produz
+`MORE_PERMISSIVE`; o caller de comandos e a persistência de AuditEvent continuam
+entregas separadas. Não iniciar a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 
