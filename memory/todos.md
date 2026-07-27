@@ -18,6 +18,12 @@
 - Autorizar o cutover do caller de paths em fase própria, preservando corpus e
   fallback até a revisão completa.
 - Migrar o caller de comandos somente depois, em entrega independente.
+- Revisar o escopo de cobertura de `.env*` aninhado antes de autorizar qualquer
+  alteração em `.atlas/protected-paths.yaml`.
+- Após aprovação própria, substituir `.env*` por `**/.env*` na área `secrets` e
+  em `effective_globs`, com testes de raiz, subdiretório e não-match.
+- Manter explícito que o caller legado é case-sensitive até sua migração para a
+  decisão pura; não misturar essa migração com a correção de configuração.
 - Planejar resolução física de symlinks dentro da worktree em entrega própria;
   a decisão atual permanece lexical e não pode considerar symlink seguro por
   ausência de match.

@@ -75,6 +75,10 @@ ampliação de autonomia.
   `protected_path_matches`; o shadow apenas registra decisão, hashes e se a
   divergência é igual, mais estrita ou indevidamente mais permissiva. Falha do
   shadow não afeta execução, finalização ou lease.
+- A decisão pura de enforcement está integrada em `@atlas/core`, com
+  `allow|deny|require_human`, precedência fail-closed, matching protegido
+  case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
+  novo foi introduzido.
 
 ## Testes e validações
 
