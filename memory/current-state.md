@@ -12,6 +12,13 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
+O checklist macro de encerramento foi consolidado em
+`docs/atlas-completion-checklist.md`. Ele registra somente como concluídos a
+criação de `docs/command-hierarchy.md`, a atualização desta memória e a
+verificação de whitespace por `git diff --check`. A declaração de conclusão do
+ATLAS permanece bloqueada; áreas sem evidência estão marcadas como não
+avaliadas, pendentes ou dependentes de confirmação.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
@@ -19,6 +26,10 @@ ampliação de autonomia.
 - A hierarquia de comando efetivamente implementada está resumida, com fontes
   rastreáveis, em `docs/command-hierarchy.md`; o documento não amplia as
   permissões, a política de aprovação ou os canais de saída existentes.
+- A baseline única para uma futura avaliação de encerramento está em
+  `docs/atlas-completion-checklist.md`; ela não declara conclusão funcional,
+  operacional ou formal. A publicação no Telegram permanece factual como não
+  realizada e requer decisão formal de escopo.
 - Registro de papéis e instruções carregado de `.atlas/agents.yaml` e `agents/`;
   roteamento canônico carregado de `.atlas/routing.yaml`.
 - Rotas: simples usa contexto+supervisor; moderada acrescenta arquitetura e QA;
@@ -108,6 +119,10 @@ ampliação de autonomia.
 
 ## Riscos remanescentes
 
+- `specifications/project-manifest.yaml`, fonte canônica da stack, ainda declara
+  `project.status: planning`, enquanto o plano e esta memória registram fases
+  implementadas. A divergência exige confirmação oficial e não foi resolvida
+  silenciosamente pela baseline de encerramento.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
