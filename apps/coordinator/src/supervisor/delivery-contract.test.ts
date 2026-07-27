@@ -36,6 +36,8 @@ describe("delivery contract", () => {
     "não crie nada, apenas um relatório",
     "nao altere nada, faça uma análise",
     "sem implementar, só um plano",
+    "não quero que você implemente, apenas entregue um relatório",
+    "sem fazer qualquer alteração, entregue um estudo",
     "pesquise o mercado e recomende uma abordagem",
   ])("classifies textual delivery without effective repository changes: %s", (message) => {
     expect(classify(message)).toBe("answer_only");
@@ -48,6 +50,8 @@ describe("delivery contract", () => {
     "atualize o arquivo X",
     "ajuste o schema",
     "analise o custo e corrija o cálculo no código",
+    "não altere a API; corrija o cálculo no código",
+    "não analise o custo e corrija o cálculo",
     "planeje e implemente o endpoint",
     "faça o de sempre",
   ])("classifies effective changes and ambiguity conservatively: %s", (message) => {

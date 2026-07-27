@@ -106,8 +106,8 @@ aplicada e aguarda nova revisão. A fase ainda não está integrada nem implanta
   de recuperação com PostgreSQL fazem parte de `test:integration` e serão
   executados pela CI em PostgreSQL limpo.
 - Na correção do classificador da Fase A, o corpus adversarial e a propriedade
-  afirmativa/negada passam em 22 testes focados; `pnpm validate` também passa,
-  incluindo 100 testes do coordinator.
+  afirmativa/negada passam em 26 testes focados; `pnpm validate` também passa,
+  incluindo 104 testes do coordinator.
 
 ## Decisões vigentes
 
