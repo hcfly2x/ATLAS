@@ -48,8 +48,11 @@ existentes e ser tratados nos blocos de estabilização planejados:
   indisponibilidade transitória. Não cria dead-letter separado.
 - **Enforcement determinístico:** estender a allowlist do worker e a checagem de
   paths protegidos do ADR-010, que já formam a base do futuro Policy Engine/Tool
-  Gateway. Não duplicar essas fronteiras. O recorte e os critérios mensuráveis
-  estão em `backlog/epic-deterministic-enforcement.md`.
+  Gateway. Não duplicar essas fronteiras. A decisão pura está integrada; a
+  migração de callers permanece incremental. O gap de cobertura de `.env*` em
+  subdiretórios está isolado em
+  `backlog/epic-protected-paths-env-hardening.md`, sem alteração de política
+  autorizada por esse documento.
 - **Observabilidade:** estender `AuditEvent` com `correlation_id`, logs e o
   dashboard somente-leitura, que já são a base do Atlas Trace. Não criar uma
   trilha paralela.
