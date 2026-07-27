@@ -7,6 +7,9 @@
 - O supervisor classifica planejamento/análise sem mudança como `answer_only`,
   mantém pedidos de alteração e ambiguidades em `repository_change` e rejeita
   contratos sem destino antes da fila.
+- O classificador deriva detecção e neutralização de negações do mesmo léxico;
+  imperativos negados e implementação citada como objetivo futuro de um
+  entregável textual não são tratados como mudança efetiva.
 - QA aceita diff vazio em `answer_only`; o worker finaliza sem commit/PR e o
   result-publisher entrega o texto aprovado somente ao chat de `Task.origin`,
   com chave por Task, versão e estado.

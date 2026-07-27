@@ -5,6 +5,7 @@ import {
   assertSpecificationDelivery,
   classifyDeliveryMode,
   deliveryGuardReason,
+  repositoryChangeVerbForms,
 } from "./delivery-contract.js";
 
 function normalized(overrides: Record<string, unknown> = {}) {
@@ -18,32 +19,52 @@ function normalized(overrides: Record<string, unknown> = {}) {
 }
 
 describe("delivery contract", () => {
-  it("classifies planning without repository changes as answer_only", () => {
-    expect(
-      classifyDeliveryMode({
-        normalized: normalized({
-          constraints: ["Não implementar neste pedido"],
-          objective: "Elaborar um planejamento de custos",
-          requested_actions: ["pesquisar_referencias", "propor_layout"],
-        }),
-        originalMessage: "Estude o mercado e me traga um planejamento",
-      }),
-    ).toBe("answer_only");
+  function classify(originalMessage: string) {
+    return classifyDeliveryMode({
+      normalized: normalized({ objective: originalMessage }),
+      originalMessage,
+    });
+  }
+
+  it.each([
+    "não implemente, apenas me traga um planejamento",
+    "não altere nada, faça uma análise",
+    "não edite arquivos, só recomende",
+    "não modifique o código, só explique",
+    "estude como se faz no mercado e me traga um planejamento pra implementar essa melhoria",
+    "não implementar, só um planejamento",
+    "não crie nada, apenas um relatório",
+    "nao altere nada, faça uma análise",
+    "sem implementar, só um plano",
+    "pesquise o mercado e recomende uma abordagem",
+  ])("classifies textual delivery without effective repository changes: %s", (message) => {
+    expect(classify(message)).toBe("answer_only");
   });
 
-  it("classifies any explicit repository change and ambiguity as repository_change", () => {
-    expect(
-      classifyDeliveryMode({
-        normalized: normalized({ objective: "Planejar e implementar o endpoint" }),
-        originalMessage: "Planeje e implemente",
-      }),
-    ).toBe("repository_change");
-    expect(
-      classifyDeliveryMode({
-        normalized: normalized(),
-        originalMessage: "Cuide disso",
-      }),
-    ).toBe("repository_change");
+  it.each([
+    "implemente o endpoint",
+    "corrija o bug",
+    "crie a tabela no banco",
+    "atualize o arquivo X",
+    "ajuste o schema",
+    "analise o custo e corrija o cálculo no código",
+    "planeje e implemente o endpoint",
+    "faça o de sempre",
+  ])("classifies effective changes and ambiguity conservatively: %s", (message) => {
+    expect(classify(message)).toBe("repository_change");
+  });
+
+  it("derives affirmative and negated behavior from every repository change verb form", () => {
+    for (const verb of repositoryChangeVerbForms) {
+      expect(classify(`não ${verb}, apenas faça um planejamento`), verb).toBe("answer_only");
+      expect(classify(`${verb} o código`), verb).toBe("repository_change");
+    }
+  });
+
+  it("is deterministic for repeated equivalent evaluations", () => {
+    const message = "estude o mercado e traga um plano para implementar a melhoria";
+    const decisions = Array.from({ length: 10 }, () => classify(message));
+    expect(new Set(decisions)).toEqual(new Set(["answer_only"]));
   });
 
   it("rejects answer_only without a valid Task.origin", () => {

@@ -12,8 +12,9 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
-A Fase A de `delivery_mode` está autorizada e implementada em branch própria,
-aguardando revisão completa. Ela ainda não está integrada nem implantada.
+A Fase A de `delivery_mode` está autorizada e implementada em branch própria. A
+correção solicitada pela revisão empírica para o classificador lexical foi
+aplicada e aguarda nova revisão. A fase ainda não está integrada nem implantada.
 
 ## Implementado
 
@@ -86,6 +87,10 @@ aguardando revisão completa. Ela ainda não está integrada nem implantada.
   `allow|deny|require_human`, precedência fail-closed, matching protegido
   case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
   novo foi introduzido.
+- O classificador de `delivery_mode` usa uma única fonte de formas verbais para
+  detectar mudança e neutralizar negações. Entregáveis textuais com mudança
+  apenas futura usam `answer_only`; mudança efetiva não negada e ambiguidade
+  continuam em `repository_change`.
 
 ## Testes e validações
 
@@ -100,6 +105,9 @@ aguardando revisão completa. Ela ainda não está integrada nem implantada.
 - No Bloco 3, testes unitários e typecheck do coordinator passaram; os cenários
   de recuperação com PostgreSQL fazem parte de `test:integration` e serão
   executados pela CI em PostgreSQL limpo.
+- Na correção do classificador da Fase A, o corpus adversarial e a propriedade
+  afirmativa/negada passam em 22 testes focados; `pnpm validate` também passa,
+  incluindo 100 testes do coordinator.
 
 ## Decisões vigentes
 
@@ -132,9 +140,9 @@ aguardando revisão completa. Ela ainda não está integrada nem implantada.
 
 ## Próximo passo
 
-Revisar empiricamente a Fase A: migração/default legado, classificação
-conservadora, guards de destino, QA com diff vazio, ausência de Git em
-`answer_only` e entrega exclusivamente por `Task.origin`. Não iniciar outbox,
+Revisar empiricamente a correção do classificador da Fase A, especialmente o
+corpus de imperativos negados, o planejamento para implementação futura, a
+precedência de mudança efetiva e o default conservador. Não iniciar outbox,
 `DELIVERY_FAILED`, watchdog, modo consulta, Fase 8 ou deploy antes da revisão.
 
 ## Restrições ativas
