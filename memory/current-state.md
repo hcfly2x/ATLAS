@@ -76,7 +76,8 @@ ampliação de autonomia.
 - O cutover desse caller está preparado em entrega própria: a decisão pura se
   torna autoritativa, diff vazio é permitido explicitamente e `deny` impede o
   caminho normal antes de commit/PR. O matcher legado permanece como fallback
-  somente se a decisão nova falhar ou tentar ser mais permissiva.
+  somente se a decisão nova falhar ou tentar ser mais permissiva; falha interna
+  nunca herda um `allow` legado.
 - O perfil protegido `atlas` cobre arquivos `.env*` na raiz e em subdiretórios
   com `**/.env*`, de forma equivalente na área semântica `secrets` e em
   `effective_globs`. O caller legado observado na amostra ainda era

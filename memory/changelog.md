@@ -5,6 +5,8 @@
 - A decisão pura de `@atlas/core` passa a ser autoritativa no caller de paths do
   worker, preservando o matcher legado como fallback para falha interna ou
   divergência `MORE_PERMISSIVE`.
+- Falha da decisão nova nunca herda `allow` do legado: match legado ainda exige
+  humano; ausência de match ou falha dupla resulta em `deny`.
 - Diff vazio é tratado explicitamente como `allow`, com hashes canônicos
   estáveis; `deny` interrompe o caminho de sucesso e produz resultado de worker
   falho antes de qualquer commit ou abertura de PR.

@@ -237,7 +237,16 @@ export function evaluateProtectedPaths(
     return evaluation;
   } catch {
     if (authoritativeMatches !== undefined) {
-      const evaluation = resultFromLegacy(authoritativeMatches, "none");
+      const evaluation =
+        authoritativeMatches.length > 0
+          ? resultFromLegacy(authoritativeMatches, "none")
+          : {
+              decision: "deny" as const,
+              divergence: "stricter" as const,
+              matches: conservativeDeniedMatches(changedPaths),
+              reasonCode: "legacy_fallback" as const,
+              source: "legacy_fallback" as const,
+            };
       safelyLog(
         logger,
         evaluatedLog(evaluation, authoritativeDecision, options.executionId, options.taskId),

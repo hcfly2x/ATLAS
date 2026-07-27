@@ -181,6 +181,31 @@ describe("protected-path enforcement caller", () => {
     expect(logs[0]).toMatchObject({ level: "error", source: "legacy_fallback" });
   });
 
+  it("denies when deterministic enforcement throws and legacy would allow", () => {
+    const logs: ProtectedPathEnforcementLog[] = [];
+    const observed = evaluateProtectedPaths(["docs/readme.md"], protectedGlobs, {
+      ...shadowContext,
+      decide: () => {
+        throw new Error("simulated deterministic failure");
+      },
+      log: (entry) => logs.push(entry),
+    });
+
+    expect(observed).toMatchObject({
+      decision: "deny",
+      divergence: "stricter",
+      matches: ["docs/readme.md"],
+      reasonCode: "legacy_fallback",
+      source: "legacy_fallback",
+    });
+    expect(logs[0]).toMatchObject({
+      authoritativeDecision: "allow",
+      decision: "deny",
+      level: "error",
+      source: "legacy_fallback",
+    });
+  });
+
   it("fails safely when the structured logger throws", () => {
     const changedPaths = [".env.local"];
 
