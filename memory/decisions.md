@@ -1,5 +1,14 @@
 # Decisões
 
+- Fase B usa uma outbox persistente por Task e versão; `DELIVERY_FAILED` é
+  status do transporte e nunca estado da Task.
+- O início do despacho é persistido antes da chamada externa. Somente
+  `not_dispatched` comprovado recebe retry limitado; ambiguidade e claim
+  expirado falham sem reenvio automático.
+- Approval de conteúdo e confirmação `DELIVERED` são registros separados. O
+  destino continua derivado exclusivamente de `Task.origin`.
+- ADR-019 permanece Proposto; watchdog/SLA pertence à Fase C.
+
 - Fase A introduz `delivery_mode=answer_only|repository_change` na
   Specification; ausência, valor inválido e ambiguidade preservam
   `repository_change`.

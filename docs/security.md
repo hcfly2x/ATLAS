@@ -62,6 +62,15 @@ nosniff` e `Referrer-Policy: no-referrer`. O token permanece no fragmento do
 navegador e é enviado apenas como header às APIs; nunca entra em query string,
 logs ou repositório.
 
+## Entrega terminal
+
+- o destino da outbox vem somente de `Task.origin`;
+- conteúdo, LLM, Specification e QA nunca fornecem `chat_id`;
+- erro persistido usa código sanitizado, sem prompt, payload, URL de requisição,
+  token ou credencial;
+- tentativa ambígua não é repetida automaticamente;
+- retry limitado existe apenas quando o canal comprova que nada foi despachado.
+
 ## Retenção
 
 - política configurável por classificação de dados;

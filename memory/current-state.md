@@ -12,9 +12,9 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
-A Fase A de `delivery_mode` está autorizada e implementada em branch própria. A
-correção solicitada pela revisão empírica para o classificador lexical foi
-aplicada e aguarda nova revisão. A fase ainda não está integrada nem implantada.
+A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase B de
+entrega durável está implementada em branch própria e aguarda revisão completa;
+Fase C não está autorizada.
 
 ## Implementado
 
@@ -44,6 +44,10 @@ aplicada e aguarda nova revisão. A fase ainda não está integrada nem implanta
   `failure_stage` em falhas. A chave de entrega é persistida antes do envio para
   impedir duplicação após reinício; origens legadas de conversa privada usam o
   `user_id` como chat. Ausência de canal também gera AuditEvent.
+- A entrega terminal usa outbox persistente por Task e versão, separando
+  aprovação do conteúdo de confirmação do transporte. Somente falha
+  comprovadamente anterior ao despacho recebe retry limitado; ambiguidade ou
+  claim expirado resulta em `DELIVERY_FAILED` sem alterar o estado da Task.
 - A direção de longo prazo está registrada como organização autônoma de agentes.
   A única peça estrutural ausente é QA pós-execução; runtime reproduzível e
   recuperação durável devem precedê-la, e ela deve preceder qualquer ampliação
@@ -108,10 +112,13 @@ aplicada e aguarda nova revisão. A fase ainda não está integrada nem implanta
 - Na correção do classificador da Fase A, o corpus adversarial e a propriedade
   afirmativa/negada passam em 26 testes focados; `pnpm validate` também passa,
   incluindo 104 testes do coordinator.
+- Na Fase B, testes unitários cobrem retry limitado, backoff, ambiguidade,
+  crash entre despacho e persistência, idempotência e sanitização; a integração
+  PostgreSQL cobre unicidade, tentativas, confirmação e reconciliação.
 
 ## Decisões vigentes
 
-- ADRs 001–012 aceitos; ADRs 013–017 permanecem Propostos.
+- ADRs 001–012 aceitos; ADRs 013–019 permanecem Propostos.
 - ADR-003 é aplicado com pareceres independentes, supervisor consolidando e no
   máximo duas rodadas.
 - GPT-5.6 Luna é o default configurável dos pareceristas; GPT-5.6 Terra permanece
@@ -122,8 +129,8 @@ aplicada e aguarda nova revisão. A fase ainda não está integrada nem implanta
 - A classificação de `delivery_mode` é conservadora e lexical: formulações
   incomuns podem cair em `repository_change`, mas nunca ampliam o canal de
   entrega; o guard então exige repositório configurado.
-- A entrega terminal continua `at-most-once`: falha após a claim permanece
-  auditada sem retry. Outbox e watchdog seguem fora da Fase A.
+- `DELIVERY_FAILED` ainda não possui watchdog/SLA nem superfície própria na
+  dashboard; essa observabilidade pertence à Fase C.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -140,17 +147,19 @@ aplicada e aguarda nova revisão. A fase ainda não está integrada nem implanta
 
 ## Próximo passo
 
-Revisar empiricamente a correção do classificador da Fase A, especialmente o
-corpus de imperativos negados, o planejamento para implementação futura, a
-precedência de mudança efetiva e o default conservador. Não iniciar outbox,
-`DELIVERY_FAILED`, watchdog, modo consulta, Fase 8 ou deploy antes da revisão.
+Revisar empiricamente a Fase B, incluindo migração aditiva, idempotência,
+destino derivado da origem, retry apenas sob não-despacho comprovado e
+reconciliação ambígua fail-closed. Não iniciar a Fase C antes da revisão.
 
 ## Restrições ativas
 
 - não iniciar a Fase 8;
 - não iniciar a Fase 8 ou ampliação de autonomia;
-- não iniciar novos blocos de estabilização além do QA pós-execução em revisão;
+- não iniciar trabalho além das fases de comandos e entrega durável
+  explicitamente autorizadas;
+- não iniciar watchdog/SLA ou exposição de `DELIVERY_FAILED` antes da revisão
+  completa da Fase B;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–018;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–019;
 - não executar deploy nem integrar credenciais reais.

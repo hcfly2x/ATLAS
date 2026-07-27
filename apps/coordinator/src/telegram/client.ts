@@ -9,6 +9,18 @@ export interface TelegramClient {
   sendActivity(chatId: bigint): Promise<void>;
 }
 
+export type TelegramDispatchOutcome = "not_dispatched" | "ambiguous";
+
+export class TelegramDispatchError extends Error {
+  constructor(
+    readonly outcome: TelegramDispatchOutcome,
+    readonly safeCode: string,
+  ) {
+    super(safeCode);
+    this.name = "TelegramDispatchError";
+  }
+}
+
 function replyMarkup(
   buttons: readonly (readonly TelegramButton[])[] | undefined,
 ): { inline_keyboard: { callback_data: string; text: string }[][] } | undefined {
@@ -71,15 +83,20 @@ export class TelegramBotApiClient implements TelegramClient {
       });
     } catch {
       // Do not retain the request URL in the error: it contains the bot token.
-      throw new Error(`Telegram API ${method} transport failed`);
+      throw new TelegramDispatchError("ambiguous", "telegram_transport_outcome_ambiguous");
     }
-    const payload = (await response.json()) as {
-      description?: string;
-      ok?: boolean;
-      result?: unknown;
-    };
+    let payload: { description?: string; ok?: boolean; result?: unknown };
+    try {
+      payload = (await response.json()) as {
+        description?: string;
+        ok?: boolean;
+        result?: unknown;
+      };
+    } catch {
+      throw new TelegramDispatchError("ambiguous", "telegram_response_outcome_ambiguous");
+    }
     if (!response.ok || payload.ok !== true) {
-      throw new Error(payload.description ?? `Telegram API ${method} failed`);
+      throw new TelegramDispatchError("not_dispatched", "telegram_api_rejected_before_dispatch");
     }
     return payload.result;
   }

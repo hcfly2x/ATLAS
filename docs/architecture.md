@@ -66,6 +66,12 @@ de conteúdo pelo QA e finaliza sem artefato Git. O texto aprovado segue pelo
 result-publisher existente, sempre para `Task.origin`. Antes da fila, um guard
 rejeita contratos sem destino autorizado.
 
+O result-publisher persiste uma outbox por Task e versão antes do despacho. Um
+reconciliador confirma `DELIVERED`, agenda backoff limitado somente para falha
+comprovadamente anterior ao envio e marca desfechos ambíguos como
+`DELIVERY_FAILED`. Esses estados pertencem à entrega e não alteram a máquina de
+estados da Task.
+
 Quando a origem é Telegram, o coordinator publica de forma idempotente o resumo
 do QA, as ações requeridas e o próximo passo no chat codificado em `Task.origin`.
 Essa publicação não cria Specification, Execution ou retry funcional.

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Fase B: outbox de entrega durável
+
+- O resultado terminal passa por uma outbox persistente, única por Task e
+  versão, com destino derivado somente de `Task.origin`.
+- Cada tentativa é registrada antes da chamada ao Telegram. Falha comprovada
+  antes do despacho recebe backoff limitado; desfecho ambíguo ou claim expirado
+  termina em `DELIVERY_FAILED` sem reenvio.
+- Approval do conteúdo e confirmação `DELIVERED` permanecem registros
+  distintos, com AuditEvents idempotentes por tentativa e desfecho.
+- A migração é aditiva e preserva os campos legados para rollback sem
+  duplicação. Máquina de estados, finalização, lease, fencing e retry do
+  trabalho permanecem inalterados.
+- ADR-019 foi criado como Proposto. Watchdog/SLA e dashboard da falha ficam para
+  a Fase C.
+
 ## Unreleased — Fase A: delivery mode
 
 - Specification passa a persistir `delivery_mode=answer_only|repository_change`
