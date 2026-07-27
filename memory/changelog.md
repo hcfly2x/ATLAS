@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — cutover do caller de paths protegidos
+
+- A decisão pura de `@atlas/core` passa a ser autoritativa no caller de paths do
+  worker, preservando o matcher legado como fallback para falha interna ou
+  divergência `MORE_PERMISSIVE`.
+- Falha da decisão nova nunca herda `allow` do legado: match legado ainda exige
+  humano; ausência de match ou falha dupla resulta em `deny`.
+- Diff vazio é tratado explicitamente como `allow`, com hashes canônicos
+  estáveis; `deny` interrompe o caminho de sucesso e produz resultado de worker
+  falho antes de qualquer commit ou abertura de PR.
+- O corpus adversarial cobre caixa, traversal interno/externo, path absoluto,
+  separador não POSIX, duplicatas, fallback e falha dupla fail-closed.
+- A amostra real que habilitou esta entrega foi versionada sem conteúdo de
+  usuário ou secrets. Caller de comandos, AuditEvent, políticas e estados
+  permanecem inalterados.
+
 ## Unreleased — cobertura de `.env*` aninhado
 
 - O perfil protegido `atlas` substitui `.env*` por `**/.env*` na área semântica

@@ -522,6 +522,96 @@ describe("WorkerRunner", () => {
     expect(cleaned).toBe(true);
   });
 
+  it("fails before finalization when deterministic path enforcement denies the diff", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-path-denied-"));
+    temporaryDirectories.push(root);
+    let submitted: Awaited<ReturnType<WorkerRunner["execute"]>> | undefined;
+    let cleaned = false;
+    let finalized = false;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: () => {
+          finalized = true;
+          return Promise.resolve();
+        },
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: false,
+            terminalFailure: false,
+          }),
+        submitResult: (_workerId, _assignment, result) => {
+          submitted = result;
+          return Promise.resolve({ replayed: false, state: "FAILED" });
+        },
+      },
+      codex: {
+        execute: () =>
+          Promise.resolve({
+            exitCode: 0,
+            summary: { pendingItems: [], risks: [], summary: "done" },
+          }),
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: ["../.env.local"],
+            content: "unsafe diff",
+            deletions: 0,
+            filesChanged: 1,
+            insertions: 1,
+          }),
+        finalize: () => {
+          finalized = true;
+          return Promise.resolve({
+            commitSha: "must-not-finalize",
+            pullRequestUrl: "https://example.test/must-not-finalize",
+          });
+        },
+        removeWorktree: () => {
+          cleaned = true;
+          return Promise.resolve();
+        },
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 10,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    const result = await runner.execute(assignment(root));
+
+    expect(result).toMatchObject({
+      failure_stage: "worker",
+      protected_path_matches: ["../.env.local"],
+      status: "failed",
+    });
+    expect(submitted).toMatchObject({
+      error: {
+        code: "WORKER_EXECUTION_FAILED",
+        message: "Protected path enforcement denied: path_traversal",
+      },
+      status: "failed",
+    });
+    expect(finalized).toBe(false);
+    expect(cleaned).toBe(true);
+  });
+
   it("turns cooperative cancellation into a cancelled result and cleanup", async () => {
     const root = await mkdtemp(join(tmpdir(), "atlas-runner-cancel-"));
     temporaryDirectories.push(root);

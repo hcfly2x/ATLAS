@@ -71,14 +71,18 @@ ampliação de autonomia.
   dados/rotas somente leitura. Ainda não está habilitada nem autoriza escrita de
   configuração, agentes ou times.
 - O primeiro caller de paths protegidos executa a decisão pura em modo shadow.
-  `findProtectedPathMatches` continua autoritativo e produz o mesmo
-  `protected_path_matches`; o shadow apenas registra decisão, hashes e se a
-  divergência é igual, mais estrita ou indevidamente mais permissiva. Falha do
-  shadow não afeta execução, finalização ou lease.
+  A amostra real versionada concluiu uma execução com `allow → allow`,
+  divergência `none` e sem perda de lease ou `MORE_PERMISSIVE`.
+- O cutover desse caller está preparado em entrega própria: a decisão pura se
+  torna autoritativa, diff vazio é permitido explicitamente e `deny` impede o
+  caminho normal antes de commit/PR. O matcher legado permanece como fallback
+  somente se a decisão nova falhar ou tentar ser mais permissiva; falha interna
+  nunca herda um `allow` legado.
 - O perfil protegido `atlas` cobre arquivos `.env*` na raiz e em subdiretórios
   com `**/.env*`, de forma equivalente na área semântica `secrets` e em
-  `effective_globs`. O caller legado permanece case-sensitive até cutover
-  próprio.
+  `effective_globs`. O caller legado observado na amostra ainda era
+  case-sensitive; esta entrega de cutover passa a usar o matching
+  case-insensitive da decisão pura quando for integrada.
 - A decisão pura de enforcement está integrada em `@atlas/core`, com
   `allow|deny|require_human`, precedência fail-closed, matching protegido
   case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
@@ -124,10 +128,9 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar a correção protegida de `**/.env*` e coletar a amostra real versionada
-do modo shadow. O cutover só pode ser considerado depois de comprovar zero
-`MORE_PERMISSIVE`; o caller de comandos e AuditEvent continuam entregas
-separadas. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar empiricamente o cutover do caller de paths. Depois de CI verde e revisão
+completa, o merge continua humano. O caller de comandos e AuditEvent permanecem
+entregas separadas e posteriores. Não iniciar a Fase 8 ou ampliar autonomia.
 
 ## Restrições ativas
 
