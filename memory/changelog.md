@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — decisão pura de enforcement
+
+- `@atlas/core` passa a expor decisão pura `allow|deny|require_human` com códigos
+  estáveis, evidência normalizada e hashes via `canonicalPayloadHash`.
+- Paths absolutos, traversal externo e separadores não POSIX falham fechados;
+  globs protegidos são avaliados sem distinção de maiúsculas/minúsculas.
+- A entrada é ordenada e deduplicada deterministicamente, preservando os paths
+  originais como evidência.
+- Nenhum caller, AuditEvent, política, nível de autonomia ou estado foi alterado.
+
 ## Unreleased — caracterização do enforcement atual
 
 - Testes registram repetibilidade e imutabilidade da autorização de comandos,

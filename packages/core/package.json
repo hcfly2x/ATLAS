@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@atlas/shared": "workspace:*"
+    "@atlas/shared": "workspace:*",
+    "minimatch": "^10.2.5"
   }
 }

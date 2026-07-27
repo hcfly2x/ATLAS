@@ -1,5 +1,7 @@
 import type { AuditActor, TaskState } from "@atlas/shared";
 
+export * from "./enforcement.js";
+
 export interface TaskSnapshot {
   readonly id: string;
   readonly projectId: string;

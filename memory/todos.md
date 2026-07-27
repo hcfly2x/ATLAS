@@ -12,12 +12,13 @@
 
 ## Enforcement determinístico — escopo definido
 
-- Revisar os testes de caracterização da allowlist e da proteção de paths.
-- Na extração da decisão pura, tratar explicitamente normalização com
-  `path.posix`, traversal que escape da raiz, separadores não POSIX e
-  deduplicação sem perder evidência.
-- Cobrir o caso combinado: comando permitido + path protegido deve resultar em
-  escalada humana antes de qualquer commit/PR.
+- Revisar a decisão pura antes de migrar qualquer caller.
+- Planejar resolução física de symlinks dentro da worktree em entrega própria;
+  a decisão atual permanece lexical e não pode considerar symlink seguro por
+  ausência de match.
+- Migrar um caller por vez, comparando a nova decisão com os testes de
+  caracterização antes de remover lógica existente.
+- Persistir AuditEvent somente depois da equivalência dos callers.
 - Definir a amostra versionada que comprovará hashes idênticos para a mesma
   entrada e configuração.
 

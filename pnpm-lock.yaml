@@ -123,6 +123,9 @@ importers:
       '@atlas/shared':
         specifier: workspace:*
         version: link:../shared
+      minimatch:
+        specifier: ^10.2.5
+        version: 10.2.5
 
   packages/git-adapter: {}
 
