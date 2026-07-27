@@ -2,7 +2,10 @@
 
 ## Status
 
-Escopo documental definido. Implementação não autorizada por este epic.
+Implementação incremental em andamento por autorizações próprias: decisão pura,
+caracterização, shadow e correção de `.env*` estão integrados; o cutover do
+primeiro caller de paths está em revisão. Caller de comandos e AuditEvent
+continuam entregas posteriores e não autorizadas por este epic.
 
 ## Objetivo
 

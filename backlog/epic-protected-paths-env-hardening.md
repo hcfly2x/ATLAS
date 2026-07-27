@@ -2,9 +2,8 @@
 
 ## Status
 
-Implementação autorizada explicitamente em 27/07/2026 e em revisão. O merge da
-alteração de `.atlas/protected-paths.yaml` continua sujeito à aprovação humana
-do ADR-010.
+Implementado, revisado e integrado na `main` pelo PR #35 em 27/07/2026, após
+aprovação humana explícita exigida pelo ADR-010.
 
 ## Problema comprovado
 

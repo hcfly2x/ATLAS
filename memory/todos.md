@@ -12,16 +12,9 @@
 
 ## Enforcement determinístico — escopo definido
 
-- Revisar o primeiro caller em modo shadow antes de qualquer cutover.
-- Executar uma amostra real versionada e bloquear o cutover se houver
-  `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
-- Autorizar o cutover do caller de paths em fase própria, preservando corpus e
-  fallback até a revisão completa.
+- Revisar empiricamente o cutover do caller de paths, preservando o corpus e o
+  fallback legado até a revisão completa.
 - Migrar o caller de comandos somente depois, em entrega independente.
-- Revisar e aprovar separadamente o merge da substituição de `.env*` por
-  `**/.env*` na área `secrets` e em `effective_globs`.
-- Manter explícito que o caller legado é case-sensitive até sua migração para a
-  decisão pura; não misturar essa migração com a correção de configuração.
 - Planejar resolução física de symlinks dentro da worktree em entrega própria;
   a decisão atual permanece lexical e não pode considerar symlink seguro por
   ausência de match.

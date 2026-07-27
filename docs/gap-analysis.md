@@ -50,9 +50,9 @@ existentes e ser tratados nos blocos de estabilização planejados:
   paths protegidos do ADR-010, que já formam a base do futuro Policy Engine/Tool
   Gateway. Não duplicar essas fronteiras. A decisão pura está integrada; a
   migração de callers permanece incremental. O gap de cobertura de `.env*` em
-  subdiretórios está isolado em
-  `backlog/epic-protected-paths-env-hardening.md`, sem alteração de política
-  autorizada por esse documento.
+  subdiretórios foi corrigido nos dois pontos equivalentes do perfil `atlas`,
+  após aprovação humana própria do ADR-010; o histórico e os critérios estão em
+  `backlog/epic-protected-paths-env-hardening.md`.
 - **Observabilidade:** estender `AuditEvent` com `correlation_id`, logs e o
   dashboard somente-leitura, que já são a base do Atlas Trace. Não criar uma
   trilha paralela.

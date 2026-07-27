@@ -22,7 +22,11 @@ import {
 } from "./allowlist.js";
 import type { WorkerCoordinatorClient } from "./client.js";
 import { runPreflight } from "./preflight.js";
-import { findProtectedPathMatchesWithShadow } from "./protected-path-shadow.js";
+import {
+  assertProtectedPathEnforcementAllowsResult,
+  evaluateProtectedPaths,
+  type ProtectedPathEvaluation,
+} from "./protected-path-enforcement.js";
 
 export interface WorkerApi {
   appendLog: WorkerCoordinatorClient["appendLog"];
@@ -163,6 +167,7 @@ export class WorkerRunner {
       summary: string;
     }[] = [];
     let result: WorkerResult | undefined;
+    let protectedPathEvaluation: ProtectedPathEvaluation | undefined;
     let worktreeCreated = false;
     const metadataDirectory = await mkdtemp(join(tmpdir(), "atlas-worker-"));
     const runRuntimePhase = async (phase: "bootstrap" | "validate"): Promise<void> => {
@@ -282,7 +287,7 @@ export class WorkerRunner {
       }
       await runRuntimePhase("validate");
       const diff = await this.options.git.diff(worktreePath);
-      const protectedMatches = findProtectedPathMatchesWithShadow(
+      protectedPathEvaluation = evaluateProtectedPaths(
         diff.changedPaths,
         assignment.protected_globs,
         {
@@ -290,6 +295,7 @@ export class WorkerRunner {
           taskId: assignment.task_id,
         },
       );
+      assertProtectedPathEnforcementAllowsResult(protectedPathEvaluation);
       // Streaming callbacks may finish out of order even though each receives a
       // monotonically increasing sequence. The result contract requires its
       // references to be ordered, while the database remains the authority for
@@ -319,7 +325,7 @@ export class WorkerRunner {
         log_chunks: orderedLogReferences,
         logs_truncated: logsTruncated,
         pending_items: [...codex.summary.pendingItems],
-        protected_path_matches: [...protectedMatches],
+        protected_path_matches: [...protectedPathEvaluation.matches],
         redaction_applied: true,
         risks: [...codex.summary.risks],
         sequence: 1,
@@ -406,10 +412,13 @@ export class WorkerRunner {
         logs_truncated: logsTruncated,
         pending_items: [],
         protected_path_matches: [
-          ...findProtectedPathMatchesWithShadow(diff.changedPaths, assignment.protected_globs, {
-            executionId: assignment.execution_id,
-            taskId: assignment.task_id,
-          }),
+          ...(
+            protectedPathEvaluation ??
+            evaluateProtectedPaths(diff.changedPaths, assignment.protected_globs, {
+              executionId: assignment.execution_id,
+              taskId: assignment.task_id,
+            })
+          ).matches,
         ],
         redaction_applied: true,
         risks: [],
