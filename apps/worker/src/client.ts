@@ -113,9 +113,9 @@ export class WorkerCoordinatorClient {
     workerId: string,
     assignment: WorkerAssignment,
     input: {
-      commitSha: string;
+      commitSha: string | null;
       idempotencyKey: string;
-      pullRequestUrl: string;
+      pullRequestUrl: string | null;
     },
   ): Promise<void> {
     return this.requestVoid(`/internal/worker/${workerId}/finalize`, {
@@ -128,7 +128,7 @@ export class WorkerCoordinatorClient {
 
   private async request<Output>(
     path: string,
-    schema: z.ZodType<Output>,
+    schema: z.ZodType<Output, z.ZodTypeDef, unknown>,
     body: unknown,
   ): Promise<Output> {
     const response = await fetch(new URL(path, this.baseUrl), {

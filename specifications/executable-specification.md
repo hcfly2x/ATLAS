@@ -6,6 +6,8 @@
 - version
 - specification_hash
 - risk_level
+- delivery_mode (`answer_only|repository_change`; ausência/valor inválido
+  preserva `repository_change`)
 
 ## Objetivo
 
@@ -29,3 +31,7 @@
 ## Ações que exigem aprovação
 
 ## Formato esperado da entrega
+
+`answer_only` admite diff vazio e entrega o texto aprovado apenas à origem da
+Task. `repository_change` exige um repositório absoluto configurado e preserva
+o fluxo de commit/pull request.

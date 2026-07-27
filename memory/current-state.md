@@ -12,6 +12,10 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
+A Fase A de `delivery_mode` está autorizada e implementada em branch própria. A
+correção solicitada pela revisão empírica para o classificador lexical foi
+aplicada e aguarda nova revisão. A fase ainda não está integrada nem implantada.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
@@ -83,6 +87,10 @@ ampliação de autonomia.
   `allow|deny|require_human`, precedência fail-closed, matching protegido
   case-insensitive, evidência normalizada e hashes canônicos. Nenhum AuditEvent
   novo foi introduzido.
+- O classificador de `delivery_mode` usa uma única fonte de formas verbais para
+  detectar mudança e neutralizar negações. Entregáveis textuais com mudança
+  apenas futura usam `answer_only`; mudança efetiva não negada e ambiguidade
+  continuam em `repository_change`.
 
 ## Testes e validações
 
@@ -97,6 +105,9 @@ ampliação de autonomia.
 - No Bloco 3, testes unitários e typecheck do coordinator passaram; os cenários
   de recuperação com PostgreSQL fazem parte de `test:integration` e serão
   executados pela CI em PostgreSQL limpo.
+- Na correção do classificador da Fase A, o corpus adversarial e a propriedade
+  afirmativa/negada passam em 26 testes focados; `pnpm validate` também passa,
+  incluindo 104 testes do coordinator.
 
 ## Decisões vigentes
 
@@ -108,6 +119,11 @@ ampliação de autonomia.
 
 ## Riscos remanescentes
 
+- A classificação de `delivery_mode` é conservadora e lexical: formulações
+  incomuns podem cair em `repository_change`, mas nunca ampliam o canal de
+  entrega; o guard então exige repositório configurado.
+- A entrega terminal continua `at-most-once`: falha após a claim permanece
+  auditada sem retry. Outbox e watchdog seguem fora da Fase A.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -124,10 +140,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar a correção protegida de `**/.env*` e coletar a amostra real versionada
-do modo shadow. O cutover só pode ser considerado depois de comprovar zero
-`MORE_PERMISSIVE`; o caller de comandos e AuditEvent continuam entregas
-separadas. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar empiricamente a correção do classificador da Fase A, especialmente o
+corpus de imperativos negados, o planejamento para implementação futura, a
+precedência de mudança efetiva e o default conservador. Não iniciar outbox,
+`DELIVERY_FAILED`, watchdog, modo consulta, Fase 8 ou deploy antes da revisão.
 
 ## Restrições ativas
 
@@ -136,5 +152,5 @@ separadas. Não iniciar a Fase 8 ou ampliar autonomia.
 - não iniciar novos blocos de estabilização além do QA pós-execução em revisão;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–018;
 - não executar deploy nem integrar credenciais reais.

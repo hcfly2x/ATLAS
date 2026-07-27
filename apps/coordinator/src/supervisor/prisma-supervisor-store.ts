@@ -5,6 +5,7 @@ import {
   ApprovalTargetType,
   ApprovalType,
   Prisma,
+  SpecificationDeliveryMode,
   TaskComplexity,
   TaskState,
   type PrismaClient,
@@ -66,7 +67,11 @@ export class PrismaSupervisorStore implements SupervisorStore {
   async getTask(taskId: string): Promise<SupervisionTask | undefined> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
-      include: { project: { select: { allowedCommands: true, autonomyLevel: true } } },
+      include: {
+        project: {
+          select: { allowedCommands: true, autonomyLevel: true, repository: true },
+        },
+      },
     });
     if (task === null) {
       return undefined;
@@ -77,7 +82,9 @@ export class PrismaSupervisorStore implements SupervisorStore {
         .parse(task.project.allowedCommands)
         .map(({ args, executable }) => [executable, ...args].join(" ")),
       autonomyLevel: task.project.autonomyLevel,
+      origin: task.origin,
       originalMessage: task.originalMessage,
+      repositoryPath: task.project.repository,
     };
   }
 
@@ -332,6 +339,10 @@ export class PrismaSupervisorStore implements SupervisorStore {
     return this.prisma.$transaction(async (transaction) => {
       const specification = await transaction.specification.create({
         data: {
+          deliveryMode:
+            input.payload.delivery_mode === "answer_only"
+              ? SpecificationDeliveryMode.ANSWER_ONLY
+              : SpecificationDeliveryMode.REPOSITORY_CHANGE,
           payload: json(input.payload),
           payloadHash: input.payloadHash,
           taskId: input.taskId,

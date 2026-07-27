@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Fase A: delivery mode
+
+- Specification passa a persistir `delivery_mode=answer_only|repository_change`
+  com migração aditiva e default legado `repository_change`.
+- O supervisor classifica planejamento/análise sem mudança como `answer_only`,
+  mantém pedidos de alteração e ambiguidades em `repository_change` e rejeita
+  contratos sem destino antes da fila.
+- O classificador deriva detecção e neutralização de negações do mesmo léxico;
+  imperativos negados e implementação citada como objetivo futuro de um
+  entregável textual não são tratados como mudança efetiva.
+- QA aceita diff vazio em `answer_only`; o worker finaliza sem commit/PR e o
+  result-publisher entrega o texto aprovado somente ao chat de `Task.origin`,
+  com chave por Task, versão e estado.
+- ADR-018 foi criado como Proposto. Máquina de estados, autonomia,
+  `always_human`, enforcement e `.atlas/**` permanecem inalterados.
+
 ## Unreleased — cobertura de `.env*` aninhado
 
 - O perfil protegido `atlas` substitui `.env*` por `**/.env*` na área semântica

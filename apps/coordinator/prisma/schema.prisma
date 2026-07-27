@@ -111,6 +111,11 @@ enum PostExecutionReviewStatus {
   FAILED
 }
 
+enum SpecificationDeliveryMode {
+  ANSWER_ONLY
+  REPOSITORY_CHANGE
+}
+
 model Project {
   id                    String                 @id
   name                  String
@@ -207,6 +212,7 @@ model Specification {
   id                   String                @id @default(uuid())
   taskId               String                @map("task_id")
   version              Int
+  deliveryMode         SpecificationDeliveryMode @default(REPOSITORY_CHANGE) @map("delivery_mode")
   payload              Json
   payloadHash          String                @map("payload_hash")
   createdAt            DateTime              @default(now()) @map("created_at")

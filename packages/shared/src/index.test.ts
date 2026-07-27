@@ -6,6 +6,7 @@ import {
   createStructuredLog,
   createWorkerResult,
   divergenceAnalysisSchema,
+  executableSpecificationPayloadSchema,
   specialistOpinionSchema,
   workerRuntimeSchema,
   workerResultSchema,
@@ -55,6 +56,53 @@ describe("canonicalPayloadHash", () => {
   it("rejects values outside the JSON data model", () => {
     expect(() => canonicalPayloadHash({ invalid: undefined })).toThrow(TypeError);
     expect(() => canonicalPayloadHash({ invalid: Number.NaN })).toThrow(TypeError);
+  });
+});
+
+describe("Specification delivery mode", () => {
+  it("loads a legacy payload without delivery_mode as repository_change", () => {
+    expect(
+      executableSpecificationPayloadSchema.parse({
+        acceptance_criteria: ["Legacy behavior is preserved"],
+        allowed_commands: [],
+        approval_required_for: [],
+        authorized_scope: ["docs/**"],
+        constraints: [],
+        context: [],
+        expected_delivery: "document",
+        implementation_strategy: ["write the document"],
+        objective: "Legacy specification",
+        out_of_scope: [],
+        project_id: "atlas",
+        required_tests: ["review"],
+        risk_level: "moderate",
+        task_id: "10000000-0000-4000-8000-000000000001",
+        version: 1,
+      }).delivery_mode,
+    ).toBe("repository_change");
+  });
+
+  it("fails safely to repository_change for an invalid delivery_mode", () => {
+    expect(
+      executableSpecificationPayloadSchema.parse({
+        acceptance_criteria: ["Invalid mode cannot widen delivery"],
+        allowed_commands: [],
+        approval_required_for: [],
+        authorized_scope: ["docs/**"],
+        constraints: [],
+        context: [],
+        delivery_mode: "send_anywhere",
+        expected_delivery: "document",
+        implementation_strategy: ["write the document"],
+        objective: "Invalid specification",
+        out_of_scope: [],
+        project_id: "atlas",
+        required_tests: ["review"],
+        risk_level: "moderate",
+        task_id: "10000000-0000-4000-8000-000000000001",
+        version: 1,
+      }).delivery_mode,
+    ).toBe("repository_change");
   });
 });
 

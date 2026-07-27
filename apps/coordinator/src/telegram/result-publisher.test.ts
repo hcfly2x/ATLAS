@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TelegramClient } from "./client.js";
 import {
   TelegramResultPublisher,
+  telegramResultDeliveryKey,
   type TelegramResultCandidate,
   type TelegramResultStore,
 } from "./result-publisher.js";
@@ -60,12 +61,14 @@ class ResultClient implements TelegramClient {
 function candidate(overrides: Partial<TelegramResultCandidate> = {}): TelegramResultCandidate {
   return {
     changedPaths: ["docs/result.md"],
+    deliveryMode: "repository_change",
     origin: "telegram:42:100",
     projectId: "atlas",
     pullRequestUrl: "https://github.com/hcfly2x/ATLAS/pull/99",
     state: "COMPLETED",
     summary: "Documento criado.",
     taskId,
+    taskVersion: 7,
     ...overrides,
   };
 }
@@ -86,6 +89,15 @@ describe("TelegramResultPublisher", () => {
     expect(client.messages[0]?.responses[0]?.text).toContain("docs/result.md");
     expect(client.messages[0]?.responses[0]?.text).toContain("/pull/99");
     expect(store.sent).toEqual([taskId]);
+  });
+
+  it("uses task version in the at-most-once delivery boundary", () => {
+    expect(telegramResultDeliveryKey(candidate({ taskVersion: 8 }))).toBe(
+      `telegram:result:${taskId}:v8:COMPLETED`,
+    );
+    expect(telegramResultDeliveryKey(candidate({ taskVersion: 9 }))).not.toBe(
+      telegramResultDeliveryKey(candidate({ taskVersion: 8 })),
+    );
   });
 
   it("delivers a legacy private Telegram origin to its user id as chat id", async () => {
@@ -111,6 +123,31 @@ describe("TelegramResultPublisher", () => {
 
     expect(client.messages[0]?.chatId).toBe(-100500n);
     expect(store.destinations).toEqual([-100500n]);
+  });
+
+  it("delivers answer_only text without repository artifacts or raw task payloads", async () => {
+    const store = new ResultStore();
+    const client = new ResultClient();
+    const answerCandidate: TelegramResultCandidate = {
+      changedPaths: [],
+      deliveryMode: "answer_only",
+      origin: "telegram:42:100",
+      projectId: "atlas",
+      state: "COMPLETED",
+      summary: "Planejamento aprovado.",
+      taskId,
+      taskVersion: 7,
+    };
+    store.candidates = [answerCandidate];
+
+    await new TelegramResultPublisher(store, client).poll();
+
+    const text = client.messages[0]?.responses[0]?.text ?? "";
+    expect(text).toContain("Resposta da Task");
+    expect(text).toContain("Planejamento aprovado.");
+    expect(text).not.toContain("PR:");
+    expect(text).not.toContain("prompt");
+    expect(text).not.toContain("payload");
   });
 
   it("does not send a non-Telegram task and records the missing channel", async () => {

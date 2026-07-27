@@ -391,9 +391,9 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       const body = leaseSchema
         .omit({ idempotencyKey: true })
         .extend({
-          commitSha: z.string().min(7),
+          commitSha: z.string().min(7).nullable(),
           idempotencyKey: z.string().min(1),
-          pullRequestUrl: z.string().url(),
+          pullRequestUrl: z.string().url().nullable(),
         })
         .parse(request.body);
       return workerService.finalize({

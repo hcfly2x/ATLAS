@@ -58,6 +58,14 @@ independente antes da finalização. Ele reutiliza `AgentRuntime`, `Execution`,
 canal de entrega ou máquina de estados. Parecer aprovado libera a finalização
 somente se a Approval de resultado já for válida; parecer rejeitado ou
 indisponível retorna a demanda para retrabalho versionado.
+
+A Specification explicita `delivery_mode`. Planejamentos, análises e respostas
+sem mudança solicitada usam `answer_only`; pedidos de alteração e casos
+ambíguos usam `repository_change`. O primeiro admite diff vazio após validação
+de conteúdo pelo QA e finaliza sem artefato Git. O texto aprovado segue pelo
+result-publisher existente, sempre para `Task.origin`. Antes da fila, um guard
+rejeita contratos sem destino autorizado.
+
 Quando a origem é Telegram, o coordinator publica de forma idempotente o resumo
 do QA, as ações requeridas e o próximo passo no chat codificado em `Task.origin`.
 Essa publicação não cria Specification, Execution ou retry funcional.

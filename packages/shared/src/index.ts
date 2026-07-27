@@ -120,9 +120,13 @@ export const divergenceAnalysisSchema = z.object({
 });
 export type DivergenceAnalysis = z.infer<typeof divergenceAnalysisSchema>;
 
+export const specificationDeliveryModeSchema = z.enum(["answer_only", "repository_change"]);
+export type SpecificationDeliveryMode = z.infer<typeof specificationDeliveryModeSchema>;
+
 export const specificationContentSchema = z.object({
   objective: z.string().min(1),
   context: z.array(z.string()),
+  delivery_mode: specificationDeliveryModeSchema,
   authorized_scope: z.array(z.string()),
   out_of_scope: z.array(z.string()),
   implementation_strategy: z.array(z.string()),
@@ -136,6 +140,7 @@ export const specificationContentSchema = z.object({
 export type SpecificationContent = z.infer<typeof specificationContentSchema>;
 
 export const executableSpecificationPayloadSchema = specificationContentSchema.extend({
+  delivery_mode: specificationDeliveryModeSchema.catch("repository_change"),
   task_id: z.string().uuid(),
   project_id: z.string().min(1),
   version: z.number().int().positive(),

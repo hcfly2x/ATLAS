@@ -24,11 +24,14 @@ import {
 } from "@atlas/shared";
 
 import type { CouncilConfig } from "./council-config.js";
+import { assertSpecificationDelivery, classifyDeliveryMode } from "./delivery-contract.js";
 
 export interface SupervisionTask extends TaskSnapshot {
   readonly allowedCommands: readonly string[];
   readonly autonomyLevel: number;
+  readonly origin: string;
   readonly originalMessage: string;
+  readonly repositoryPath: string | null;
 }
 
 export interface LlmCallRecord {
@@ -326,7 +329,7 @@ export class SupervisorService {
           project_memory_truncated: memoryContext?.truncated ?? false,
         }),
         instructions:
-          "Consolidate the independent specialist opinions without majority voting. Resolve material divergences, keep scope bounded, use authorized_scope semantics, and produce one executable specification with tests, commands, expected delivery, and policy actions requiring approval. allowed_commands must contain only exact entries from project_allowed_commands; permissions are configuration and must never be invented or expanded.",
+          "Consolidate the independent specialist opinions without majority voting. Resolve material divergences, keep scope bounded, use authorized_scope semantics, and produce one executable specification with tests, commands, expected delivery, delivery_mode, and policy actions requiring approval. Use answer_only only for planning, analysis, or a textual answer that requests no repository change; use repository_change whenever code or files must change or the intent is ambiguous. allowed_commands must contain only exact entries from project_allowed_commands; permissions are configuration and must never be invented or expanded.",
         model: OPENAI_MODELS.supervisor,
         outputSchema: specificationContentSchema,
         outputSchemaName: "executable_specification_content",
@@ -340,9 +343,19 @@ export class SupervisorService {
       if (unauthorizedCommands.length > 0) {
         throw new SpecificationCommandOutsideAllowlistError(unauthorizedCommands);
       }
+      const deliveryMode = classifyDeliveryMode({
+        normalized,
+        originalMessage: task.originalMessage,
+      });
+      assertSpecificationDelivery({
+        deliveryMode,
+        origin: task.origin,
+        repositoryPath: task.repositoryPath,
+      });
       const version = await this.options.store.nextSpecificationVersion(taskId);
       const payload = executableSpecificationPayloadSchema.parse({
         ...content,
+        delivery_mode: deliveryMode,
         project_id: task.projectId,
         risk_level: classification.complexity,
         task_id: taskId,
