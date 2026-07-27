@@ -13,12 +13,14 @@ import {
 } from "@prisma/client";
 import {
   canonicalPayloadHash,
+  executableSpecificationPayloadSchema,
   postExecutionReviewSchema,
   workerResultSchema,
   type PostExecutionReview,
 } from "@atlas/shared";
 
 import type { CouncilAgent, CouncilConfig } from "../supervisor/council-config.js";
+import { telegramResultDestination } from "../telegram/origin.js";
 
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -26,6 +28,14 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 function monthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+export function postExecutionReviewInstructions(answerOnly: boolean): string {
+  return `You are the post-execution quality gate. Review the worker result against the immutable Specification. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
+    answerOnly
+      ? "This is answer_only: an empty diff is valid and must not be rejected for lack of a repository artifact. Validate the textual summary against the acceptance criteria and the authorized delivery contract."
+      : "This is repository_change: preserve the existing diff and artifact review behavior."
+  } Do not implement code, alter scope, send messages or authorize merge/deploy.`;
 }
 
 export class PostExecutionQaService {
@@ -129,6 +139,15 @@ export class PostExecutionQaService {
 
     try {
       const result = workerResultSchema.parse(execution.resultPayload);
+      const specification = executableSpecificationPayloadSchema.parse(
+        execution.specification.payload,
+      );
+      const answerOnly = specification.delivery_mode === "answer_only";
+      const destinationAuthorized =
+        !answerOnly || telegramResultDestination(execution.task.origin) !== undefined;
+      if (!destinationAuthorized) {
+        throw new Error("answer_only_destination_is_not_authorized");
+      }
       const response = await this.options.runtime.run({
         agentId: this.reviewer.id,
         input: JSON.stringify(
@@ -142,12 +161,16 @@ export class PostExecutionQaService {
               summary: result.summary,
               tests: result.tests,
             },
-            specification: execution.specification.payload,
+            delivery_contract: {
+              destination_authorized: destinationAuthorized,
+              mode: specification.delivery_mode,
+            },
+            specification,
           },
           null,
           2,
         ),
-        instructions: `${this.reviewer.instructions}\n\nYou are the post-execution quality gate. Review the worker result against the immutable Specification. Approve only when the delivered diff, tests and constraints satisfy it. Reject when rework is required. Do not implement code, alter scope, send messages or authorize merge/deploy.`,
+        instructions: `${this.reviewer.instructions}\n\n${postExecutionReviewInstructions(answerOnly)}`,
         model: OPENAI_MODELS.reviewer,
         outputSchema: postExecutionReviewSchema,
         outputSchemaName: "post_execution_review",

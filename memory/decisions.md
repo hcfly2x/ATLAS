@@ -1,5 +1,15 @@
 # Decisões
 
+- Fase A introduz `delivery_mode=answer_only|repository_change` na
+  Specification; ausência, valor inválido e ambiguidade preservam
+  `repository_change`.
+- `answer_only` continua no fluxo atual de Specification, Approval, worker e QA,
+  admite diff vazio, não cria commit/PR e entrega o texto aprovado somente ao
+  destino derivado de `Task.origin`.
+- O guard anterior à fila rejeita `answer_only` sem origem Telegram válida e
+  `repository_change` sem repositório absoluto configurado, usando códigos
+  estáveis. ADR-018 permanece Proposto.
+
 - O Telegram será a interface principal.
 - O coordinator ficará na nuvem; o worker será local, com conexão iniciada de dentro para fora (ADR-002).
 - Monorepo TypeScript com pnpm e Turborepo (ADR-001).

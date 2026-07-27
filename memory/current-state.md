@@ -12,6 +12,9 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
+A Fase A de `delivery_mode` está autorizada e implementada em branch própria,
+aguardando revisão completa. Ela ainda não está integrada nem implantada.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
@@ -108,6 +111,11 @@ ampliação de autonomia.
 
 ## Riscos remanescentes
 
+- A classificação de `delivery_mode` é conservadora e lexical: formulações
+  incomuns podem cair em `repository_change`, mas nunca ampliam o canal de
+  entrega; o guard então exige repositório configurado.
+- A entrega terminal continua `at-most-once`: falha após a claim permanece
+  auditada sem retry. Outbox e watchdog seguem fora da Fase A.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -124,10 +132,10 @@ ampliação de autonomia.
 
 ## Próximo passo
 
-Revisar a correção protegida de `**/.env*` e coletar a amostra real versionada
-do modo shadow. O cutover só pode ser considerado depois de comprovar zero
-`MORE_PERMISSIVE`; o caller de comandos e AuditEvent continuam entregas
-separadas. Não iniciar a Fase 8 ou ampliar autonomia.
+Revisar empiricamente a Fase A: migração/default legado, classificação
+conservadora, guards de destino, QA com diff vazio, ausência de Git em
+`answer_only` e entrega exclusivamente por `Task.origin`. Não iniciar outbox,
+`DELIVERY_FAILED`, watchdog, modo consulta, Fase 8 ou deploy antes da revisão.
 
 ## Restrições ativas
 
@@ -136,5 +144,5 @@ separadas. Não iniciar a Fase 8 ou ampliar autonomia.
 - não iniciar novos blocos de estabilização além do QA pós-execução em revisão;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–017;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–018;
 - não executar deploy nem integrar credenciais reais.

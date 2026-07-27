@@ -26,6 +26,7 @@ function assignment(repositoryPath: string): WorkerAssignment {
     authorized_scope: ["docs/**"],
     constraints: [],
     context: [],
+    delivery_mode: "repository_change" as const,
     expected_delivery: "PR",
     implementation_strategy: ["edit"],
     objective: "bounded test",
@@ -307,6 +308,83 @@ describe("WorkerRunner", () => {
 
     expect(result.status).toBe("succeeded");
     expect(calls).toEqual(["create", "finalize", "coordinator-finalize", "cleanup"]);
+  });
+
+  it("finalizes answer_only without creating a commit or pull request", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atlas-runner-answer-only-"));
+    temporaryDirectories.push(root);
+    const input = assignment(root);
+    input.specification.delivery_mode = "answer_only";
+    input.specification_hash = canonicalPayloadHash(input.specification);
+    let finalization:
+      | {
+          commitSha: string | null;
+          idempotencyKey: string;
+          pullRequestUrl: string | null;
+        }
+      | undefined;
+    let gitFinalized = false;
+    const runner = new WorkerRunner({
+      api: {
+        appendLog: () => Promise.resolve(),
+        finalize: (_workerId, _assignment, value) => {
+          finalization = value;
+          return Promise.resolve();
+        },
+        renew: () =>
+          Promise.resolve({
+            cancelRequested: false,
+            leaseExpiresAt: "2026-07-24T14:00:00.000Z",
+            readyToFinalize: true,
+            terminalFailure: false,
+          }),
+        submitResult: () => Promise.resolve({ replayed: false, state: "FINALIZING" }),
+      },
+      codex: {
+        execute: () =>
+          Promise.resolve({
+            exitCode: 0,
+            summary: { pendingItems: [], risks: [], summary: "Approved plan" },
+          }),
+      },
+      codexEstimatedCostUsdPerExecution: 0,
+      git: {
+        createWorktree: () => Promise.resolve(),
+        diff: () =>
+          Promise.resolve({
+            changedPaths: [],
+            content: "",
+            deletions: 0,
+            filesChanged: 0,
+            insertions: 0,
+          }),
+        finalize: () => {
+          gitFinalized = true;
+          return Promise.reject(new Error("answer_only must not finalize Git"));
+        },
+        removeWorktree: () => Promise.resolve(),
+      },
+      githubToken: "fake",
+      leaseRenewalMs: 10,
+      maxLogChunkBytes: 1024,
+      preflight: () =>
+        Promise.resolve({
+          architecture: "arm64",
+          codex_version: "codex 1.0.0",
+          git_version: "git 2.0.0",
+          node_version: "v22.13.0",
+          platform: "darwin",
+          tools: {},
+        }),
+      timeoutMs: 1_000,
+      workerId: "10000000-0000-4000-8000-000000000005",
+      worktreeRoot: root,
+    });
+
+    await expect(runner.execute(input)).resolves.toMatchObject({ status: "succeeded" });
+
+    expect(gitFinalized).toBe(false);
+    expect(finalization).toMatchObject({ commitSha: null, pullRequestUrl: null });
   });
 
   it("stops cleanly when the lease is lost while waiting for result approval", async () => {

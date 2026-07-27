@@ -40,6 +40,7 @@ const specificationContent = {
   authorized_scope: ["packages/shared/**"],
   constraints: ["No worker execution"],
   context: ["Phase 4"],
+  delivery_mode: "repository_change" as const,
   expected_delivery: "Versioned specification",
   implementation_strategy: ["Validate and persist"],
   objective: "Produce a specification",
@@ -122,6 +123,7 @@ class FakeAgentRuntime implements AgentRuntime {
 interface ApprovalRecord {
   readonly actor: PersistSpecificationInput["actor"];
   readonly channel: PersistSpecificationInput["channel"];
+  readonly deliveryMode: PersistSpecificationInput["payload"]["delivery_mode"];
   readonly payloadHash: string;
   readonly status: PersistSpecificationInput["status"];
   readonly targetState: PersistSpecificationInput["targetState"];
@@ -237,6 +239,7 @@ class InMemorySupervisorStore implements SupervisorStore, TaskCoreStore {
     this.approvals.push({
       actor: input.actor,
       channel: input.channel,
+      deliveryMode: input.payload.delivery_mode,
       payloadHash: input.payloadHash,
       status: input.status,
       targetState: input.targetState,
@@ -259,8 +262,10 @@ function task(autonomyLevel = 2): SupervisionTask {
     allowedCommands: ["pnpm test"],
     autonomyLevel,
     id: randomUUID(),
+    origin: "telegram:42:42",
     originalMessage: "Create the requested change",
     projectId: "atlas",
+    repositoryPath: "/tmp/atlas",
     state: "NEW",
     version: 0,
   };
@@ -328,6 +333,52 @@ describe("SupervisorService", () => {
       }),
     ]);
     expect(store.approvals[0]?.payloadHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+  });
+
+  it("emits answer_only for planning without a requested repository change", async () => {
+    const store = new InMemorySupervisorStore({
+      ...task(),
+      originalMessage: "Estude o mercado e me traga um planejamento, sem implementar",
+    });
+
+    await service(store, new FakeAgentRuntime("moderate")).processTask(
+      store.task.id,
+      "answer-only-correlation",
+    );
+
+    expect(store.approvals[0]?.deliveryMode).toBe("answer_only");
+  });
+
+  it("rejects answer_only before enqueueing when Task.origin has no delivery destination", async () => {
+    const store = new InMemorySupervisorStore({
+      ...task(),
+      origin: "internal:api",
+      originalMessage: "Analise e me traga uma resposta, sem implementar",
+    });
+
+    await expect(
+      service(store, new FakeAgentRuntime("moderate")).processTask(
+        store.task.id,
+        "answer-only-no-destination",
+      ),
+    ).rejects.toMatchObject({ code: "ANSWER_ONLY_DESTINATION_REQUIRED" });
+    expect(store.approvals).toHaveLength(0);
+    expect(store.task).toMatchObject({ failureStage: "specifying", state: "FAILED" });
+  });
+
+  it("rejects repository_change before enqueueing without a configured write path", async () => {
+    const store = new InMemorySupervisorStore({
+      ...task(),
+      repositoryPath: null,
+    });
+
+    await expect(
+      service(store, new FakeAgentRuntime("moderate")).processTask(
+        store.task.id,
+        "repository-no-destination",
+      ),
+    ).rejects.toMatchObject({ code: "REPOSITORY_WRITE_PATH_REQUIRED" });
+    expect(store.approvals).toHaveLength(0);
   });
 
   it("routes a critical level-2 task to WAITING_APPROVAL", async () => {

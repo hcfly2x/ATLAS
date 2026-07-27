@@ -356,12 +356,15 @@ export class WorkerRunner {
         throw new Error("Execution cancelled");
       }
       if (result.status === "succeeded") {
-        const finalization = await this.options.git.finalize({
-          branchName,
-          commitMessage: `feat: complete ATLAS task ${assignment.task_id}`,
-          githubToken: this.options.githubToken,
-          worktreePath,
-        });
+        const finalization =
+          assignment.specification.delivery_mode === "answer_only"
+            ? { commitSha: null, pullRequestUrl: null }
+            : await this.options.git.finalize({
+                branchName,
+                commitMessage: `feat: complete ATLAS task ${assignment.task_id}`,
+                githubToken: this.options.githubToken,
+                worktreePath,
+              });
         await this.options.api.finalize(this.options.workerId, assignment, {
           ...finalization,
           idempotencyKey: `execution:${assignment.execution_id}:git-finalization`,

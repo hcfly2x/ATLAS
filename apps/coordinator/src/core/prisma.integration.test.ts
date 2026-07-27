@@ -75,6 +75,7 @@ class IntegrationAgentRuntime implements AgentRuntime {
                     authorized_scope: ["docs/**"],
                     constraints: [],
                     context: ["integration"],
+                    delivery_mode: "repository_change",
                     expected_delivery: "Specification",
                     implementation_strategy: ["persist"],
                     objective: "Integration supervision",

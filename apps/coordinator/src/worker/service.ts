@@ -50,6 +50,22 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+export function assertFinalizationArtifacts(input: {
+  commitSha: string | null;
+  deliveryMode: "answer_only" | "repository_change";
+  pullRequestUrl: string | null;
+}): void {
+  if (input.deliveryMode === "answer_only") {
+    if (input.commitSha !== null || input.pullRequestUrl !== null) {
+      throw new WorkerConflictError("answer_only finalization cannot publish Git artifacts");
+    }
+    return;
+  }
+  if (input.commitSha === null || input.pullRequestUrl === null) {
+    throw new WorkerConflictError("repository_change finalization requires Git artifacts");
+  }
+}
+
 function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -853,12 +869,12 @@ export class WorkerService {
   }
 
   async finalize(input: {
-    commitSha: string;
+    commitSha: string | null;
     executionId: string;
     fencingToken: bigint;
     idempotencyKey: string;
     leaseId: string;
-    pullRequestUrl: string;
+    pullRequestUrl: string | null;
     workerId: string;
   }): Promise<{ replayed: boolean }> {
     const finalizationHash = canonicalPayloadHash({
@@ -879,6 +895,14 @@ export class WorkerService {
     if (execution.status !== ExecutionStatus.FINALIZING) {
       throw new WorkerConflictError("execution is not ready for finalization");
     }
+    const specification = executableSpecificationPayloadSchema.parse(
+      execution.specification.payload,
+    );
+    assertFinalizationArtifacts({
+      commitSha: input.commitSha,
+      deliveryMode: specification.delivery_mode,
+      pullRequestUrl: input.pullRequestUrl,
+    });
     const result = workerResultSchema.parse(execution.resultPayload);
     const summaryContent = result.summary.slice(0, 8_000);
     const summaryIdempotencyKey = `task-summary:${execution.id}`;

@@ -1,12 +1,16 @@
 import type { Prisma, PrismaClient, TaskState } from "@prisma/client";
 
-import { workerResultSchema } from "@atlas/shared";
+import {
+  executableSpecificationPayloadSchema,
+  workerResultSchema,
+  type SpecificationDeliveryMode,
+} from "@atlas/shared";
 
 import type { TelegramClient } from "./client.js";
+export { telegramResultDestination } from "./origin.js";
+import { telegramResultDestination } from "./origin.js";
 
 const TERMINAL_STATES: TaskState[] = ["COMPLETED", "FAILED"];
-const telegramOriginWithChat = /^telegram:(\d+):(-?\d+)$/;
-const legacyTelegramDirectOrigin = /^telegram:(\d+)$/;
 const TELEGRAM_TEXT_LIMIT = 4096;
 
 function json(value: unknown): Prisma.InputJsonValue {
@@ -15,6 +19,7 @@ function json(value: unknown): Prisma.InputJsonValue {
 
 export interface TelegramResultCandidate {
   readonly changedPaths: readonly string[];
+  readonly deliveryMode: SpecificationDeliveryMode;
   readonly failureStage?: string;
   readonly origin: string;
   readonly projectId: string;
@@ -22,6 +27,7 @@ export interface TelegramResultCandidate {
   readonly state: "COMPLETED" | "FAILED" | "CANCELLED";
   readonly summary?: string;
   readonly taskId: string;
+  readonly taskVersion: number;
 }
 
 export interface TelegramResultStore {
@@ -32,24 +38,10 @@ export interface TelegramResultStore {
   recordSent(candidate: TelegramResultCandidate): Promise<void>;
 }
 
-export function telegramResultDestination(
-  origin: string,
-): { chatId: bigint; userId: bigint } | undefined {
-  const current = telegramOriginWithChat.exec(origin);
-  if (current?.[1] !== undefined && current[2] !== undefined) {
-    return { userId: BigInt(current[1]), chatId: BigInt(current[2]) };
-  }
-
-  // Antes do PR #20, conversas privadas eram persistidas sem o chat_id. Para
-  // esse formato legado, o Telegram usa o próprio user_id como chat_id.
-  const legacy = legacyTelegramDirectOrigin.exec(origin);
-  if (legacy?.[1] === undefined) return undefined;
-  const userId = BigInt(legacy[1]);
-  return { userId, chatId: userId };
-}
-
 export function formatTelegramResult(candidate: TelegramResultCandidate): string {
-  const lines = [`Resultado da Task ${candidate.taskId}: ${candidate.state}`];
+  const lines = [
+    `${candidate.deliveryMode === "answer_only" ? "Resposta" : "Resultado"} da Task ${candidate.taskId}: ${candidate.state}`,
+  ];
   if (candidate.failureStage !== undefined)
     lines.push(`Estágio da falha: ${candidate.failureStage}`);
   if (candidate.summary !== undefined && candidate.summary.trim().length > 0) {
@@ -65,8 +57,8 @@ export function formatTelegramResult(candidate: TelegramResultCandidate): string
   return text.length <= TELEGRAM_TEXT_LIMIT ? text : `${text.slice(0, TELEGRAM_TEXT_LIMIT - 1)}…`;
 }
 
-function deliveryKey(candidate: TelegramResultCandidate): string {
-  return `telegram:result:${candidate.taskId}:${candidate.state}`;
+export function telegramResultDeliveryKey(candidate: TelegramResultCandidate): string {
+  return `telegram:result:${candidate.taskId}:v${String(candidate.taskVersion)}:${candidate.state}`;
 }
 
 export class PrismaTelegramResultStore implements TelegramResultStore {
@@ -79,6 +71,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
         OR: [{ telegramDelivery: null }, { telegramDelivery: { is: { resultDeliveryKey: null } } }],
       },
       include: {
+        activeSpecification: true,
         auditEvents: {
           where: { action: "execution.finalized" },
           orderBy: { createdAt: "desc" },
@@ -90,6 +83,10 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
     });
     return tasks.map((task) => {
       const execution = task.executions[0];
+      const specification =
+        task.activeSpecification === null
+          ? undefined
+          : executableSpecificationPayloadSchema.safeParse(task.activeSpecification.payload);
       const result =
         execution?.resultPayload === null || execution?.resultPayload === undefined
           ? undefined
@@ -104,6 +101,8 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
           : undefined;
       return {
         changedPaths: result?.success === true ? result.data.changed_paths : [],
+        deliveryMode:
+          specification?.success === true ? specification.data.delivery_mode : "repository_change",
         ...(task.failureStage === null ? {} : { failureStage: task.failureStage }),
         origin: task.origin,
         projectId: task.projectId,
@@ -111,6 +110,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
         state: task.state as "COMPLETED" | "FAILED" | "CANCELLED",
         ...(result?.success === true ? { summary: result.data.summary } : {}),
         taskId: task.id,
+        taskVersion: task.version,
       };
     });
   }
@@ -120,7 +120,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
     chatId: bigint,
     userId: bigint,
   ): Promise<boolean> {
-    const key = deliveryKey(candidate);
+    const key = telegramResultDeliveryKey(candidate);
     return this.prisma.$transaction(async (transaction) => {
       const existing = await transaction.telegramTaskDelivery.findUnique({
         where: { taskId: candidate.taskId },
@@ -167,7 +167,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
   }
 
   async recordNoChannel(candidate: TelegramResultCandidate, reason: string): Promise<void> {
-    const key = `${deliveryKey(candidate)}:no-channel`;
+    const key = `${telegramResultDeliveryKey(candidate)}:no-channel`;
     await this.prisma.auditEvent.upsert({
       where: { idempotencyKey: `audit:${key}` },
       create: {
@@ -186,7 +186,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
   }
 
   async recordSent(candidate: TelegramResultCandidate): Promise<void> {
-    const key = deliveryKey(candidate);
+    const key = telegramResultDeliveryKey(candidate);
     await this.prisma.$transaction([
       this.prisma.telegramTaskDelivery.update({
         where: { taskId: candidate.taskId },
@@ -211,7 +211,7 @@ export class PrismaTelegramResultStore implements TelegramResultStore {
   }
 
   async recordFailure(candidate: TelegramResultCandidate, detail: string): Promise<void> {
-    const key = deliveryKey(candidate);
+    const key = telegramResultDeliveryKey(candidate);
     await this.prisma.auditEvent.upsert({
       where: { idempotencyKey: `audit:${key}:failed` },
       create: {

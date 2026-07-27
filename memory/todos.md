@@ -1,5 +1,18 @@
 # Pendências
 
+## Entrega durável — fora da Fase A
+
+- Projetar outbox persistente reutilizando `TelegramTaskDelivery`, com tentativas
+  limitadas, backoff, erro sanitizado e reconciliação de claims abandonadas.
+- Decidir em fase própria como representar `DELIVERY_FAILED`, sem alterar a
+  máquina de estados silenciosamente.
+- Separar aprovação do conteúdo da confirmação de transporte somente após
+  definir o registro e a idempotência correspondentes.
+- Implementar watchdog/SLA para Tasks sem resposta visível e expor a falha na
+  dashboard.
+- Manter modo consulta, bypass de worker e reclassificação de complexidade fora
+  da Fase A.
+
 ## QA pós-execução — acompanhamento após integração
 
 - Definir e executar a amostra mensurável de resultados reais para comprovar

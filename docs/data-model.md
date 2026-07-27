@@ -16,7 +16,11 @@ de uma rodada na Trilha 2; `(task_id, rodada)` é único.
 custo. Um agente emite no máximo um parecer por rodada; registros são
 append-only.
 
-**Specification** — id, task_id, versão, hash do payload canônico, payload validado conforme `specifications/executable-specification.md`, produzida pelo supervisor, criada_em. Cada versão é imutável; uma Task aponta para sua versão ativa.
+**Specification** — id, task_id, versão, `delivery_mode`
+(`answer_only|repository_change`, com default legado `repository_change`), hash
+do payload canônico, payload validado conforme
+`specifications/executable-specification.md`, produzida pelo supervisor,
+criada_em. Cada versão é imutável; uma Task aponta para sua versão ativa.
 
 **Approval** — id, task_id, tipo (`pre_execution|result|sensitive_action`), status (`pending|approved|rejected|expired`), actor (`user|system`), target_type (`specification|execution_result|sensitive_action`), target_id, target_version, target_hash, payload apresentado ao usuário, requested_by, decided_by?, solicitada_em, respondida_em?, expira_em?, canal (`telegram|policy`), idempotency_key. Uma aprovação só vale para o alvo e hash registrados.
 
@@ -74,11 +78,17 @@ Project 1—N MemoryItem
 ## Invariantes de contratos e aprovação
 
 - Specification é imutável depois de emitida; alteração funcional cria versão nova.
+- Specification `answer_only` exige `Task.origin` Telegram válido;
+  `repository_change` exige repositório absoluto configurado. O guard ocorre
+  antes de enfileirar a Execution.
 - O hash é calculado sobre representação canônica do payload validado.
 - Execution sempre referencia exatamente uma Specification.
 - Aprovação não é transferível entre versões, executions, diffs ou ações.
 - Aprovação de resultado referencia `execution_id` e `diff_hash`.
 - Commit e abertura de PR só ocorrem em `FINALIZING`, depois de aprovação válida do resultado.
+- Em `answer_only`, `FINALIZING` conclui sem commit/PR e a entrega textual usa o
+  result-publisher terminal existente; em `repository_change`, a exigência de
+  artefatos Git permanece.
 - Todo resultado de worker aguarda QA pós-execução antes de `FINALIZING`. A
   aprovação de política ou do usuário continua necessária quando aplicável, mas
   não substitui o parecer independente. QA aprovado + Approval automática válida

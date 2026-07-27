@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { postExecutionReviewSchema } from "@atlas/shared";
 
-import { PostExecutionQaService } from "./service.js";
+import { PostExecutionQaService, postExecutionReviewInstructions } from "./service.js";
 
 const reviewer = { id: "qa", instructions: "Review delivered work." };
 
@@ -36,5 +36,16 @@ describe("PostExecutionQaService", () => {
       }),
     ).toMatchObject({ decision: "approved" });
     expect(() => postExecutionReviewSchema.parse({ decision: "approve" })).toThrow();
+  });
+
+  it("accepts an empty diff for answer_only without weakening repository_change review", () => {
+    expect(postExecutionReviewInstructions(true)).toContain(
+      "an empty diff is valid and must not be rejected",
+    );
+    expect(postExecutionReviewInstructions(true)).toContain("Validate the textual summary");
+    expect(postExecutionReviewInstructions(false)).toContain(
+      "preserve the existing diff and artifact review behavior",
+    );
+    expect(postExecutionReviewInstructions(false)).not.toContain("an empty diff is valid");
   });
 });

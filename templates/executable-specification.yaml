@@ -3,6 +3,7 @@ project_id:
 version:
 specification_hash:
 risk_level:
+delivery_mode: repository_change
 objective:
 context: []
 authorized_scope: []
