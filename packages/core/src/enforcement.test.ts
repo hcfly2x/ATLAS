@@ -13,6 +13,8 @@ const base: EnforcementInput = {
   changedPaths: [],
   command: validateCommand,
   forbiddenCommands: [],
+  gnuOnlyExecutables: ["gdate", "gfind", "ggrep", "greadlink", "gsed", "gstat", "gxargs"],
+  gnuTools: [],
   protectedGlobs: [".env*", "apps/worker/**"],
 };
 const baseWithoutCommand: EnforcementInput = {
@@ -20,6 +22,8 @@ const baseWithoutCommand: EnforcementInput = {
   allowedCommands: [validateCommand],
   changedPaths: [],
   forbiddenCommands: [],
+  gnuOnlyExecutables: ["gdate", "gfind", "ggrep", "greadlink", "gsed", "gstat", "gxargs"],
+  gnuTools: [],
   protectedGlobs: [".env*", "apps/worker/**"],
 };
 
@@ -58,6 +62,32 @@ describe("decideEnforcement", () => {
     });
 
     expect(decision.reasonCode).toBe(ENFORCEMENT_REASON_CODES.COMMAND_FORBIDDEN);
+  });
+
+  it("allows a declared GNU-only executable", () => {
+    const command = { executable: "gsed", args: ["--version"] } as const;
+    const decision = decideEnforcement({
+      ...base,
+      allowedCommands: [command],
+      command,
+      gnuTools: ["gsed"],
+    });
+
+    expect(decision.decision).toBe("allow");
+    expect(decision.reasonCode).toBe(ENFORCEMENT_REASON_CODES.ALLOWED);
+  });
+
+  it("denies an undeclared GNU-only executable before forbidden and allowlist checks", () => {
+    const command = { executable: "gsed", args: ["--version"] } as const;
+    const decision = decideEnforcement({
+      ...base,
+      allowedCommands: [command],
+      command,
+      forbiddenCommands: [command],
+    });
+
+    expect(decision.decision).toBe("deny");
+    expect(decision.reasonCode).toBe(ENFORCEMENT_REASON_CODES.COMMAND_GNU_TOOL_NOT_DECLARED);
   });
 
   it("denies command arguments absent from the exact allowlist", () => {
