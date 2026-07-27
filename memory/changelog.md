@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — cobertura de `.env*` aninhado
+
+- O perfil protegido `atlas` substitui `.env*` por `**/.env*` na área semântica
+  `secrets` e em `effective_globs`, cobrindo raiz e subdiretórios sem alterar
+  `matchBase` globalmente.
+- Testes de contrato comprovam equivalência dos dois pontos, carregamento pelo
+  coordinator, cobertura do matching legado e não-match de controle.
+- Nenhum conteúdo `.env*`, caller, política, autonomia ou estado foi alterado.
+
 ## Unreleased — shadow do caller de paths protegidos
 
 - O runner mantém `findProtectedPathMatches` como decisão autoritativa e observa

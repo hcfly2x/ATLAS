@@ -15,7 +15,7 @@ projects:
       secrets:
         - "apps/**/src/secrets/**"
         - "packages/**/src/secrets/**"
-        - ".env*"
+        - "**/.env*"
       supervisor:
         - "packages/supervisor/**"
         - "agents/engineering/supervisor.md"
@@ -65,7 +65,7 @@ projects:
       - ".atlas/**"
       - ".atlas/policies.yaml"
       - ".atlas/projects.yaml"
-      - ".env*"
+      - "**/.env*"
       - ".github/workflows/**"
       - "Dockerfile*"
       - "docker-compose*.yml"
