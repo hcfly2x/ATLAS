@@ -70,6 +70,8 @@ logs ou repositório.
   token ou credencial;
 - tentativa ambígua não é repetida automaticamente;
 - retry limitado existe apenas quando o canal comprova que nada foi despachado.
+- o watchdog só lê metadados de entrega e cria AuditEvent sanitizado; a
+  dashboard não expõe texto da mensagem, IDs de destino ou rota de reenvio.
 
 ## Retenção
 

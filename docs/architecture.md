@@ -72,6 +72,11 @@ comprovadamente anterior ao envio e marca desfechos ambíguos como
 `DELIVERY_FAILED`. Esses estados pertencem à entrega e não alteram a máquina de
 estados da Task.
 
+Um watchdog de entrega observa a outbox sem mutá-la. Ele audita
+idempotentemente `DELIVERY_FAILED`, `PENDING` além do SLA e Tasks Telegram
+terminais sem outbox da versão vigente. A mesma condição é exposta na dashboard
+somente-leitura; não existe rota de reenvio ou retry manual.
+
 Quando a origem é Telegram, o coordinator publica de forma idempotente o resumo
 do QA, as ações requeridas e o próximo passo no chat codificado em `Task.origin`.
 Essa publicação não cria Specification, Execution ou retry funcional.

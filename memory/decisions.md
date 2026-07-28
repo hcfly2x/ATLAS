@@ -1,5 +1,14 @@
 # Decisões
 
+- Fase C estende AuditEvent e dashboard existentes; não cria entidade, estado,
+  canal de alerta ou rota de escrita.
+- O SLA padrão de entrega é 5 minutos e pode ser configurado por inteiro
+  positivo em milissegundos. Exceder SLA apenas alerta; não muda a outbox.
+- `DELIVERY_FAILED`, pendência vencida e ausência de outbox geram alertas
+  idempotentes e sanitizados. Nenhum desses sinais autoriza reenvio.
+- A compatibilidade com o publisher legado é avaliada pela chave exata da
+  versão atual; claim de versão anterior não comprova entrega da versão nova.
+
 - Fase B usa uma outbox persistente por Task e versão; `DELIVERY_FAILED` é
   status do transporte e nunca estado da Task.
 - O início do despacho é persistido antes da chamada externa. Somente
