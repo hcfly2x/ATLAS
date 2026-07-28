@@ -1,5 +1,13 @@
 # Decisões
 
+- O shadow de comandos envolve os dois callers, mas
+  `authorizeCommands`/`authorizeRuntimeCommands` continuam sendo a única
+  decisão autoritativa. A decisão pura apenas observa comandos estruturados.
+- A telemetria do shadow contém executável, decisão, motivo, hashes e
+  divergência; argumentos crus e mensagens de erro ficam excluídos.
+- Falha do shadow ou do logger nunca altera autorização ou execução. O cutover
+  exige revisão própria e amostra real versionada sem `MORE_PERMISSIVE`.
+
 - Fase C estende AuditEvent e dashboard existentes; não cria entidade, estado,
   canal de alerta ou rota de escrita.
 - O SLA padrão de entrega é 5 minutos e pode ser configurado por inteiro
