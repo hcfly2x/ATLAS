@@ -14,13 +14,12 @@ import {
   type WorkerResult,
 } from "@atlas/shared";
 
-import {
-  authorizeCommands,
-  authorizeRuntimeCommands,
-  executeAllowedCommand,
-  type AllowedCommand,
-} from "./allowlist.js";
+import { executeAllowedCommand, type AllowedCommand } from "./allowlist.js";
 import type { WorkerCoordinatorClient } from "./client.js";
+import {
+  authorizeCommandsWithShadow,
+  authorizeRuntimeCommandsWithShadow,
+} from "./command-enforcement-shadow.js";
 import { runPreflight } from "./preflight.js";
 import { findProtectedPathMatchesWithShadow } from "./protected-path-shadow.js";
 
@@ -178,10 +177,14 @@ export class WorkerRunner {
       );
       const signal = AbortSignal.any([abortController.signal, phaseAbortController.signal]);
       try {
-        for (const command of authorizeRuntimeCommands(
+        for (const command of authorizeRuntimeCommandsWithShadow(
           assignment.runtime,
           phase,
           assignment.required_tools.gnu_tools,
+          {
+            executionId: assignment.execution_id,
+            taskId: assignment.task_id,
+          },
         )) {
           const commandStartedAt = new Date();
           const commandResult = await (this.options.executeCommand ?? executeAllowedCommand)(
@@ -254,7 +257,12 @@ export class WorkerRunner {
         worktreePath,
       });
       const validationCommands =
-        assignment.runtime === null ? authorizeCommands(assignment) : undefined;
+        assignment.runtime === null
+          ? authorizeCommandsWithShadow(assignment, {
+              executionId: assignment.execution_id,
+              taskId: assignment.task_id,
+            })
+          : undefined;
       for (const command of validationCommands ?? []) {
         const commandStartedAt = new Date();
         const commandResult = await (this.options.executeCommand ?? executeAllowedCommand)(

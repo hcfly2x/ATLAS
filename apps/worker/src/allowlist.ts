@@ -10,7 +10,7 @@ export interface AllowedCommand {
 }
 
 const safeToken = /^[A-Za-z0-9_./:@%+=,-]+$/;
-const gnuOnlyExecutables = new Set([
+export const GNU_ONLY_EXECUTABLES = [
   "gdate",
   "gfind",
   "ggrep",
@@ -18,7 +18,8 @@ const gnuOnlyExecutables = new Set([
   "gsed",
   "gstat",
   "gxargs",
-]);
+] as const;
+const gnuOnlyExecutables = new Set<string>(GNU_ONLY_EXECUTABLES);
 
 export class CommandNotAllowedError extends Error {
   readonly code = "COMMAND_NOT_ALLOWED";

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — comandos, Fase 2: shadow dos callers
+
+- `authorizeCommands` e `authorizeRuntimeCommands` continuam sendo a única
+  decisão autoritativa; o runner devolve ou relança exatamente seu resultado.
+- `decideEnforcement` observa cada comando já estruturado e registra divergência
+  `none|stricter|MORE_PERMISSIVE`, executável, hashes e código de motivo.
+- Argumentos, allowlists e mensagens de erro não entram no log do shadow.
+  Exceção da decisão ou do logger é absorvida sem afetar execução, lease ou
+  finalização.
+- `parseSpecificationCommand` permanece no caller. Não há cutover, AuditEvent,
+  mudança de política, estado ou `.atlas/**`.
+
 ## Unreleased — Fase C: watchdog e visibilidade da entrega
 
 - Watchdog idempotente observa `DELIVERY_FAILED`, pendência além do SLA e Task

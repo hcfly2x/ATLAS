@@ -34,8 +34,10 @@
   somente em fase shadow explicitamente autorizada.
 - Manter `parseSpecificationCommand` no caller até fase própria; a decisão pura
   recebe somente comandos já estruturados.
-- Implementar shadow de comandos em entrega independente e bloquear o cutover
-  enquanto houver qualquer divergência `MORE_PERMISSIVE`.
+- Revisar empiricamente o shadow de comandos e confirmar que logs reais não
+  contêm argumentos, payloads ou mensagens de erro.
+- Coletar uma amostra real versionada e bloquear o cutover enquanto houver
+  qualquer divergência `MORE_PERMISSIVE`.
 - Migrar `authorizeCommands`/`authorizeRuntimeCommands` somente depois da
   amostra shadow com zero divergência mais permissiva.
 - Revisar e aprovar separadamente o merge da substituição de `.env*` por
