@@ -1,5 +1,15 @@
 # Pendências
 
+## Dashboard — após C2a
+
+- Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
+  Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
+- Confirmar em staging que sessão expirada, falta de permissão e CSRF
+  ausente/inválido não produzem mutação.
+- Manter criação de demanda, pausa, prioridade e cancelamento fora de C2a;
+  qualquer C2b exige fase e autorização próprias.
+- Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
+
 ## Entrega durável — acompanhamento após a Fase B
 
 - A revisão empírica da outbox, da migração e dos cenários de crash foi

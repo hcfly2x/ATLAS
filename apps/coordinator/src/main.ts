@@ -20,6 +20,8 @@ import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
 import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashboard/auth.js";
+import { DashboardApprovalService } from "./dashboard/approval-service.js";
+import { PrismaApprovalDecisionService } from "./approvals/service.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
@@ -62,6 +64,10 @@ const dashboardAuth =
       });
 const dashboardService =
   dashboardAuth === undefined ? undefined : new DashboardService(prisma, { deliverySlaMs });
+const dashboardApprovalService =
+  dashboardAuth === undefined
+    ? undefined
+    : new DashboardApprovalService(new PrismaApprovalDecisionService(prisma));
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -188,7 +194,12 @@ const workerAppOptions =
 const app = createCoordinatorApp({
   ...(dashboardService === undefined || dashboardAuth === undefined
     ? {}
-    : { dashboardAuth, dashboardRemoteAccessEnabled, dashboardService }),
+    : {
+        ...(dashboardApprovalService === undefined ? {} : { dashboardApprovalService }),
+        dashboardAuth,
+        dashboardRemoteAccessEnabled,
+        dashboardService,
+      }),
   internalAuthToken,
   logger: true,
   memoryService,

@@ -155,9 +155,12 @@ export const demandWorkspaceResponseSchema = z
         .object({
           actor: z.enum(["SYSTEM", "USER"]),
           approvalId: z.string(),
+          canDecide: z.boolean(),
           occurredAt: z.string().datetime(),
           status: z.string(),
+          targetType: z.string(),
           targetVersion: z.union([z.number().int().nonnegative(), indeterminateSchema]),
+          taskVersion: z.number().int().nonnegative(),
           type: z.string(),
         })
         .strict(),
@@ -248,3 +251,50 @@ export const demandWorkspaceResponseSchema = z
   .strict();
 
 export type DemandWorkspaceResponse = z.infer<typeof demandWorkspaceResponseSchema>;
+
+export const dashboardSessionResponseSchema = z
+  .object({
+    csrfToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    expiresAt: z.string().datetime(),
+    role: z.literal("owner"),
+  })
+  .strict();
+
+export const approvalDecisionRequestSchema = z
+  .object({
+    comment: z.string().trim().max(1_000).optional(),
+    decision: z.enum(["approve", "reject", "request_change"]),
+    idempotencyKey: z.string().uuid(),
+    targetVersion: z.number().int().nonnegative(),
+    taskVersion: z.number().int().nonnegative(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.decision === "request_change" && (value.comment?.trim().length ?? 0) === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "comment is required for request_change",
+        path: ["comment"],
+      });
+    }
+  });
+
+export const approvalDecisionResponseSchema = z
+  .object({
+    approvalId: z.string().uuid(),
+    decision: z.enum(["approve", "reject", "request_change"]),
+    idempotentReplay: z.boolean(),
+    status: z.enum(["APPROVED", "REJECTED"]),
+    task: z
+      .object({
+        id: z.string().uuid(),
+        state: z.string(),
+        version: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export type DashboardSessionResponse = z.infer<typeof dashboardSessionResponseSchema>;
+export type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>;
+export type ApprovalDecisionResponse = z.infer<typeof approvalDecisionResponseSchema>;

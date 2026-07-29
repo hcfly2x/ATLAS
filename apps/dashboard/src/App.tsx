@@ -19,6 +19,7 @@ import {
   type DashboardSessionClient,
 } from "./session.js";
 import { DemandWorkspace } from "./Workspace.js";
+import { decideDashboardApproval, type ApprovalDecisionClient } from "./approval-decision.js";
 
 type ProactiveItem = MissionControlResponse["risks"]["items"][number];
 type WorkItem = MissionControlResponse["inProgress"]["items"][number];
@@ -591,6 +592,7 @@ function MissionControlHome({ data }: { readonly data: MissionControlResponse })
 }
 
 export interface AppProps {
+  readonly approvalDecisionClient?: ApprovalDecisionClient;
   readonly demandWorkspaceClient?: DemandWorkspaceClient;
   readonly missionControlClient?: MissionControlClient;
   readonly sessionClient?: DashboardSessionClient;
@@ -669,10 +671,12 @@ function WorkspaceError({ notFound = false }: { readonly notFound?: boolean }) {
 }
 
 function DemandWorkspaceRoute({
+  approvalDecisionClient,
   authEpoch,
   client,
   onAuthenticate,
 }: {
+  readonly approvalDecisionClient: ApprovalDecisionClient;
   readonly authEpoch: number;
   readonly client: DemandWorkspaceClient;
   readonly onAuthenticate: (credential: string) => Promise<void>;
@@ -698,10 +702,11 @@ function DemandWorkspaceRoute({
       />
     );
   }
-  return <DemandWorkspace data={query.data} />;
+  return <DemandWorkspace approvalDecisionClient={approvalDecisionClient} data={query.data} />;
 }
 
 export function App({
+  approvalDecisionClient = decideDashboardApproval,
   demandWorkspaceClient = fetchDemandWorkspace,
   missionControlClient = fetchMissionControl,
   sessionClient = createDashboardSession,
@@ -739,6 +744,7 @@ export function App({
       <Route
         element={
           <DemandWorkspaceRoute
+            approvalDecisionClient={approvalDecisionClient}
             authEpoch={authEpoch}
             client={demandWorkspaceClient}
             onAuthenticate={authenticate}

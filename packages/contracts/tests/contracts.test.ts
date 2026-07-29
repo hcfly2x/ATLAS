@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { demandWorkspaceResponseSchema, missionControlResponseSchema } from "../src/index.js";
+import {
+  approvalDecisionRequestSchema,
+  approvalDecisionResponseSchema,
+  dashboardSessionResponseSchema,
+  demandWorkspaceResponseSchema,
+  missionControlResponseSchema,
+} from "../src/index.js";
 
 const missionControlFixture = {
   blocked: { count: 0, items: [], status: "available" },
@@ -85,5 +91,42 @@ describe("@atlas/contracts dashboard schemas", () => {
         payload: "must-not-cross-the-contract",
       }),
     ).toThrow();
+  });
+
+  it("validates the session-bound approval decision contract strictly", () => {
+    const request = {
+      comment: "Ajustar critérios",
+      decision: "request_change",
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      targetVersion: 3,
+      taskVersion: 7,
+    };
+    expect(approvalDecisionRequestSchema.parse(request)).toEqual(request);
+    expect(() =>
+      approvalDecisionRequestSchema.parse({
+        ...request,
+        comment: undefined,
+      }),
+    ).toThrow();
+    expect(
+      dashboardSessionResponseSchema.parse({
+        csrfToken: "a".repeat(43),
+        expiresAt: "2026-07-29T12:00:00.000Z",
+        role: "owner",
+      }),
+    ).toBeDefined();
+    expect(
+      approvalDecisionResponseSchema.parse({
+        approvalId: "22222222-2222-4222-8222-222222222222",
+        decision: "approve",
+        idempotentReplay: false,
+        status: "APPROVED",
+        task: {
+          id: "33333333-3333-4333-8333-333333333333",
+          state: "QUEUED",
+          version: 8,
+        },
+      }),
+    ).toBeDefined();
   });
 });

@@ -94,4 +94,23 @@ describe("dashboard authentication and RBAC", () => {
     expect(localCookie).not.toContain("Secure");
     expect(auth.sessionCookie(session, true)).toContain("Secure");
   });
+
+  it("binds CSRF evidence to the authenticated session and rejects absent or foreign tokens", () => {
+    const auth = new DashboardAuthenticator({
+      credential,
+      randomNonce: () => "e".repeat(32),
+    });
+    const first = cookie(auth.issueSession().token);
+    const secondAuth = new DashboardAuthenticator({
+      credential,
+      randomNonce: () => "f".repeat(32),
+    });
+    const second = cookie(secondAuth.issueSession().token);
+    const token = auth.csrfToken(first);
+
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(auth.verifyCsrf(first, token)).toBe(true);
+    expect(auth.verifyCsrf(first, undefined)).toBe(false);
+    expect(auth.verifyCsrf(second, token)).toBe(false);
+  });
 });

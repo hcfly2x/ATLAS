@@ -161,3 +161,11 @@ ausentes ou inválidos são `indeterminado`, sem reconstrução ou inferência.
 - rollback;
 - auditoria;
 - aprovação para campanhas novas e mudanças grandes.
+## Escrita governada da Dashboard
+
+A primeira rota de escrita da Dashboard decide somente `Approval` humana já
+pendente. Ela exige sessão válida, permissão `dashboard:approval:decide`, token
+CSRF ligado à sessão, chave de idempotência e versões esperadas do alvo e da
+Task. A resolução reutiliza o mesmo serviço transacional do Telegram. Alvo
+inexistente, não humano, já decidido, obsoleto ou sensível falha fechado.
+Credencial e token não entram em resposta, auditoria ou bundle.

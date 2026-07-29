@@ -53,6 +53,7 @@ import { registerDashboardRoutes } from "./dashboard/routes.js";
 import type { DashboardAuthenticator } from "./dashboard/auth.js";
 import type { DashboardAuthAuditEvent } from "./dashboard/routes.js";
 import type { DashboardService } from "./dashboard/service.js";
+import type { DashboardApprovalService } from "./dashboard/approval-service.js";
 import type { PostExecutionQaService } from "./post-execution/service.js";
 
 const createTaskSchema = z.object({
@@ -85,6 +86,7 @@ const leaseSchema = z.object({
 export interface CoordinatorAppOptions {
   readonly dashboardAuth?: DashboardAuthenticator;
   readonly dashboardAuthAudit?: ((event: DashboardAuthAuditEvent) => void) | undefined;
+  readonly dashboardApprovalService?: DashboardApprovalService;
   readonly dashboardRemoteAccessEnabled?: boolean;
   readonly dashboardService?: DashboardService;
   readonly internalAuthToken?: string;
@@ -139,10 +141,16 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
     if (options.dashboardAuth === undefined) {
       throw new Error("dashboardAuth is required when dashboard routes are enabled");
     }
-    registerDashboardRoutes(app, options.dashboardService, options.dashboardAuth, {
-      authAudit: options.dashboardAuthAudit,
-      remoteAccessEnabled: options.dashboardRemoteAccessEnabled,
-    });
+    registerDashboardRoutes(
+      app,
+      options.dashboardService,
+      options.dashboardAuth,
+      options.dashboardApprovalService,
+      {
+        authAudit: options.dashboardAuthAudit,
+        remoteAccessEnabled: options.dashboardRemoteAccessEnabled,
+      },
+    );
   }
 
   if (options.projectConfigStore !== undefined) {

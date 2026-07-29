@@ -1,10 +1,11 @@
 import type { DemandWorkspaceResponse } from "@atlas/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { ApprovalDecisionClient } from "./approval-decision.js";
 import { App } from "./App.js";
 import { DemandWorkspaceReadError, type DemandWorkspaceClient } from "./demand-workspace.js";
 import {
@@ -15,14 +16,20 @@ import {
 
 const route = `/demand/${demandWorkspaceFixture.header.taskId}`;
 
-function renderWorkspace(client: DemandWorkspaceClient) {
+function renderWorkspace(
+  client: DemandWorkspaceClient,
+  approvalDecisionClient?: ApprovalDecisionClient,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
-        <App demandWorkspaceClient={client} />
+        <App
+          {...(approvalDecisionClient === undefined ? {} : { approvalDecisionClient })}
+          demandWorkspaceClient={client}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -107,6 +114,43 @@ describe("Demand Workspace UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Próximo evento" }));
     expect(screen.getByRole("heading", { name: "execution.completed" })).toBeInTheDocument();
     expect(screen.getByText("Etapa 2 de 2")).toBeInTheDocument();
+  });
+
+  it("shows context before a human decision and submits through the governed client", async () => {
+    const approvalDecisionClient = vi.fn<ApprovalDecisionClient>().mockResolvedValue({
+      approvalId: "11111111-1111-4111-8111-111111111111",
+      decision: "request_change",
+      idempotentReplay: false,
+      status: "REJECTED",
+      task: { id: demandWorkspaceFixture.header.taskId, state: "SPECIFYING", version: 9 },
+    });
+    const baseApproval = demandWorkspaceFixture.approvals[0];
+    if (baseApproval === undefined) throw new Error("approval fixture missing");
+    const actionable: DemandWorkspaceResponse = {
+      ...demandWorkspaceFixture,
+      approvals: [
+        {
+          ...baseApproval,
+          approvalId: "11111111-1111-4111-8111-111111111111",
+          canDecide: true,
+          status: "PENDING",
+        },
+      ],
+    };
+    renderWorkspace(resolvedClient(actionable), approvalDecisionClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pedir alteração" }));
+    expect(screen.getByText("A decisão pode avançar ou devolver a demanda.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Ajuste os critérios." } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar decisão" }));
+
+    await waitFor(() => {
+      expect(approvalDecisionClient).toHaveBeenCalled();
+      const submitted = approvalDecisionClient.mock.calls[0]?.[0];
+      expect(submitted?.approvalId).toBe("11111111-1111-4111-8111-111111111111");
+      expect(submitted?.request.comment).toBe("Ajuste os critérios.");
+      expect(submitted?.request.decision).toBe("request_change");
+    });
   });
 
   it("has no accessibility violations in the populated Workspace", async () => {

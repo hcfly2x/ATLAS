@@ -340,6 +340,74 @@ describe("dashboard session authentication and RBAC", () => {
     expect(undeclared.body).not.toContain("unsafe");
   });
 
+  it("requires the decision permission and session-bound CSRF evidence before approval writes", async () => {
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(app);
+    const url = "/dashboard/api/approvals/11111111-1111-4111-8111-111111111111/decision";
+    const payload = {
+      decision: "approve",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      targetVersion: 1,
+      taskVersion: 2,
+    };
+
+    const unauthenticated = await app.inject({ method: "POST", payload, url });
+    const missing = await app.inject({ headers: { cookie }, method: "POST", payload, url });
+    const invalid = await app.inject({
+      headers: { cookie, "x-atlas-csrf-token": "invalid" },
+      method: "POST",
+      payload,
+      url,
+    });
+    const valid = await app.inject({
+      headers: { cookie, "x-atlas-csrf-token": auth.csrfToken(cookie) ?? "" },
+      method: "POST",
+      payload,
+      url,
+    });
+
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(missing.statusCode).toBe(403);
+    expect(invalid.statusCode).toBe(403);
+    expect(valid.statusCode).toBe(503);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie },
+          method: "GET",
+          url,
+        })
+      ).statusCode,
+    ).toBe(403);
+
+    const readOnlyAuth = createAuth({
+      permissions: new Set(["dashboard:session:read"]),
+    });
+    const readOnlyCookie = sessionCookie(readOnlyAuth);
+    const readOnlyApp = createCoordinatorApp({
+      dashboardAuth: readOnlyAuth,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(readOnlyApp);
+    const forbidden = await readOnlyApp.inject({
+      headers: {
+        cookie: readOnlyCookie,
+        "x-atlas-csrf-token": readOnlyAuth.csrfToken(readOnlyCookie) ?? "",
+      },
+      method: "POST",
+      payload,
+      url,
+    });
+    expect(forbidden.statusCode).toBe(403);
+  });
+
   it("does not expose domain write methods under /dashboard", async () => {
     const auth = createAuth();
     const cookie = sessionCookie(auth);

@@ -647,3 +647,13 @@
 - Consolidada visão multiagente.
 - Registrados projetos iniciais.
 - Adicionadas políticas de segurança e execução.
+# 2026-07-29 — Trilha C2a: decisões humanas pela Dashboard
+
+- Adiciona a primeira escrita governada da Dashboard para decidir Approvals
+  `USER` pendentes com approve, reject ou request_change.
+- Extrai um único resolvedor transacional reutilizado por Telegram e Dashboard,
+  preservando validações de hash/QA e transições canônicas.
+- Acrescenta RBAC de escrita, CSRF por sessão, idempotência, concorrência
+  otimista, contrato Zod e confirmação contextual na UI.
+- Registra ADR-027 como Proposto; C2b, merge, deploy e `always_human` permanecem
+  fora do escopo.

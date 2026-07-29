@@ -5,6 +5,7 @@ import { z } from "zod";
 export const DASHBOARD_SESSION_COOKIE = "atlas_dashboard_session";
 
 export const dashboardPermissions = [
+  "dashboard:approval:decide",
   "dashboard:audit:read",
   "dashboard:deliveries:read",
   "dashboard:demand:read",
@@ -199,6 +200,23 @@ export class DashboardAuthenticator {
       principal: authentication.principal,
       status: "allowed",
     };
+  }
+
+  csrfToken(cookieHeader: string | undefined): string | undefined {
+    const token = parseCookie(cookieHeader, DASHBOARD_SESSION_COOKIE);
+    if (token === undefined || this.authenticate(cookieHeader).status !== "authenticated") {
+      return undefined;
+    }
+    return createHmac("sha256", this.credential)
+      .update(`dashboard-csrf:v1:${token}`, "utf8")
+      .digest("base64url");
+  }
+
+  verifyCsrf(cookieHeader: string | undefined, candidate: string | undefined): boolean {
+    const expected = this.csrfToken(cookieHeader);
+    return (
+      expected !== undefined && candidate !== undefined && constantTimeEqual(expected, candidate)
+    );
   }
 
   sessionCookie(session: DashboardIssuedSession, secure: boolean): string {

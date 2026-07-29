@@ -284,3 +284,10 @@ Permanecem excluídos:
 - Métricas e progresso só entram com metodologia verificável.
 - Nenhuma interface expõe chain-of-thought.
 - Cada trilha e fase exige ADR e autorização explícita antes de virar código.
+## Estado incremental da Trilha C
+
+A C2a implementa decisões de Approvals humanas pendentes pela Dashboard como
+primeira escrita governada, subordinada ao ADR-027 Proposto. O fluxo exige
+contexto e confirmação na UI, RBAC de escrita, CSRF por sessão, idempotência e
+concorrência otimista, reutilizando o resolvedor canônico do Telegram. Criar
+demanda, pausar, priorizar e cancelar permanecem fora desta entrega, para C2b.
