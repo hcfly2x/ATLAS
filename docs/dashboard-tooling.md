@@ -3,10 +3,10 @@
 ## Status e autoridade
 
 Este documento registra um guia de implementação para o frontend da Dashboard.
-A Fase 0 foi autorizada e implementada como preparação técnica. Isso não
-autoriza a UI da Trilha A, nova dependência, feature, rota de escrita ou fase
-posterior. Para todo o restante vale a regra **registrado não equivale a
-autorizado**.
+A Fase 0 e, em entrega posterior própria, a UI read-only da Trilha A foram
+autorizadas e implementadas. Isso não autoriza nova dependência, rota de escrita
+ou fase posterior. Para todo o restante vale a regra **registrado não equivale
+a autorizado**.
 
 O guia é subordinado aos arquivos canônicos do repositório, em especial
 `specifications/project-manifest.yaml`, `docs/dashboard-operational-plan.md`,
@@ -82,10 +82,11 @@ A preparação anterior à UI reúne:
 5. configuração do tooling do Codex.
 
 **Estado:** autorizada e implementada nesta entrega. O ADR-024 está Proposto,
-`apps/dashboard` contém apenas um shell técnico sem dados ou ações,
+`apps/dashboard` nasceu como shell técnico sem dados ou ações,
 `@atlas/contracts` valida o wire format real de Mission Control e as três skills
-e o tooling estão versionados. A implementação de interface e qualquer fase
-posterior continuam sem autorização.
+e o tooling estão versionados. A interface read-only da Trilha A foi autorizada
+e implementada em entrega posterior; qualquer escrita ou fase seguinte continua
+sem autorização.
 
 ## Itens não adotados agora
 

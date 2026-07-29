@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Dashboard Trilha A UI
+
+- `apps/dashboard` passa a consumir somente
+  `GET /dashboard/api/mission-control` com Bearer token mantido no fragmento do
+  navegador e resposta validada estritamente por `@atlas/contracts`.
+- A Home read-only apresenta Atlas Intelligence determinística, prioridade,
+  atenção humana, execução, bloqueios, conclusões e riscos/proatividade.
+- Loading, vazio, erro e indisponibilidade por bloco são explícitos; ausência de
+  sinal nunca vira progresso, custo ou ETA inventado.
+- Testes cobrem contrato, não-vazamento, ausência de ações, acessibilidade em
+  Chromium, comportamento responsivo e diagnóstico do React Doctor.
+- Coordinator, worker, core, schema, `.atlas/**`, TaskState, `always_human`,
+  autonomia e enforcement permanecem inalterados.
+
 ## Unreleased — Dashboard Fase 0
 
 - ADR-024 registra como Proposto o stack frontend autorizado para a preparação.

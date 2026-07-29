@@ -47,11 +47,12 @@ consultam somente sinais existentes, falham por bloco para `indeterminado` e nã
 criam rota de escrita. Narrativa por LLM e as Trilhas B–E continuam sem
 autorização.
 O guia subordinado `docs/dashboard-tooling.md` registra o núcleo adotável,
-tooling e skills de desenvolvimento. A UI frontend planejada consumirá esse
-read-model sem refazê-lo. A Fase 0 foi autorizada e implementada: ADR-024
-Proposto, shell técnico de `apps/dashboard`, contrato compartilhado
-`@atlas/contracts`, três skills versionadas e tooling do Codex. Nenhuma feature
-da UI, rota de escrita ou fase posterior foi autorizada.
+tooling e skills de desenvolvimento. A UI frontend da Trilha A consome esse
+read-model sem refazê-lo, por GET autenticado e validação estrita de
+`@atlas/contracts`. A Fase 0 permanece registrada com ADR-024 Proposto, três
+skills versionadas e tooling do Codex. A Home cobre dados, vazio, erro e sinais
+indeterminados sem inventar progresso e sem rota de escrita. Trilhas B–E e
+qualquer escrita continuam não autorizadas.
 
 ## Implementado
 
@@ -242,8 +243,9 @@ da UI, rota de escrita ou fase posterior foi autorizada.
 
 ## Próximo passo
 
-Validar empiricamente a Trilha A read-only e coletar amostras reais versionadas
-dos shadows de paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o
+Revisar empiricamente a UI read-only da Trilha A e validar em uso real sua ordem
+de prioridade, alertas e sinais indeterminados. Em paralelo, coletar amostras
+reais versionadas dos shadows de paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o
 respectivo cutover; mesmo com amostra limpa, cada cutover exige fase e
 autorização próprias.
 
