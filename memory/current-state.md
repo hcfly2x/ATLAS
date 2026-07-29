@@ -46,6 +46,10 @@ entrega: Mission Control, Proatividade v1 e resumo executivo determinístico
 consultam somente sinais existentes, falham por bloco para `indeterminado` e não
 criam rota de escrita. Narrativa por LLM e as Trilhas B–E continuam sem
 autorização.
+O guia subordinado `docs/dashboard-tooling.md` registra o núcleo adotável,
+tooling e skills de desenvolvimento. A UI frontend planejada consumirá esse
+read-model sem refazê-lo. A Fase 0 — ADR do stack, scaffolds, contratos, skills
+e tooling — é apenas o próximo passo proposto e continua não autorizada.
 
 ## Implementado
 

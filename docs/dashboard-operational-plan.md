@@ -95,7 +95,58 @@ O CEO age como gerente de projeto, não como chat. Ele:
 - reorganiza o plano;
 - recomenda próximos passos.
 
+## Tooling, stack e skills (registrado, não autorizado)
+
+O read-model de Mission Control entregue pelo PR #52 é o backend da primeira
+interface. A UI será um app frontend que consome esse contrato; não deve
+reimplementar o read-model nem criar um backend concorrente. O coordinator
+permanece o backend canônico. Atlas Intelligence v1 continua determinística;
+uma narrativa por LLM, se autorizada no futuro, será assíncrona, cacheada e não
+bloqueante.
+
+O núcleo adotável para `apps/dashboard` é React, Vite, TypeScript estrito,
+Tailwind, shadcn/ui, React Router, TanStack Query, TanStack Table, Zod, Vitest,
+React Testing Library, Playwright, axe-core e React Doctor como ferramenta de
+desenvolvimento. Os contratos Zod orientados a workflow entre backend e
+frontend devem viver em um pacote compartilhado `@atlas/contracts`.
+
+Cada item desse núcleo exige ADR e autorização próprios antes de instalação ou
+scaffold. O guia de implementação está em `docs/dashboard-tooling.md` e é
+subordinado a `specifications/project-manifest.yaml` e aos demais documentos
+canônicos. Em caso de divergência, os canônicos prevalecem.
+
+OpenAI Build Web Apps, shadcn MCP, Playwright CLI e React Doctor são candidatos
+ao tooling do ambiente de desenvolvimento do Codex, não dependências de
+produção. Três skills próprias do ATLAS devem codificar a governança desse
+trabalho no Codex: `atlas-dashboard-guardrails`,
+`atlas-dashboard-contracts` e `atlas-frontend-qa`. Esse registro não cria
+skills executáveis, não altera `.atlas/**` e não amplia permissões. Vercel Web
+Design Guidelines permanece opcional e sujeito a auditoria.
+
+Não entram agora LangGraph, CrewAI, AutoGen, OpenHands, OpenManus, LlamaIndex ou
+Open WebUI como base da Dashboard. Sem ADR próprio, também não entram Next.js,
+Supabase, Redux, GraphQL, tRPC, WebSocket, SSE, Material UI, Ant Design, Tremor,
+templates de admin, microfrontends, outro ORM, banco ou backend.
+
+A interface permanece somente leitura até a Trilha C e usa os controles
+existentes de autenticação e exposição. Nenhuma resposta pode revelar prompt,
+resposta, payload, `messageText`, destino, segredo ou conteúdo cru.
+
 ## Ordem de desenvolvimento
+
+### Fase 0 — Preparação
+
+Esta é a próxima preparação planejada, antes da UI:
+
+- propor o ADR do stack frontend;
+- criar, somente depois de autorização, o scaffold de `apps/dashboard`;
+- criar `@atlas/contracts` para os contratos Zod compartilhados;
+- criar as três skills próprias do ATLAS para o ambiente do Codex;
+- configurar o tooling de desenvolvimento do Codex.
+
+A Fase 0 tem baixo risco e alta alavanca, mas não está autorizada. Este
+documento não instala dependências, não cria scaffold, pacote, skill ou ADR
+aceito.
 
 ### Trilha A — Inteligência + Mission Control
 
@@ -188,6 +239,11 @@ Permanecem excluídos:
 - escritório 3D;
 - chain-of-thought;
 - dezenas de gráficos na Home;
+- métricas técnicas na Home;
+- gráficos sem decisão;
+- chat como centro;
+- telas organizadas por organograma;
+- páginas sem workflow;
 - “horas economizadas” sem metodologia;
 - progresso inventado;
 - Grafana na Home.
