@@ -27,6 +27,8 @@ import {
   type WorkerResult,
 } from "@atlas/shared";
 
+import { decideResultApproval } from "./result-approval-policy.js";
+
 const allowedCommandsSchema = z.array(
   z.union([
     z
@@ -717,10 +719,18 @@ export class WorkerService {
     if (canonicalPayloadHash(empiricalPayload) !== evidenceHash) {
       throw new WorkerConflictError("empirical evidence_hash is not canonical");
     }
-    const policyAutoApproval =
-      testsGreen &&
-      result.protected_path_matches.length === 0 &&
-      execution.task.project.autonomyLevel >= 2;
+    const specificationPayload = executableSpecificationPayloadSchema.parse(
+      execution.specification.payload,
+    );
+    const resultApprovalDecision = decideResultApproval({
+      approvalRequiredFor: specificationPayload.approval_required_for,
+      autonomyLevel: execution.task.project.autonomyLevel,
+      empiricalVerdict: empiricalReview.verdict,
+      protectedPathMatches: result.protected_path_matches,
+      riskLevel: specificationPayload.risk_level,
+      testsGreen,
+    });
+    const policyApprovalEligible = resultApprovalDecision.actor === "SYSTEM";
     // The post-execution reviewer is the mandatory gate between a valid worker
     // result and FINALIZING. The existing Approval still expresses whether the
     // result policy requires a human decision after QA has approved it.
@@ -831,17 +841,17 @@ export class WorkerService {
       });
       await transaction.approval.create({
         data: {
-          actor: policyAutoApproval ? ApprovalActor.SYSTEM : ApprovalActor.USER,
-          channel: policyAutoApproval ? ApprovalChannel.POLICY : ApprovalChannel.TELEGRAM,
-          decidedBy: policyAutoApproval ? "autonomy-policy" : null,
+          actor: policyApprovalEligible ? ApprovalActor.SYSTEM : ApprovalActor.USER,
+          channel: policyApprovalEligible ? ApprovalChannel.POLICY : ApprovalChannel.TELEGRAM,
+          decidedBy: null,
           idempotencyKey: `execution:${execution.id}:result-approval`,
           presentedPayload: json({
             diffHash: result.diff_hash,
             resultHash: result.result_hash,
           }),
           requestedBy: "worker",
-          respondedAt: policyAutoApproval ? new Date() : null,
-          status: policyAutoApproval ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+          respondedAt: null,
+          status: ApprovalStatus.PENDING,
           targetHash: result.result_hash,
           targetId: execution.id,
           targetType: ApprovalTargetType.EXECUTION_RESULT,
@@ -859,12 +869,14 @@ export class WorkerService {
       });
       await transaction.auditEvent.create({
         data: {
-          action: policyAutoApproval ? "approval.auto_approved" : "approval.requested",
+          action: "approval.requested",
           actor: "SYSTEM",
           correlationId: result.idempotency_key,
           idempotencyKey: `audit:${result.idempotency_key}`,
           payload: json({
             diffHash: result.diff_hash,
+            policyActor: resultApprovalDecision.actor,
+            reasonCode: resultApprovalDecision.reasonCode,
             resultHash: result.result_hash,
             targetState: taskState,
           }),

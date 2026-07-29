@@ -53,6 +53,11 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
   `UNAVAILABLE`, sem aprovação automática.
 - a reconciliação pós-execução libera o gate somente com evidência `PASS` e
   decisão `approved`; divergência, sinal ausente ou erro falham fechado;
+- Approval automática de resultado só é decidida depois dessa reconciliação e
+  apenas para trabalho `simple|moderate`, reversível, com testes verdes, sem
+  paths protegidos nem ações sensíveis;
+- resultado crítico permanece sob decisão humana enquanto não houver baseline
+  versionado de evals e autorização específica;
 - o registro reconciliado contém somente enums, hashes e códigos estáveis,
   nunca prompt, resposta remota ou mensagem bruta de erro.
 

@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { AgentRuntime } from "@atlas/agent-runtime";
 import { OPENAI_MODELS } from "@atlas/agent-runtime";
 import {
+  ApprovalActor,
+  ApprovalChannel,
   ApprovalStatus,
   EmpiricalReviewVerdict,
   ExecutionStatus,
@@ -342,7 +344,47 @@ export class PostExecutionQaService {
       const policyApproval = await transaction.approval.findUnique({
         where: { idempotencyKey: `execution:${execution.id}:result-approval` },
       });
-      if (policyApproval?.status !== ApprovalStatus.APPROVED) return true;
+      if (policyApproval === null) return true;
+      let approvalStatus = policyApproval.status;
+      if (
+        approvalStatus === ApprovalStatus.PENDING &&
+        policyApproval.actor === ApprovalActor.SYSTEM &&
+        policyApproval.channel === ApprovalChannel.POLICY
+      ) {
+        const approved = await transaction.approval.updateMany({
+          where: {
+            actor: ApprovalActor.SYSTEM,
+            channel: ApprovalChannel.POLICY,
+            id: policyApproval.id,
+            status: ApprovalStatus.PENDING,
+          },
+          data: {
+            decidedBy: "proportional-autonomy-policy",
+            respondedAt: now,
+            status: ApprovalStatus.APPROVED,
+          },
+        });
+        if (approved.count !== 1) return false;
+        approvalStatus = ApprovalStatus.APPROVED;
+        await transaction.auditEvent.create({
+          data: {
+            action: "approval.auto_approved",
+            actor: "SYSTEM",
+            correlationId,
+            idempotencyKey: `audit:${correlationId}:result-approval`,
+            payload: json({
+              approvalId: policyApproval.id,
+              reason: "qa_signals_approved",
+              targetId: execution.id,
+            }),
+            projectId: execution.task.projectId,
+            targetId: execution.id,
+            targetType: "EXECUTION_RESULT",
+            taskId: execution.taskId,
+          },
+        });
+      }
+      if (approvalStatus !== ApprovalStatus.APPROVED) return true;
       const transitioned = await transaction.task.updateMany({
         where: {
           id: execution.taskId,
@@ -473,6 +515,18 @@ export class PostExecutionQaService {
       data: { state: TaskState.SPECIFYING, version: { increment: 1 } },
     });
     if (transitioned.count !== 1) return;
+    await transaction.approval.updateMany({
+      where: {
+        status: ApprovalStatus.PENDING,
+        targetId: execution.id,
+        targetType: "EXECUTION_RESULT",
+      },
+      data: {
+        decidedBy: "post-execution-qa",
+        respondedAt: new Date(),
+        status: ApprovalStatus.REJECTED,
+      },
+    });
     await transaction.execution.updateMany({
       where: { id: execution.id, status: ExecutionStatus.AWAITING_RESULT_APPROVAL },
       data: {

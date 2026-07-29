@@ -125,6 +125,12 @@ Project 1—N ResultDeliveryOutbox
 - Aprovação automática também cria Approval com `actor=system`, `target_type`,
   `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
   e não pode produzir trilha mais fraca que a aprovação manual.
+- Approval de resultado nasce `pending`. Uma candidata de política só se torna
+  `approved` depois da reconciliação `PASS + reviewer approved`; resultado
+  crítico permanece pendente para decisão humana até evals versionados,
+  decisão arquitetural e autorização próprias.
+- QA rejeitado ou indisponível invalida a Approval pendente ligada à Execution
+  antes de retornar a Task para retrabalho versionado.
 - Eventos repetidos usam idempotency key; lease renovável e fencing token seguem o ADR-012 aceito.
 - Cada parecer e cada início/conclusão de rodada gera AuditEvent com `task_id` e
   `correlation_id`; o supervisor que emite a Specification não ocupa o papel de
