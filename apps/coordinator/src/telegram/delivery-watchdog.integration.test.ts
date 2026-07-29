@@ -167,5 +167,47 @@ describe("Prisma delivery watchdog", () => {
     expect(JSON.stringify(deliveries)).not.toContain("synthetic approved result");
     expect(JSON.stringify(deliveries)).not.toContain("destinationChatId");
     expect(JSON.stringify(deliveries)).not.toContain("destinationUserId");
+
+    const countsBeforeMissionControl = await Promise.all([
+      prisma.task.count({ where: { projectId } }),
+      prisma.approval.count({ where: { task: { projectId } } }),
+      prisma.auditEvent.count({ where: { projectId } }),
+      prisma.resultDeliveryOutbox.count({ where: { projectId } }),
+    ]);
+    const missionControl = await dashboard.missionControl(projectId);
+    expect(missionControl).toMatchObject({
+      intelligence: {
+        generatedBy: "deterministic_rules",
+        status: "available",
+      },
+      methodology: {
+        eta: "indeterminado",
+        pendingQuestions: "indeterminado",
+        progress: "task_state",
+      },
+      risks: {
+        count: 4,
+        status: "available",
+      },
+    });
+    const serializedMissionControl = JSON.stringify(missionControl);
+    for (const forbidden of [
+      "synthetic approved result",
+      "synthetic delivery watchdog fixture",
+      "messageText",
+      "destinationChatId",
+      "destinationUserId",
+      "originalMessage",
+    ]) {
+      expect(serializedMissionControl).not.toContain(forbidden);
+    }
+    await expect(
+      Promise.all([
+        prisma.task.count({ where: { projectId } }),
+        prisma.approval.count({ where: { task: { projectId } } }),
+        prisma.auditEvent.count({ where: { projectId } }),
+        prisma.resultDeliveryOutbox.count({ where: { projectId } }),
+      ]),
+    ).resolves.toEqual(countsBeforeMissionControl);
   });
 });

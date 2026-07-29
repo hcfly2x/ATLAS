@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Dashboard Trilha A read-only
+
+- Mission Control reúne atenção humana, trabalho em execução, bloqueios,
+  conclusões recentes, riscos e prioridade em uma projeção GET.
+- Proatividade v1 deriva aprovações humanas, entrega/SLA, retrabalho, QA
+  indisponível e custo acima do teto declarado somente de registros existentes.
+- Atlas Intelligence v1 usa regras determinísticas, sem LLM; ausência de sinal,
+  ETA e dúvidas sem fonte verificável aparecem como `indeterminado`.
+- Queries antigas da dashboard passam a omitir conteúdo bruto e retornam apenas
+  metadados seguros.
+- Não há schema, migração, cache, rota de escrita ou mudança em TaskState,
+  `always_human`, autonomia, enforcement, QA ou entrega.
+
 ## Unreleased — autonomia proporcional de resultado
 
 - Toda Approval de resultado nasce pendente; a decisão automática ocorre

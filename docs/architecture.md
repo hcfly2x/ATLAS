@@ -31,11 +31,19 @@ Cérebro do sistema:
 ### Dashboard operacional
 
 Há uma única dashboard web operacional no coordinator hospedado. Ela consulta o
-mesmo PostgreSQL das Tasks recebidas pelo Telegram e é somente leitura, com
-aprovação apenas quando a política já a exige. A exposição pública no Render é
-desabilitada por default e depende de flag explícita e Bearer token de alta
-entropia; não cria um segundo banco, dashboard local concorrente ou rota de
-escrita.
+mesmo PostgreSQL das Tasks recebidas pelo Telegram e é somente leitura. A
+exposição pública no Render é desabilitada por default e depende de flag
+explícita e Bearer token de alta entropia; não cria um segundo banco, dashboard
+local concorrente ou rota de escrita. Approval continua no fluxo governado
+existente, fora da Home.
+
+A Trilha A projeta Mission Control, Proatividade e Atlas Intelligence
+determinística diretamente de Task, Execution, Approval, revisões, custos e
+outbox existentes. Cada bloco de leitura falha de forma independente para
+`indeterminado`; progresso usa apenas o estado real da Task, ETA sem metodologia
+permanece indeterminado e custo anormal significa somente ultrapassar o teto
+declarado do projeto. A Home não usa LLM, não persiste cache e não expõe
+conteúdo bruto.
 
 ### Agent Runtime
 

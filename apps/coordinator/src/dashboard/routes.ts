@@ -63,6 +63,10 @@ export function registerDashboardRoutes(
     const query = filterSchema.parse(request.query);
     return service.overview(query.projectId, query.periodDays);
   });
+  app.get("/dashboard/api/mission-control", { preHandler: authorized }, async (request) => {
+    const query = filterSchema.pick({ projectId: true }).parse(request.query);
+    return service.missionControl(query.projectId);
+  });
   app.get("/dashboard/api/tasks", { preHandler: authorized }, async (request) => {
     const query = filterSchema.pick({ projectId: true }).parse(request.query);
     return service.tasks(query.projectId);

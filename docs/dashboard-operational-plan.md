@@ -111,6 +111,11 @@ Trilha somente leitura, de baixo conflito, priorizada para começar cedo:
 
 É a maior alavanca inicial de valor e não exige rota de escrita.
 
+**Estado:** v1 autorizada e implementada nesta entrega sobre a dashboard
+existente. O resumo é determinístico e sem LLM; progresso deriva do estado real,
+ETA sem metodologia aparece como indeterminado e os alertas não executam ação.
+Narrativa por LLM e qualquer escrita continuam fases futuras não autorizadas.
+
 ### Trilha B — Workspace da Demanda
 
 Construir primeiro a leitura de um ambiente único para toda a vida da demanda:

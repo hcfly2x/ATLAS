@@ -5,10 +5,37 @@ import { assertRemoteDashboardConfiguration } from "./routes.js";
 import type { DashboardService } from "./service.js";
 
 const deliveriesMock = vi.fn(() => Promise.resolve([]));
+const missionControlMock = vi.fn(() =>
+  Promise.resolve({
+    blocked: { count: 0, items: [], status: "available" },
+    generatedAt: "2026-07-29T12:00:00.000Z",
+    inProgress: { count: 0, items: [], status: "available" },
+    intelligence: {
+      facts: [],
+      generatedBy: "deterministic_rules",
+      headline: "Nenhuma prioridade derivada dos sinais disponíveis",
+      status: "available",
+    },
+    methodology: {
+      cost: "declared_task_cost_limit",
+      eta: "indeterminado",
+      pendingQuestions: "indeterminado",
+      progress: "task_state",
+      recentWindowDays: 7,
+    },
+    needsAttention: { count: 0, items: [], status: "available" },
+    priorityNow: { item: null, status: "available" },
+    projectId: null,
+    recentlyCompleted: { count: 0, items: [], status: "available" },
+    risks: { count: 0, items: [], status: "available" },
+    unavailableSignals: [],
+  }),
+);
 const dashboard = {
   audit: vi.fn(() => Promise.resolve([])),
   deliveries: deliveriesMock,
   memory: vi.fn(() => Promise.resolve([])),
+  missionControl: missionControlMock,
   overview: vi.fn(() =>
     Promise.resolve({
       costs: {
@@ -62,7 +89,7 @@ describe("read-only dashboard", () => {
     apps.push(app);
 
     const page = await app.inject({ method: "GET", url: "/dashboard" });
-    const denied = await app.inject({ method: "GET", url: "/dashboard/api/overview" });
+    const denied = await app.inject({ method: "GET", url: "/dashboard/api/mission-control" });
     const accepted = await app.inject({
       method: "GET",
       url: "/dashboard/api/overview",
@@ -81,8 +108,16 @@ describe("read-only dashboard", () => {
       url: "/dashboard/api/deliveries",
       headers: { authorization: "Bearer local-dashboard-token" },
     });
+    const missionControl = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/mission-control",
+      headers: { authorization: "Bearer local-dashboard-token" },
+    });
     expect(deliveries.statusCode).toBe(200);
+    expect(missionControl.statusCode).toBe(200);
     expect(deliveriesMock).toHaveBeenCalledWith(undefined);
+    expect(missionControlMock).toHaveBeenCalledWith(undefined);
+    expect(missionControl.body).toContain('"generatedBy":"deterministic_rules"');
     expect(page.headers["referrer-policy"]).toBe("no-referrer");
     expect(page.headers["x-content-type-options"]).toBe("nosniff");
   });
@@ -95,13 +130,15 @@ describe("read-only dashboard", () => {
     });
     apps.push(app);
 
-    for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
-      const response = await app.inject({
-        method,
-        url: "/dashboard/api/deliveries",
-        headers: { authorization: "Bearer local-dashboard-token" },
-      });
-      expect(response.statusCode).toBe(404);
+    for (const path of ["/dashboard/api/deliveries", "/dashboard/api/mission-control"]) {
+      for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
+        const response = await app.inject({
+          method,
+          url: path,
+          headers: { authorization: "Bearer local-dashboard-token" },
+        });
+        expect(response.statusCode).toBe(404);
+      }
     }
   });
 
@@ -120,7 +157,7 @@ describe("read-only dashboard", () => {
     });
     const data = await app.inject({
       method: "GET",
-      url: "/dashboard/api/overview",
+      url: "/dashboard/api/mission-control",
       headers: { authorization: "Bearer local-dashboard-token" },
       remoteAddress: "192.0.2.10",
     });
@@ -145,12 +182,12 @@ describe("read-only dashboard", () => {
     });
     const denied = await app.inject({
       method: "GET",
-      url: "/dashboard/api/overview",
+      url: "/dashboard/api/mission-control",
       remoteAddress: "192.0.2.10",
     });
     const accepted = await app.inject({
       method: "GET",
-      url: "/dashboard/api/overview",
+      url: "/dashboard/api/mission-control",
       headers: { authorization: "Bearer local-dashboard-token" },
       remoteAddress: "192.0.2.10",
     });

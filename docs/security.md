@@ -90,6 +90,12 @@ nosniff` e `Referrer-Policy: no-referrer`. O token permanece no fragmento do
 navegador e é enviado apenas como header às APIs; nunca entra em query string,
 logs ou repositório.
 
+Mission Control e os endpoints de inspeção retornam somente estados, contagens,
+datas, hashes e IDs correlacionáveis. Mensagem original, demanda normalizada,
+payload de Specification/Approval/Execution/review, conteúdo de memória,
+payload de AuditEvent, comandos, worktree e destino/texto de entrega não fazem
+parte das projeções web.
+
 ## Entrega terminal
 
 - o destino da outbox vem somente de `Task.origin`;
