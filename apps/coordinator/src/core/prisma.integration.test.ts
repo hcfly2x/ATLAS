@@ -11,6 +11,7 @@ import {
   createEmpiricalReviewEvidence,
   createWorkerResult,
   divergenceAnalysisSchema,
+  empiricalReviewEvidenceContentSchema,
   executableSpecificationPayloadSchema,
   normalizedDemandSchema,
   specialistOpinionSchema,
@@ -868,6 +869,10 @@ describe("Prisma core persistence", () => {
     });
     const cancelledRaceResult = createWorkerResult({
       ...previousResultContent,
+      empirical_review: createEmpiricalReviewEvidence({
+        ...empiricalReviewEvidenceContentSchema.parse(empiricalReview),
+        reviewer_id: secondRegistration.workerId,
+      }),
       execution_id: cancelAssignment.execution_id,
       idempotency_key: `cancel-race-result-${randomUUID()}`,
       log_chunks: [],
