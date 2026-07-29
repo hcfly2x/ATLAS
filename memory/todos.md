@@ -15,10 +15,15 @@
 
 ## QA pós-execução — acompanhamento após integração
 
-- Revisar empiricamente o QA empírico v1 antes de merge; confirmar instalação
-  congelada, allowlist, diff scope, sanitização e natureza advisory.
+- Manter a revisão empírica do QA v1 como baseline: instalação congelada,
+  allowlist, diff scope, sanitização e natureza advisory.
 - Medir concordância entre `EmpiricalReview` e PostExecutionReview antes de
   considerar probes gerados, outro provedor ou qualquer papel autoritativo.
+- Revisar empiricamente o adaptador Claude antes do merge: endpoint único,
+  seleção restrita ao revisor, fallback default OpenAI, falha fechada e ausência
+  de prompt, resposta, corpo de erro e credencial na trilha persistida.
+- Medir qualidade, latência, custo e concordância OpenAI/Claude em amostra
+  versionada antes de qualquer mudança de autonomia ou expansão de provedor.
 
 - Definir e executar a amostra mensurável de resultados reais para comprovar
   100% de parecer pós-execução antes de considerar o loop autônomo confiável.
@@ -138,10 +143,11 @@
 
 ## Loop de auto-desenvolvimento — registrado, não autorizado
 
-- Definir ADR e escopo do QA empírico: revisor que executa instalação com
-  lockfile congelado, testes, probes adversariais e diff contra a base.
-- Disponibilizar o provedor Claude para o papel de revisor, preservando
-  diversidade entre autor e revisor.
+- O QA empírico v1 está integrado; probes gerados e papel autoritativo continuam
+  sem autorização.
+- O provedor Claude está restrito à entrega autorizada do revisor
+  pós-execução; abstração genérica e uso por outros agentes continuam sem
+  autorização.
 - Manter merge e deploy em `always_human` e revisão humana adicional em pull
   requests de alto risco até evals comprovarem a confiabilidade do revisor.
 - Nenhum item acima constitui fase antes de ADR e autorização explícita.

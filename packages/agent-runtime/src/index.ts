@@ -2,6 +2,15 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ZodType } from "zod";
 
+export {
+  CLAUDE_REVIEWER_ENDPOINT,
+  CLAUDE_REVIEWER_MODEL,
+  ClaudeReviewerAgentRuntime,
+  ClaudeReviewerRuntimeError,
+  estimateClaudeReviewerCostUsd,
+  type ClaudeReviewerFailureCode,
+} from "./claude-reviewer.js";
+
 export const OPENAI_MODELS = {
   normalizer: "gpt-5.6-luna",
   router: "gpt-5.6-luna",

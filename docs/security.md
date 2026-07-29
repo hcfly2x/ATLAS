@@ -52,6 +52,19 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
 - timeout, exceção, runtime ausente ou comando negado resultam em
   `UNAVAILABLE`, sem aprovação automática.
 
+## Provedor do revisor pós-execução
+
+- `ANTHROPIC_API_KEY` existe somente no ambiente do coordinator ou no secret
+  store e nunca é enviada ao worker;
+- o adaptador Claude possui um único destino de egress:
+  `https://api.anthropic.com/v1/messages`;
+- corpo de erro remoto, prompt e resposta não entram em logs, auditoria ou
+  evidência; falhas são reduzidas a códigos seguros;
+- selecionar Claude sem configuração completa falha fechado e nunca produz
+  aprovação automática;
+- a seleção vale somente para o revisor pós-execução e não altera
+  `always_human`, merge, deploy ou autonomia.
+
 ## Dashboard web
 
 O dashboard é somente leitura e permanece bloqueado fora do loopback por

@@ -12,9 +12,11 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
-O QA empírico v1 está em entrega própria como evidência advisory: repete apenas
+O QA empírico v1 está integrado como evidência advisory: repete apenas
 verificações declaradas/autorizadas na worktree e alimenta o revisor existente.
-Ele não é gate autoritativo, não substitui Approval e não amplia autonomia.
+Ele não é gate autoritativo, não substitui Approval e não amplia autonomia. O
+provedor Claude para o revisor pós-execução está em entrega própria, com OpenAI
+preservado como default e sem extensão a outros agentes.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
@@ -27,8 +29,9 @@ avaliação estão registradas em `docs/market-alignment.md`. Esse registro não
 declara capacidade concluída nem autoriza adoção, dependência, fase ou execução.
 
 A direção documental para internalizar o papel de arquiteto e revisor está em
-`docs/self-development-loop.md`. Nenhuma peça desse loop está declarada como
-concluída ou autorizada para implementação.
+`docs/self-development-loop.md`. O QA empírico v1 está integrado e o provedor
+Claude do revisor foi autorizado nesta entrega; as demais peças continuam sem
+autorização.
 
 ## Implementado
 
@@ -87,6 +90,10 @@ concluída ou autorizada para implementação.
   retrabalho por nova Specification e impedindo entrega final do resultado.
 - A evidência `EmpiricalReview` é imutável e sanitizada; seu veredito
   `pass|fail|unavailable` é apenas contexto do PostExecutionReview.
+- O revisor pós-execução pode selecionar Claude por configuração própria. A
+  ausência da seleção mantém OpenAI; Claude usa endpoint fixo, saída estruturada
+  revalidada por Zod e erros sanitizados. Supervisor, conselho, normalizador e
+  roteador continuam no runtime OpenAI.
 - O retorno do QA a `SPECIFYING` publica ao autor Telegram uma mensagem
   idempotente por Task e versão, com resumo, ações requeridas e próximo passo.
   A publicação não dispara supervisor, não cria Specification e não repete a
@@ -148,13 +155,17 @@ concluída ou autorizada para implementação.
 - No shadow de comandos, o corpus cobre os dois callers, decisões permitidas e
   negadas, múltiplos comandos, divergências artificiais nas duas direções,
   falha da decisão/logger, ausência de mutação e não-vazamento de argumentos.
+- No adaptador Claude do revisor, testes cobrem endpoint único, saída
+  estruturada, seleção default, diversidade de runtime, timeout,
+  indisponibilidade, recusa, resposta inválida e ausência de conteúdo remoto
+  nos erros.
 - Na Fase C, testes unitários cobrem SLA, idempotência, projeção segura da
   dashboard e ausência de mutação; integração PostgreSQL cobre os três sinais
   operacionais e a unicidade do alerta.
 
 ## Decisões vigentes
 
-- ADRs 001–012 aceitos; ADRs 013–019 permanecem Propostos.
+- ADRs 001–012 aceitos; ADRs 013–021 permanecem Propostos.
 - ADR-003 é aplicado com pareceres independentes, supervisor consolidando e no
   máximo duas rodadas.
 - GPT-5.6 Luna é o default configurável dos pareceristas; GPT-5.6 Terra permanece
@@ -170,6 +181,8 @@ concluída ou autorizada para implementação.
 - Os shadows de paths e comandos ainda precisam de amostras reais versionadas
   com zero `MORE_PERMISSIVE`. Até cutovers separados, os autorizadores legados
   continuam sendo as únicas decisões efetivas do worker.
+- A diversidade de provedor do revisor ainda precisa de avaliação real de
+  qualidade, latência, custo e concordância antes de influenciar autonomia.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -201,5 +214,8 @@ cutover exige fase e autorização próprias.
   autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–019;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–021;
 - não executar deploy nem integrar credenciais reais.
+- não usar o adaptador Claude em supervisor, conselho ou qualquer agente fora
+  do revisor pós-execução;
+- não iniciar abstração genérica de provedor ou ampliar a autoridade do QA.

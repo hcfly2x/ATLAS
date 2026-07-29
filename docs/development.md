@@ -113,6 +113,23 @@ Tasks sem interromper uma já iniciada. Toda chamada registra tokens, custo
 estimado e latência. Os testes usam exclusivamente um `AgentRuntime` falso e
 nunca chamam a API real.
 
+### Provedor opcional do revisor pós-execução
+
+Sem configuração adicional, o revisor pós-execução reutiliza o runtime OpenAI,
+como antes. Para selecionar Claude somente nesse papel, defina no ambiente
+privado do coordinator:
+
+```bash
+export ATLAS_POST_EXECUTION_REVIEWER_PROVIDER=claude
+export ANTHROPIC_API_KEY=valor-fornecido-fora-do-repositorio
+export ATLAS_CLAUDE_REVIEWER_TIMEOUT_MS=60000
+```
+
+A chave não deve ser escrita em arquivo versionado. Uma seleção explícita de
+Claude sem chave ou com timeout inválido impede o startup. O endpoint Anthropic
+não é configurável, e erro, timeout, recusa ou resposta inválida seguem o fluxo
+existente de QA indisponível, sem aprovação automática.
+
 ### Conselho multiagente
 
 O coordinator carrega o registro de papéis de `.atlas/agents.yaml`, as

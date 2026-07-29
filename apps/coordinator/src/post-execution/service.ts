@@ -53,6 +53,7 @@ export class PostExecutionQaService {
       council: CouncilConfig;
       monthlyBudgetUsd: number;
       prisma: PrismaClient;
+      reviewerModel?: string;
       runtime: AgentRuntime;
     },
   ) {
@@ -191,7 +192,7 @@ export class PostExecutionQaService {
           2,
         ),
         instructions: `${this.reviewer.instructions}\n\n${postExecutionReviewInstructions(answerOnly)}`,
-        model: OPENAI_MODELS.reviewer,
+        model: this.options.reviewerModel ?? OPENAI_MODELS.reviewer,
         outputSchema: postExecutionReviewSchema,
         outputSchemaName: "post_execution_review",
         taskId: execution.taskId,
