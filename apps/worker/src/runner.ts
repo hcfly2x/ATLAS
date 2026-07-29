@@ -17,9 +17,9 @@ import {
 import { executeAllowedCommand, type AllowedCommand } from "./allowlist.js";
 import type { WorkerCoordinatorClient } from "./client.js";
 import {
-  authorizeCommandsWithShadow,
-  authorizeRuntimeCommandsWithShadow,
-} from "./command-enforcement-shadow.js";
+  authorizeCommandsWithEnforcement,
+  authorizeRuntimeCommandsWithEnforcement,
+} from "./command-enforcement.js";
 import { runPreflight } from "./preflight.js";
 import { findProtectedPathMatchesWithShadow } from "./protected-path-shadow.js";
 
@@ -177,7 +177,7 @@ export class WorkerRunner {
       );
       const signal = AbortSignal.any([abortController.signal, phaseAbortController.signal]);
       try {
-        for (const command of authorizeRuntimeCommandsWithShadow(
+        for (const command of authorizeRuntimeCommandsWithEnforcement(
           assignment.runtime,
           phase,
           assignment.required_tools.gnu_tools,
@@ -258,7 +258,7 @@ export class WorkerRunner {
       });
       const validationCommands =
         assignment.runtime === null
-          ? authorizeCommandsWithShadow(assignment, {
+          ? authorizeCommandsWithEnforcement(assignment, {
               executionId: assignment.execution_id,
               taskId: assignment.task_id,
             })

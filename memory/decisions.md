@@ -1,5 +1,13 @@
 # Decisões
 
+- O cutover de comandos torna `decideEnforcement` autoritativo para comandos já
+  estruturados; `parseSpecificationCommand` permanece no caller.
+- O autorizador legado continua como guarda de regressão. Se a decisão pura for
+  mais permissiva, o resultado efetivo é `deny`; falha da decisão pura também
+  resulta em `deny`.
+- Logs do cutover distinguem decisão efetiva, decisão determinística, fonte e
+  divergência, sem argumentos ou mensagens de erro.
+
 - O shadow de comandos envolve os dois callers, mas
   `authorizeCommands`/`authorizeRuntimeCommands` continuam sendo a única
   decisão autoritativa. A decisão pura apenas observa comandos estruturados.

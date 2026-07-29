@@ -38,8 +38,11 @@
   contêm argumentos, payloads ou mensagens de erro.
 - Coletar uma amostra real versionada e bloquear o cutover enquanto houver
   qualquer divergência `MORE_PERMISSIVE`.
-- Migrar `authorizeCommands`/`authorizeRuntimeCommands` somente depois da
-  amostra shadow com zero divergência mais permissiva.
+- Revisar empiricamente o cutover de `authorizeCommands` e
+  `authorizeRuntimeCommands`, incluindo fallback mais-permissivo e falha da
+  decisão pura, antes do merge.
+- Remover a guarda comparativa legada somente em fase futura e com evidência
+  própria; o cutover inicial permanece fail-closed.
 - Revisar e aprovar separadamente o merge da substituição de `.env*` por
   `**/.env*` na área `secrets` e em `effective_globs`.
 - Manter explícito que o caller legado é case-sensitive até sua migração para a
