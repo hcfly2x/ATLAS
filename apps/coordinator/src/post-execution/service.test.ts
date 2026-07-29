@@ -20,6 +20,7 @@ function qaHarness(input: {
   approvalStatus: "APPROVED" | "PENDING";
   empiricalVerdict: "fail" | "pass";
   reviewerDecision: "approved" | "rejected";
+  reviewerFailureCode?: string;
 }) {
   const taskId = "10000000-0000-4000-8000-000000000001";
   const executionId = "10000000-0000-4000-8000-000000000002";
@@ -109,6 +110,8 @@ function qaHarness(input: {
     worker_id: workerId,
   });
   const taskUpdates: unknown[] = [];
+  const auditEvents: unknown[] = [];
+  const reviewUpdates: unknown[] = [];
   let runtimeInput = "";
   const execution = {
     empiricalReview: {
@@ -137,13 +140,32 @@ function qaHarness(input: {
     approval: {
       findUnique: () => Promise.resolve({ status: input.approvalStatus }),
     },
-    auditEvent: { create: () => Promise.resolve({}) },
+    auditEvent: {
+      create: (value: unknown) => {
+        auditEvents.push(value);
+        return Promise.resolve({});
+      },
+    },
     execution: {
       findUniqueOrThrow: () => Promise.resolve(execution),
       updateMany: () => Promise.resolve({ count: 1 }),
     },
     llmCall: { create: () => Promise.resolve({}) },
-    postExecutionReview: { updateMany: () => Promise.resolve({ count: 1 }) },
+    postExecutionReview: {
+      findUniqueOrThrow: () =>
+        Promise.resolve({
+          execution,
+          executionId,
+          id: "10000000-0000-4000-8000-000000000006",
+          reviewerId: "qa",
+          status: "RUNNING",
+          taskId,
+        }),
+      updateMany: (value: unknown) => {
+        reviewUpdates.push(value);
+        return Promise.resolve({ count: 1 });
+      },
+    },
     task: {
       updateMany: (value: unknown) => {
         taskUpdates.push(value);
@@ -181,6 +203,9 @@ function qaHarness(input: {
     runtime: {
       run: (request: { input: string }) => {
         runtimeInput = request.input;
+        if (input.reviewerFailureCode !== undefined) {
+          return Promise.reject(new Error(input.reviewerFailureCode));
+        }
         return Promise.resolve({
           estimatedCostUsd: 0,
           inputTokens: 1,
@@ -200,7 +225,9 @@ function qaHarness(input: {
     } as never,
   });
   return {
+    auditEvents,
     getRuntimeInput: () => runtimeInput,
+    reviewUpdates,
     service,
     taskUpdates,
   };
@@ -294,5 +321,33 @@ describe("PostExecutionQaService", () => {
     ).resolves.toBe(true);
     expect(harness.getRuntimeInput()).toContain('"verdict": "pass"');
     expect(harness.taskUpdates).toEqual([]);
+  });
+
+  it.each([
+    "CLAUDE_REVIEWER_TIMEOUT",
+    "CLAUDE_REVIEWER_UNAVAILABLE",
+    "CLAUDE_REVIEWER_INVALID_RESPONSE",
+  ])("fails closed without auto-approval when the Claude reviewer reports %s", async (code) => {
+    const harness = qaHarness({
+      approvalStatus: "APPROVED",
+      empiricalVerdict: "pass",
+      reviewerDecision: "approved",
+      reviewerFailureCode: code,
+    });
+
+    await expect(
+      harness.service.reviewExecution(
+        "10000000-0000-4000-8000-000000000002",
+        new Date("2026-07-28T12:01:00.000Z"),
+      ),
+    ).resolves.toBe(true);
+
+    expect(JSON.stringify(harness.reviewUpdates)).toContain(`"failureReason":"${code}"`);
+    expect(JSON.stringify(harness.reviewUpdates)).toContain('"status":"FAILED"');
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+    );
+    expect(JSON.stringify(harness.auditEvents)).toContain(code);
+    expect(JSON.stringify(harness.auditEvents)).not.toContain("synthetic-review-input");
   });
 });

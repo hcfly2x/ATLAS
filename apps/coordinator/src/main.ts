@@ -23,6 +23,7 @@ import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegr
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
 import { PostExecutionQaService } from "./post-execution/service.js";
+import { selectPostExecutionReviewerRuntime } from "./post-execution/reviewer-runtime.js";
 import {
   DeliveryWatchdog,
   parseDeliveryWatchdogSlaMs,
@@ -91,15 +92,31 @@ const supervisorService =
         store: new PrismaSupervisorStore(prisma),
         taskStore,
       });
+const postExecutionReviewer =
+  agentRuntime === undefined
+    ? undefined
+    : selectPostExecutionReviewerRuntime({
+        ...(process.env.ANTHROPIC_API_KEY === undefined
+          ? {}
+          : { anthropicApiKey: process.env.ANTHROPIC_API_KEY }),
+        ...(process.env.ATLAS_CLAUDE_REVIEWER_TIMEOUT_MS === undefined
+          ? {}
+          : { claudeTimeoutMs: process.env.ATLAS_CLAUDE_REVIEWER_TIMEOUT_MS }),
+        openaiRuntime: agentRuntime,
+        ...(process.env.ATLAS_POST_EXECUTION_REVIEWER_PROVIDER === undefined
+          ? {}
+          : { provider: process.env.ATLAS_POST_EXECUTION_REVIEWER_PROVIDER }),
+      });
 const postExecutionQaService =
-  agentRuntime === undefined || council === undefined
+  postExecutionReviewer === undefined || council === undefined
     ? undefined
     : new PostExecutionQaService({
         claimDurationMs: Number(process.env.ATLAS_POST_EXECUTION_QA_CLAIM_MS ?? "300000"),
         council,
         monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
         prisma,
-        runtime: agentRuntime,
+        reviewerModel: postExecutionReviewer.model,
+        runtime: postExecutionReviewer.runtime,
       });
 function logAutomaticSupervisionError(
   level: "error" | "warn",

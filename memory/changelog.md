@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — provedor Claude para o revisor pós-execução
+
+- O revisor pós-execução pode selecionar Claude por configuração, enquanto
+  supervisor, normalizador, roteador e conselho permanecem no runtime OpenAI.
+- Sem seleção, o comportamento OpenAI atual é preservado. Seleção Claude exige
+  chave somente no ambiente do coordinator e usa endpoint Anthropic fixo.
+- Saída JSON estruturada é revalidada por Zod; timeout, indisponibilidade,
+  recusa, truncamento ou resposta inválida seguem o fluxo de QA indisponível com
+  código sanitizado e sem aprovação automática.
+- ADR-021 registrado como Proposto. Não há mudança em máquina de estados,
+  `always_human`, autonomia, enforcement, `.atlas/**`, merge ou deploy.
+
 ## Unreleased — QA empírico v1 advisory
 
 - O worker repete instalação com lockfile congelado e validação declarada na

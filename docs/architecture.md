@@ -43,6 +43,9 @@ Expõe uma interface própria, independente do provedor, para executar agentes c
 saída estruturada validada por Zod. A implementação operacional inicial usa a
 Responses API da OpenAI, sem persistir prompts no provedor (`store: false`).
 Normalizador e roteador usam GPT-5.6 Luna; o supervisor usa GPT-5.6 Terra.
+Opcionalmente, somente o revisor pós-execução pode usar o adaptador Claude,
+selecionado por configuração e com endpoint Anthropic fixo. Sem essa seleção, o
+runtime OpenAI atual permanece o default; os demais agentes não mudam.
 
 ### Supervisor
 
@@ -58,6 +61,10 @@ independente antes da finalização. Ele reutiliza `AgentRuntime`, `Execution`,
 canal de entrega ou máquina de estados. Parecer aprovado libera a finalização
 somente se a Approval de resultado já for válida; parecer rejeitado ou
 indisponível retorna a demanda para retrabalho versionado.
+
+Falha, timeout, recusa ou resposta inválida do provedor do revisor são tratados
+como QA indisponível com código sanitizado. A diversidade de provedor não
+transforma o parecer em autorização de merge ou deploy.
 
 Antes da submissão do resultado bem-sucedido, o worker produz uma evidência
 empírica advisory na própria worktree: repete somente instalação congelada e
