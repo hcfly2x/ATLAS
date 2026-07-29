@@ -12,11 +12,15 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
-O QA empírico v1 está integrado como evidência advisory: repete apenas
-verificações declaradas/autorizadas na worktree e alimenta o revisor existente.
-Ele não é gate autoritativo, não substitui Approval e não amplia autonomia. O
-provedor Claude para o revisor pós-execução está em entrega própria, com OpenAI
-preservado como default e sem extensão a outros agentes.
+O QA empírico v1 está integrado: repete apenas verificações
+declaradas/autorizadas na worktree e alimenta o revisor existente. `PASS`
+permanece advisory; `FAIL|UNAVAILABLE` bloqueiam a liberação automática. Ele não
+substitui Approval nem amplia autonomia. O
+provedor Claude para o revisor pós-execução está integrado, com OpenAI
+preservado como default e sem extensão a outros agentes. A reconciliação
+independente entre os dois sinais está nesta entrega: somente `PASS + approved`
+libera o gate da Approval existente; divergência ou indisponibilidade falham
+fechado.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
@@ -89,7 +93,12 @@ autorização.
   rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
   retrabalho por nova Specification e impedindo entrega final do resultado.
 - A evidência `EmpiricalReview` é imutável e sanitizada; seu veredito
-  `pass|fail|unavailable` é apenas contexto do PostExecutionReview.
+  `pass|fail|unavailable` é reconciliado com a decisão do revisor. `PASS` nunca
+  aprova sozinho; `FAIL|UNAVAILABLE` impedem a liberação automática.
+- O `PostExecutionReview` final registra os dois sinais e um motivo estável.
+  Somente `PASS + approved` produz status aprovado; rejeição, divergência, sinal
+  ausente ou erro retornam para revisão humana/retrabalho. A Approval de
+  resultado continua sendo um gate separado.
 - O revisor pós-execução pode selecionar Claude por configuração própria. A
   ausência da seleção mantém OpenAI; Claude usa endpoint fixo, saída estruturada
   revalidada por Zod e erros sanitizados. Supervisor, conselho, normalizador e
@@ -159,13 +168,17 @@ autorização.
   estruturada, seleção default, diversidade de runtime, timeout,
   indisponibilidade, recusa, resposta inválida e ausência de conteúdo remoto
   nos erros.
+- Na reconciliação independente, testes cobrem a matriz completa, sinal ausente,
+  códigos sanitizados e mensagem de retrabalho não contraditória. O PostgreSQL
+  real validou a migração aditiva, a persistência dos dois sinais e a
+  imutabilidade do review final; as 15 integrações passaram.
 - Na Fase C, testes unitários cobrem SLA, idempotência, projeção segura da
   dashboard e ausência de mutação; integração PostgreSQL cobre os três sinais
   operacionais e a unicidade do alerta.
 
 ## Decisões vigentes
 
-- ADRs 001–012 aceitos; ADRs 013–021 permanecem Propostos.
+- ADRs 001–012 aceitos; ADRs 013–022 permanecem Propostos.
 - ADR-003 é aplicado com pareceres independentes, supervisor consolidando e no
   máximo duas rodadas.
 - GPT-5.6 Luna é o default configurável dos pareceristas; GPT-5.6 Terra permanece
@@ -183,6 +196,9 @@ autorização.
   continuam sendo as únicas decisões efetivas do worker.
 - A diversidade de provedor do revisor ainda precisa de avaliação real de
   qualidade, latência, custo e concordância antes de influenciar autonomia.
+- A reconciliação independente continua conservadora: indisponibilidade de
+  qualquer sinal exige revisão humana/retrabalho e pode gerar falso negativo,
+  mas nunca libera resultado sem as duas confirmações.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -214,7 +230,7 @@ cutover exige fase e autorização próprias.
   autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–021;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–022;
 - não executar deploy nem integrar credenciais reais.
 - não usar o adaptador Claude em supervisor, conselho ou qualquer agente fora
   do revisor pós-execução;
