@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — reconciliação independente do QA pós-execução
+
+- `PostExecutionReview` persiste separadamente o veredito empírico, a decisão
+  do revisor e um código estável de reconciliação.
+- Somente `PASS + approved` produz review aprovado e alcança a Approval de
+  resultado já existente. `FAIL`, `UNAVAILABLE`, rejeição, sinal ausente ou
+  erro falham fechado e seguem para revisão humana/retrabalho.
+- Falhas persistem somente códigos sanitizados; a notificação de retrabalho não
+  apresenta como aprovado um resultado bloqueado pela evidência empírica.
+- A migração é aditiva e os campos permanecem nulos para registros históricos.
+  Máquina de estados, lease, fencing, enforcement, `always_human`, merge e
+  deploy não mudaram.
+- ADR-022 registrado como Proposto.
+
 ## Unreleased — plano operacional oficial da Dashboard
 
 - A Dashboard passa a ser o produto e ambiente operacional principal; Telegram

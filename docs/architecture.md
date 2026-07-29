@@ -58,20 +58,23 @@ gera Approval explícita de sistema e AuditEvent; não reduz a auditabilidade.
 Após o worker entregar testes e diff, o coordinator aplica um QA pós-execução
 independente antes da finalização. Ele reutiliza `AgentRuntime`, `Execution`,
 `Approval`, `AuditEvent` e a fila de estados existentes: não cria segundo worker,
-canal de entrega ou máquina de estados. Parecer aprovado libera a finalização
-somente se a Approval de resultado já for válida; parecer rejeitado ou
-indisponível retorna a demanda para retrabalho versionado.
+canal de entrega ou máquina de estados. A reconciliação determinística libera o
+gate somente quando a evidência empírica é `PASS` e o revisor decide
+`approved`; ainda assim, a Approval de resultado existente precisa ser válida.
+Rejeição, divergência, sinal ausente ou indisponibilidade retornam a demanda
+para retrabalho versionado.
 
 Falha, timeout, recusa ou resposta inválida do provedor do revisor são tratados
 como QA indisponível com código sanitizado. A diversidade de provedor não
 transforma o parecer em autorização de merge ou deploy.
 
 Antes da submissão do resultado bem-sucedido, o worker produz uma evidência
-empírica advisory na própria worktree: repete somente instalação congelada e
+empírica na própria worktree: repete somente instalação congelada e
 `runtime.validate` já declarados/autorizados e confere o diff contra o escopo da
 Specification. O coordinator persiste essa evidência de forma imutável e a
-inclui na entrada do revisor pós-execução. O probe não altera resultado, lease,
-fencing, Approval ou finalização e nunca decide sozinho.
+inclui na entrada do revisor pós-execução. `PASS` nunca decide sozinho;
+`FAIL|UNAVAILABLE` impedem a liberação automática do gate. O probe não altera
+resultado, lease, fencing, Approval ou finalização.
 
 A Specification explicita `delivery_mode`. Planejamentos, análises e respostas
 sem mudança solicitada usam `answer_only`; pedidos de alteração e casos

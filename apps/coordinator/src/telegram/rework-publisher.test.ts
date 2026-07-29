@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TelegramClient } from "./client.js";
 import {
   TelegramReworkPublisher,
+  selectTelegramReworkContent,
   type TelegramReworkCandidate,
   type TelegramReworkStore,
 } from "./rework-publisher.js";
@@ -81,6 +82,28 @@ function candidate(overrides: Partial<TelegramReworkCandidate> = {}): TelegramRe
 }
 
 describe("TelegramReworkPublisher", () => {
+  it("does not present an approved reviewer summary when empirical QA blocks delivery", () => {
+    expect(
+      selectTelegramReworkContent({
+        payload: {
+          confidence: 1,
+          decision: "approved",
+          findings: [],
+          required_actions: [],
+          risks: [],
+          summary: "Approved by the reviewer.",
+        },
+        reconciliationReason: "qa_empirical_failed",
+        reviewerDecision: "APPROVED",
+        status: "REJECTED",
+      }),
+    ).toEqual({
+      requiredActions: [],
+      summary:
+        "A verificação empírica falhou; o resultado não foi liberado e requer revisão humana.",
+    });
+  });
+
   it("sends the QA summary, required actions and explicit next step once", async () => {
     const store = new ReworkStore();
     const client = new ReworkClient();
