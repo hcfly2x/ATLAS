@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — tooling, stack e skills da Dashboard
+
+- O plano oficial passa a registrar o núcleo adotável de frontend, o pacote
+  compartilhado `@atlas/contracts`, o tooling de desenvolvimento e três skills
+  próprias do ATLAS para o Codex.
+- A Fase 0 — ADR do stack, scaffolds, contratos, skills e tooling — fica
+  registrada como o próximo passo anterior à UI, sem autorização de execução.
+- A UI planejada consumirá o read-model do PR #52; não o reimplementará nem
+  criará backend, banco ou fonte de verdade paralelos.
+- `docs/dashboard-tooling.md` é guia subordinado aos documentos canônicos.
+  Nenhum código, dependência, instalação, skill executável, schema, ADR aceito,
+  política, autonomia, `.atlas/**` ou estado foi alterado.
+
 ## Unreleased — Dashboard Trilha A read-only
 
 - Mission Control reúne atenção humana, trabalho em execução, bloqueios,

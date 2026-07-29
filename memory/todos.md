@@ -137,8 +137,15 @@
 
 ## Dashboard operacional — plano oficial
 
-- Trilha A v1 está implementada nesta entrega: Atlas Intelligence determinística,
-  Mission Control e Proatividade sobre sinais existentes, somente leitura.
+- Fase 0: decidir o ADR do stack frontend e, somente após autorização, criar o
+  scaffold de `apps/dashboard`, `@atlas/contracts`, as skills
+  `atlas-dashboard-guardrails`, `atlas-dashboard-contracts` e
+  `atlas-frontend-qa`, além do tooling do Codex.
+- O read-model backend da Trilha A v1 está implementado: Atlas Intelligence
+  determinística, Mission Control e Proatividade sobre sinais existentes,
+  somente leitura.
+- Trilha A frontend: construir a UI Mission Control consumindo esse read-model,
+  sem reimplementar o backend.
 - Validar em uso real a ordem de prioridade, a utilidade dos alertas e a
   apresentação de sinais `indeterminado` antes de ampliar a inteligência.
 - Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
@@ -151,7 +158,9 @@
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.
 - Nenhum item ainda pendente acima constitui fase antes de ADR e autorização
-  explícita.
+  explícita. O
+  registro de stack, pacote, skills e tooling não autoriza instalação,
+  scaffold ou implementação.
 
 ## Alinhamento de mercado — registrado, não autorizado
 
