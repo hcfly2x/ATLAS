@@ -1,13 +1,20 @@
 import type { MissionControlResponse } from "@atlas/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode, type SyntheticEvent } from "react";
+import { Link, Route, Routes, useParams } from "react-router-dom";
 
+import {
+  DemandWorkspaceReadError,
+  fetchDemandWorkspace,
+  type DemandWorkspaceClient,
+} from "./demand-workspace.js";
 import {
   DashboardReadError,
   fetchMissionControl,
   readDashboardToken,
   type MissionControlClient,
 } from "./mission-control.js";
+import { DemandWorkspace } from "./Workspace.js";
 
 type ProactiveItem = MissionControlResponse["risks"]["items"][number];
 type WorkItem = MissionControlResponse["inProgress"]["items"][number];
@@ -37,6 +44,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "medium",
   timeStyle: "short",
 });
+
+function demandLocation(taskId: string) {
+  return {
+    hash: globalThis.location.hash,
+    pathname: `/demand/${encodeURIComponent(taskId)}`,
+  };
+}
 
 function formatDate(value: string): string {
   return dateTimeFormatter.format(new Date(value));
@@ -240,6 +254,9 @@ function PriorityPanel({ priority }: { readonly priority: MissionControlResponse
       <span className={`severity severity-${priority.item.severity}`}>
         {severityLabels[priority.item.severity]}
       </span>
+      <Link className="card-link" to={demandLocation(priority.item.taskId)}>
+        Abrir Workspace <span aria-hidden="true">→</span>
+      </Link>
     </aside>
   );
 }
@@ -349,6 +366,9 @@ function WorkCard({ item }: { readonly item: WorkItem }) {
         </span>
         <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
       </div>
+      <Link className="card-link" to={demandLocation(item.taskId)}>
+        Abrir Workspace <span aria-hidden="true">→</span>
+      </Link>
     </article>
   );
 }
@@ -372,6 +392,9 @@ function ProactiveCard({ item }: { readonly item: ProactiveItem }) {
       <p className="source-line">
         Sinal {item.source.type} · <span className="mono">{shortId(item.source.id)}</span>
       </p>
+      <Link className="card-link" to={demandLocation(item.taskId)}>
+        Abrir Workspace <span aria-hidden="true">→</span>
+      </Link>
     </article>
   );
 }
@@ -539,21 +562,24 @@ function MissionControlHome({ data }: { readonly data: MissionControlResponse })
 }
 
 export interface AppProps {
+  readonly demandWorkspaceClient?: DemandWorkspaceClient;
   readonly initialToken?: string;
   readonly missionControlClient?: MissionControlClient;
 }
 
-export function App({
-  initialToken = readDashboardToken(globalThis.location.hash),
-  missionControlClient = fetchMissionControl,
-}: AppProps) {
-  const [token, setToken] = useState(initialToken);
+function MissionControlRoute({
+  client,
+  onUnlock,
+  token,
+}: {
+  readonly client: MissionControlClient;
+  readonly onUnlock: (token: string) => void;
+  readonly token: string;
+}) {
   const projectId = new URLSearchParams(globalThis.location.search).get("projectId") ?? undefined;
-
   const query = useQuery({
-    enabled: token.length > 0,
     queryFn: ({ signal }) =>
-      missionControlClient({
+      client({
         ...(projectId === undefined ? {} : { projectId }),
         signal,
         token,
@@ -563,6 +589,97 @@ export function App({
     retry: false,
   });
 
+  if (query.isPending) return <LoadingHome />;
+  if (query.isError) {
+    if (query.error instanceof DashboardReadError && query.error.code === "unauthorized") {
+      return <AccessGate error="Token inválido ou sem acesso." onUnlock={onUnlock} />;
+    }
+    return <ErrorHome />;
+  }
+  return <MissionControlHome data={query.data} />;
+}
+
+function LoadingWorkspace() {
+  return (
+    <div aria-busy="true" aria-live="polite">
+      <ShellHeader />
+      <main className="workspace-page">
+        <section className="workspace-hero skeleton-panel">
+          <p className="kicker">Workspace da demanda</p>
+          <div className="skeleton skeleton-title" />
+          <div className="skeleton skeleton-copy" />
+          <p className="loading-label">Carregando a projeção segura da demanda…</p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function WorkspaceError({ notFound = false }: { readonly notFound?: boolean }) {
+  return (
+    <>
+      <ShellHeader />
+      <main className="workspace-page">
+        <section aria-labelledby="workspace-error-title" className="system-state-card">
+          <span className="state-symbol">{notFound ? "404" : "!"}</span>
+          <p className="kicker">Workspace indisponível</p>
+          <h1 id="workspace-error-title">
+            {notFound ? "Demanda não encontrada" : "Demanda indeterminada"}
+          </h1>
+          <p>
+            {notFound
+              ? "Não existe uma demanda visível para este identificador."
+              : "A projeção segura não pôde ser validada. Nenhum conteúdo ou progresso foi inferido."}
+          </p>
+          <Link className="card-link" to={{ hash: globalThis.location.hash, pathname: "/" }}>
+            Voltar ao Mission Control
+          </Link>
+        </section>
+      </main>
+    </>
+  );
+}
+
+function DemandWorkspaceRoute({
+  client,
+  onUnlock,
+  token,
+}: {
+  readonly client: DemandWorkspaceClient;
+  readonly onUnlock: (token: string) => void;
+  readonly token: string;
+}) {
+  const { taskId = "" } = useParams();
+  const query = useQuery({
+    queryFn: ({ signal }) => client({ signal, taskId, token }),
+    queryKey: ["demand-workspace", taskId, token],
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  if (query.isPending) return <LoadingWorkspace />;
+  if (query.isError) {
+    if (query.error instanceof DemandWorkspaceReadError && query.error.code === "unauthorized") {
+      return <AccessGate error="Token inválido ou sem acesso." onUnlock={onUnlock} />;
+    }
+    return (
+      <WorkspaceError
+        notFound={
+          query.error instanceof DemandWorkspaceReadError && query.error.code === "not_found"
+        }
+      />
+    );
+  }
+  return <DemandWorkspace data={query.data} />;
+}
+
+export function App({
+  demandWorkspaceClient = fetchDemandWorkspace,
+  initialToken = readDashboardToken(globalThis.location.hash),
+  missionControlClient = fetchMissionControl,
+}: AppProps) {
+  const [token, setToken] = useState(initialToken);
+
   function unlock(nextToken: string) {
     const fragment = new URLSearchParams({ token: nextToken }).toString();
     globalThis.history.replaceState(null, "", `${globalThis.location.pathname}#${fragment}`);
@@ -570,13 +687,21 @@ export function App({
   }
 
   if (token.length === 0) return <AccessGate onUnlock={unlock} />;
-  if (query.isPending) return <LoadingHome />;
-  if (query.isError) {
-    return query.error instanceof DashboardReadError && query.error.code === "unauthorized" ? (
-      <AccessGate error="Token inválido ou sem acesso." onUnlock={unlock} />
-    ) : (
-      <ErrorHome />
-    );
-  }
-  return <MissionControlHome data={query.data} />;
+  return (
+    <Routes>
+      <Route
+        element={
+          <MissionControlRoute client={missionControlClient} onUnlock={unlock} token={token} />
+        }
+        path="/"
+      />
+      <Route
+        element={
+          <DemandWorkspaceRoute client={demandWorkspaceClient} onUnlock={unlock} token={token} />
+        }
+        path="/demand/:taskId"
+      />
+      <Route element={<WorkspaceError notFound />} path="*" />
+    </Routes>
+  );
 }

@@ -1,0 +1,123 @@
+import type { DemandWorkspaceResponse } from "@atlas/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
+import axe from "axe-core";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it } from "vitest";
+
+import { App } from "./App.js";
+import { DemandWorkspaceReadError, type DemandWorkspaceClient } from "./demand-workspace.js";
+import {
+  demandWorkspaceFixture,
+  emptyDemandWorkspaceFixture,
+  indeterminateDemandWorkspaceFixture,
+} from "./test/fixtures.js";
+
+const route = `/demand/${demandWorkspaceFixture.header.taskId}`;
+
+function renderWorkspace(client: DemandWorkspaceClient) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[route]}>
+        <App demandWorkspaceClient={client} initialToken="synthetic-dashboard-token" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+function resolvedClient(data: DemandWorkspaceResponse): DemandWorkspaceClient {
+  return () => Promise.resolve(data);
+}
+
+describe("Demand Workspace UI", () => {
+  it("renders loading while the demand read-model is pending", () => {
+    renderWorkspace(() => new Promise<DemandWorkspaceResponse>(() => undefined));
+
+    expect(screen.getByText("Carregando a projeção segura da demanda…")).toBeInTheDocument();
+  });
+
+  it("renders all read-only workflow sections from the validated contract", async () => {
+    renderWorkspace(resolvedClient(demandWorkspaceFixture));
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Construir o Workspace read-only da demanda",
+      }),
+    ).toBeInTheDocument();
+    for (const heading of [
+      "Visão geral",
+      "Plano e tarefas",
+      "Aprovações",
+      "QA",
+      "Entregáveis",
+      "Linha do tempo",
+      "Custos",
+    ]) {
+      expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    }
+    expect(screen.getByText("pnpm, git")).toBeInTheDocument();
+    expect(screen.getByText(/5 arquivo\(s\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /aprovar|cancelar|pausar|editar/i })).toBeNull();
+  });
+
+  it("renders explicit empty states without inventing records", async () => {
+    renderWorkspace(resolvedClient(emptyDemandWorkspaceFixture));
+
+    expect(await screen.findByText("Nenhuma execução foi registrada.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhuma aprovação foi registrada.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhuma revisão de QA foi registrada.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum evento seguro foi registrado.")).toBeInTheDocument();
+  });
+
+  it("keeps unavailable signals visibly indeterminate", async () => {
+    renderWorkspace(resolvedClient(indeterminateDemandWorkspaceFixture));
+
+    expect(await screen.findAllByText("indeterminado")).not.toHaveLength(0);
+    expect(screen.getAllByText("Indeterminado.")).toHaveLength(2);
+  });
+
+  it("renders a specific safe not-found state", async () => {
+    renderWorkspace(() => Promise.reject(new DemandWorkspaceReadError("not_found")));
+
+    expect(
+      await screen.findByRole("heading", { name: "Demanda não encontrada" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a safe contract error and never leaks synthetic raw fields", async () => {
+    const forbiddenValues = ["SECRET_MESSAGE_TEXT", "SECRET_PAYLOAD", "SECRET_PROMPT"] as const;
+    renderWorkspace(() => Promise.reject(new DemandWorkspaceReadError("invalid_contract")));
+
+    expect(
+      await screen.findByRole("heading", { name: "Demanda indeterminada" }),
+    ).toBeInTheDocument();
+    for (const value of forbiddenValues) {
+      expect(document.body).not.toHaveTextContent(value);
+    }
+  });
+
+  it("replays safe timeline events step by step", async () => {
+    renderWorkspace(resolvedClient(demandWorkspaceFixture));
+
+    expect(await screen.findByRole("heading", { name: "task.created" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Próximo evento" }));
+    expect(screen.getByRole("heading", { name: "execution.completed" })).toBeInTheDocument();
+    expect(screen.getByText("Etapa 2 de 2")).toBeInTheDocument();
+  });
+
+  it("has no accessibility violations in the populated Workspace", async () => {
+    const { container } = renderWorkspace(resolvedClient(demandWorkspaceFixture));
+    await screen.findByRole("heading", { name: "Linha do tempo" });
+
+    const audit = await axe.run(container, {
+      rules: {
+        "color-contrast": { enabled: false },
+      },
+    });
+    expect(audit.violations).toEqual([]);
+  });
+});

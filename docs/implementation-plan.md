@@ -153,10 +153,11 @@ a ser `docs/dashboard-operational-plan.md`, organizado por workflow nas trilhas:
 - D — projeto como empresa, entregáveis e custo real/Budget;
 - E — observabilidade, saúde, conhecimento, decisões e analytics.
 
-Esta é uma trilha paralela priorizada. A Trilha A read-only v1 foi autorizada
-em entrega própria; as Trilhas B–E permanecem não autorizadas. Cada nova fase
-exige ADR e autorização próprios, sem atropelar enforcement, evals ou o loop de
-auto-desenvolvimento.
+Esta é uma trilha paralela priorizada. A Trilha A read-only v1 e a Trilha B
+read-only (read-model B1 + Workspace/Replay B2) foram autorizadas e
+implementadas em entregas próprias; as Trilhas C–E permanecem não autorizadas.
+Cada nova fase exige ADR e autorização próprios, sem atropelar enforcement,
+evals ou o loop de auto-desenvolvimento.
 
 ### Fase 11 — Hardening
 

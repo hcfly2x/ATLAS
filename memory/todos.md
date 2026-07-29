@@ -148,11 +148,12 @@
 - Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
 - Trilha B1 backend está implementada: revisar empiricamente o contrato,
   sanitização, 404 estável e ausência de escritas do Workspace por demanda.
-- Trilha B2 permanece não autorizada: UI do Workspace e Replay operacional sem
-  chain-of-thought, consumindo o read-model B1 sem criar fonte paralela.
+- Trilha B2 está implementada: revisar empiricamente a UI do Workspace, o Replay
+  operacional sem chain-of-thought, a navegação por URL, os estados
+  loading/vazio/erro/404/indeterminado e o não-vazamento.
 - Trilha C: autenticação/RBAC, rotas de escrita, Command Center e aprovações
   contextuais pela UI, reutilizando `Approval` e `always_human`, com auditoria
-  completa.
+  completa; permanece não autorizada.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.

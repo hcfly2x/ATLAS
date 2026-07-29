@@ -185,13 +185,17 @@ Construir primeiro a leitura de um ambiente único para toda a vida da demanda:
 Inclui **Replay operacional** de eventos, decisões, ferramentas, resultados,
 arquivos e aprovações — sem chain-of-thought.
 
-**Estado:** B1 autorizada e implementada no backend. O coordinator expõe somente
+**Estado:** B1 e B2 autorizadas e implementadas. O coordinator expõe somente
 `GET /dashboard/api/demand/:taskId`, protegido pela mesma fronteira loopback +
 Bearer da Dashboard, e `@atlas/contracts` valida a resposta estrita. A projeção
 permite objetivo, estratégia e critérios próprios da demanda; argumentos,
 payloads, conteúdo de memória, prompts, respostas e saídas cruas permanecem
-fora do contrato. A UI do Workspace e o Replay são B2 e continuam pendentes de
-fase e autorização próprias.
+fora do contrato. A UI React consome esse read-model por GET e apresenta
+cabeçalho, visão geral, plano, execuções limitadas ao executável, aprovações, QA,
+evidências de entrega, custos estimados e Replay de eventos persistidos. O
+Replay não expõe chain-of-thought e nenhuma ação de negócio foi adicionada.
+Escrita e aprovações contextuais continuam exclusivas da Trilha C, ainda não
+autorizada.
 
 ### Trilha C — Comando e escrita
 
