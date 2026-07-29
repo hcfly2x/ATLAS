@@ -3,8 +3,10 @@
 ## Status e autoridade
 
 Este documento registra um guia de implementação para o frontend da Dashboard.
-Ele não autoriza instalação, scaffold, dependência, skill executável, ADR ou
-fase. Vale a regra **registrado não equivale a autorizado**.
+A Fase 0 foi autorizada e implementada como preparação técnica. Isso não
+autoriza a UI da Trilha A, nova dependência, feature, rota de escrita ou fase
+posterior. Para todo o restante vale a regra **registrado não equivale a
+autorizado**.
 
 O guia é subordinado aos arquivos canônicos do repositório, em especial
 `specifications/project-manifest.yaml`, `docs/dashboard-operational-plan.md`,
@@ -21,9 +23,10 @@ Atlas Intelligence v1 permanece determinística. Uma narrativa por LLM é
 possibilidade futura, assíncrona, cacheada e não bloqueante; sua ausência ou
 falha nunca pode impedir a interface nem inventar progresso, custo ou estado.
 
-## Núcleo adotável
+## Núcleo da Fase 0
 
-Cada item abaixo exige ADR e autorização próprios antes de instalação:
+Os itens abaixo foram autorizados para a preparação sob o ADR-024 Proposto.
+Qualquer ampliação exige ADR e autorização próprios:
 
 - `apps/dashboard`: React, Vite e TypeScript estrito;
 - interface: Tailwind e shadcn/ui;
@@ -40,8 +43,9 @@ para o frontend.
 
 ## Tooling do Codex
 
-Os seguintes itens são candidatos ao ambiente do desenvolvedor/Codex, não
-dependências de produção:
+shadcn MCP, Playwright CLI e React Doctor foram configurados como tooling de
+desenvolvimento, não dependências de produção. OpenAI Build Web Apps permanece
+opcional quando o plugin estiver instalado; não há instalação silenciosa.
 
 - OpenAI Build Web Apps;
 - shadcn MCP;
@@ -63,13 +67,13 @@ Três skills devem codificar a governança da Dashboard no ambiente do Codex:
 - `atlas-frontend-qa`: exige testes de comportamento, acessibilidade,
   não-vazamento e verificação visual proporcional.
 
-Estas são skills do fluxo de desenvolvimento. O registro não cria arquivos
-executáveis, não altera `.atlas/**`, não implementa o catálogo de skills de
-agentes do ADR-016 e não amplia permissões.
+Estas são skills versionadas do fluxo de desenvolvimento em `.agents/skills`.
+Elas não alteram `.atlas/**`, não implementam o catálogo de skills de agentes
+do ADR-016 e não ampliam permissões.
 
 ## Fase 0 — Preparação
 
-A próxima fase proposta, anterior à UI, reúne:
+A preparação anterior à UI reúne:
 
 1. ADR do stack frontend;
 2. scaffold de `apps/dashboard`;
@@ -77,8 +81,11 @@ A próxima fase proposta, anterior à UI, reúne:
 4. criação das três skills do ATLAS;
 5. configuração do tooling do Codex.
 
-É uma preparação de baixo risco e alta alavanca, mas continua não autorizada.
-Cada mudança só começa após ADR e autorização explícita.
+**Estado:** autorizada e implementada nesta entrega. O ADR-024 está Proposto,
+`apps/dashboard` contém apenas um shell técnico sem dados ou ações,
+`@atlas/contracts` valida o wire format real de Mission Control e as três skills
+e o tooling estão versionados. A implementação de interface e qualquer fase
+posterior continuam sem autorização.
 
 ## Itens não adotados agora
 

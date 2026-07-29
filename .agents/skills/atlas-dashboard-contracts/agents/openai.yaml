@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATLAS Dashboard Contracts"
+  short_description: "Validate workflow read-model contracts"
+  default_prompt: "Use $atlas-dashboard-contracts to implement or review a Dashboard read-model integration."

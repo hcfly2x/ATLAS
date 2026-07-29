@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATLAS Dashboard Guardrails"
+  short_description: "Preserve frontend governance and read-only scope"
+  default_prompt: "Use $atlas-dashboard-guardrails to review this Dashboard frontend change against ATLAS governance."

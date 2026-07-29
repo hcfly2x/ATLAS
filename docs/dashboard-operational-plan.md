@@ -95,7 +95,7 @@ O CEO age como gerente de projeto, não como chat. Ele:
 - reorganiza o plano;
 - recomenda próximos passos.
 
-## Tooling, stack e skills (registrado, não autorizado)
+## Tooling, stack e skills (Fase 0 implementada; ampliações não autorizadas)
 
 O read-model de Mission Control entregue pelo PR #52 é o backend da primeira
 interface. A UI será um app frontend que consome esse contrato; não deve
@@ -110,17 +110,19 @@ React Testing Library, Playwright, axe-core e React Doctor como ferramenta de
 desenvolvimento. Os contratos Zod orientados a workflow entre backend e
 frontend devem viver em um pacote compartilhado `@atlas/contracts`.
 
-Cada item desse núcleo exige ADR e autorização próprios antes de instalação ou
-scaffold. O guia de implementação está em `docs/dashboard-tooling.md` e é
+O núcleo da Fase 0 foi autorizado sob o ADR-024 Proposto; ampliações continuam
+exigindo ADR e autorização próprios antes de instalação ou scaffold. O guia de
+implementação está em `docs/dashboard-tooling.md` e é
 subordinado a `specifications/project-manifest.yaml` e aos demais documentos
 canônicos. Em caso de divergência, os canônicos prevalecem.
 
-OpenAI Build Web Apps, shadcn MCP, Playwright CLI e React Doctor são candidatos
-ao tooling do ambiente de desenvolvimento do Codex, não dependências de
-produção. Três skills próprias do ATLAS devem codificar a governança desse
+shadcn MCP, Playwright CLI e React Doctor foram configurados como tooling do
+ambiente de desenvolvimento do Codex, não dependências de produção. OpenAI
+Build Web Apps permanece opcional quando o plugin estiver instalado e não é
+instalado silenciosamente. Três skills próprias do ATLAS codificam a governança desse
 trabalho no Codex: `atlas-dashboard-guardrails`,
-`atlas-dashboard-contracts` e `atlas-frontend-qa`. Esse registro não cria
-skills executáveis, não altera `.atlas/**` e não amplia permissões. Vercel Web
+`atlas-dashboard-contracts` e `atlas-frontend-qa`. Elas não criam ações do
+produto, não alteram `.atlas/**` e não ampliam permissões. Vercel Web
 Design Guidelines permanece opcional e sujeito a auditoria.
 
 Não entram agora LangGraph, CrewAI, AutoGen, OpenHands, OpenManus, LlamaIndex ou
@@ -136,7 +138,7 @@ resposta, payload, `messageText`, destino, segredo ou conteúdo cru.
 
 ### Fase 0 — Preparação
 
-Esta é a próxima preparação planejada, antes da UI:
+Esta preparação anterior à UI reúne:
 
 - propor o ADR do stack frontend;
 - criar, somente depois de autorização, o scaffold de `apps/dashboard`;
@@ -144,9 +146,10 @@ Esta é a próxima preparação planejada, antes da UI:
 - criar as três skills próprias do ATLAS para o ambiente do Codex;
 - configurar o tooling de desenvolvimento do Codex.
 
-A Fase 0 tem baixo risco e alta alavanca, mas não está autorizada. Este
-documento não instala dependências, não cria scaffold, pacote, skill ou ADR
-aceito.
+**Estado:** autorizada e implementada nesta entrega como preparação técnica.
+ADR-024 permanece Proposto; `apps/dashboard` builda um shell sem dados ou
+ações, `@atlas/contracts` valida o read-model real, e skills/tooling estão
+versionados. A UI da Trilha A e qualquer escrita continuam não autorizadas.
 
 ### Trilha A — Inteligência + Mission Control
 

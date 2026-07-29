@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Dashboard Fase 0
+
+- ADR-024 registra como Proposto o stack frontend autorizado para a preparação.
+- `apps/dashboard` builda e testa um shell React/Vite estritamente sem dados,
+  ações ou feature da Trilha A.
+- `@atlas/contracts` valida com Zod o wire format real do Mission Control e
+  rejeita campos inesperados.
+- Três skills de desenvolvimento e o shadcn MCP ficam versionados com
+  guardrails de escopo, contratos e QA.
+- Coordinator, worker, core, schema, `.atlas/**`, TaskState, `always_human`,
+  autonomia e enforcement permanecem inalterados.
+
 ## Unreleased — tooling, stack e skills da Dashboard
 
 - O plano oficial passa a registrar o núcleo adotável de frontend, o pacote
