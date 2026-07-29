@@ -37,6 +37,10 @@ A direção documental para internalizar o papel de arquiteto e revisor está em
 Claude do revisor foi autorizado nesta entrega; as demais peças continuam sem
 autorização.
 
+O plano operacional oficial da Dashboard está em
+`docs/dashboard-operational-plan.md`. Ele substitui a antiga Fase 10 monolítica
+por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
