@@ -56,8 +56,12 @@ O backend da Trilha B1 expõe um Workspace sanitizado por demanda em
 `GET /dashboard/api/demand/:taskId`, validado por `@atlas/contracts`. Ele agrega
 somente conteúdo próprio permitido da demanda e metadados/códigos derivados dos
 registros existentes; memória fica limitada a tipo/contagem e comandos ao
-executável. A UI e o Replay da Trilha B2, as Trilhas C–E e qualquer escrita
-continuam não autorizados.
+executável. A Trilha B2 também está implementada: itens do Mission Control
+abrem o Workspace por URL, e a UI apresenta as seções read-only e um Replay
+passo a passo somente dos eventos sanitizados. Estados loading, vazio,
+indeterminado, erro e 404 são explícitos. O fragmento de autenticação é
+preservado na navegação interna, sem persistência adicional. As Trilhas C–E e
+qualquer escrita continuam não autorizadas.
 
 ## Implementado
 
@@ -248,11 +252,11 @@ continuam não autorizados.
 
 ## Próximo passo
 
-Revisar empiricamente a UI read-only da Trilha A e validar em uso real sua ordem
-de prioridade, alertas e sinais indeterminados. Em paralelo, coletar amostras
-reais versionadas dos shadows de paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o
-respectivo cutover; mesmo com amostra limpa, cada cutover exige fase e
-autorização próprias.
+Revisar empiricamente o Workspace e o Replay read-only da Trilha B2, incluindo
+navegação a partir do Mission Control, estados vazios/indeterminados e
+não-vazamento. Em paralelo, coletar amostras reais versionadas dos shadows de
+paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o respectivo cutover;
+mesmo com amostra limpa, cada cutover exige fase e autorização próprias.
 
 ## Restrições ativas
 

@@ -51,9 +51,14 @@ input {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+a:focus-visible {
   outline: 3px solid rgb(125 226 174 / 42%);
   outline-offset: 3px;
+}
+
+a {
+  color: inherit;
 }
 
 .sr-only {
@@ -335,6 +340,390 @@ input:focus-visible {
   min-height: calc(100vh - 4.75rem);
   padding: clamp(1.5rem, 4vw, 3.5rem);
   margin: 0 auto;
+}
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  margin-top: 1rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.card-link:hover,
+.back-link:hover {
+  color: var(--accent-strong);
+}
+
+.workspace-topbar {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.75rem;
+  padding: 0 2.5rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-soft);
+  background: rgb(7 17 14 / 88%);
+  backdrop-filter: blur(18px);
+}
+
+.workspace-brand {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.workspace-topbar .context-status {
+  margin-left: auto;
+}
+
+.workspace-page {
+  width: min(100%, 96rem);
+  min-height: calc(100vh - 4.75rem);
+  padding: clamp(1.5rem, 4vw, 3.5rem);
+  margin: 0 auto;
+}
+
+.workspace-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  border: 1px solid #315849;
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at 15% -25%, rgb(125 226 174 / 17%), transparent 38rem),
+    linear-gradient(130deg, rgb(19 48 37 / 92%), rgb(10 24 18 / 94%));
+}
+
+.workspace-hero-copy h1 {
+  max-width: 50rem;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(2rem, 5vw, 4.25rem);
+  font-weight: 570;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+}
+
+.back-link {
+  display: inline-flex;
+  gap: 0.45rem;
+  margin-bottom: 2.75rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.workspace-reference {
+  margin: 1.5rem 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.workspace-facts,
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px;
+  margin: 0;
+  background: var(--line-soft);
+}
+
+.workspace-facts > div,
+.overview-grid > div {
+  min-width: 0;
+  padding: 1rem;
+  background: rgb(8 22 16 / 78%);
+}
+
+.workspace-facts dt,
+.overview-grid dt,
+.execution-card dt,
+.qa-signals dt,
+.replay-focus dt {
+  margin-bottom: 0.3rem;
+  color: var(--quiet);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-facts dd,
+.overview-grid dd,
+.execution-card dd,
+.qa-signals dd,
+.replay-focus dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.workspace-section {
+  grid-column: span 6;
+  min-width: 0;
+  padding: clamp(1.4rem, 3vw, 2rem);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  background: var(--surface);
+}
+
+.workspace-section:nth-child(2),
+.workspace-section:nth-child(6) {
+  grid-column: 1 / -1;
+}
+
+.workspace-section > header {
+  padding-bottom: 1.15rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.workspace-section h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+}
+
+.workspace-section h3 {
+  margin: 0 0 0.85rem;
+  color: #c9d7d1;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.workspace-list {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1.35rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.workspace-empty,
+.methodology-note {
+  color: var(--quiet);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.execution-list,
+.record-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.execution-card,
+.record-row,
+.deliverable-card,
+.cost-card,
+.replay-focus {
+  padding: 1rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.85rem;
+  background: rgb(20 39 31 / 62%);
+}
+
+.execution-card header,
+.record-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.execution-card header span,
+.record-row span,
+.deliverable-card p,
+.cost-card p {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.execution-card dl,
+.qa-signals,
+.replay-focus dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+}
+
+.record-row > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.record-row time {
+  color: var(--quiet);
+  font-size: 0.7rem;
+}
+
+.qa-signals {
+  margin: 0;
+}
+
+.deliverable-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.deliverable-card p:last-child {
+  margin-bottom: 0;
+}
+
+.replay {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.28fr);
+  gap: 1rem;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.timeline-list button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  width: 100%;
+  padding: 0.8rem;
+  color: var(--muted);
+  text-align: left;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.timeline-list li[aria-current="step"] button {
+  color: var(--ink);
+  border-color: #3f745e;
+  background: rgb(125 226 174 / 8%);
+}
+
+.timeline-list button > span {
+  grid-row: span 2;
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+}
+
+.timeline-list time {
+  color: var(--quiet);
+  font-size: 0.68rem;
+}
+
+.replay-focus h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.8rem;
+  text-transform: none;
+}
+
+.replay-controls {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+}
+
+.replay-controls button {
+  padding: 0.65rem 0.8rem;
+  color: var(--accent);
+  border: 1px solid #315849;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.replay-controls button:disabled {
+  color: #50685e;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
+.cost-card {
+  display: grid;
+}
+
+.cost-card > span {
+  color: var(--quiet);
+  font-size: 0.75rem;
+}
+
+.cost-card strong {
+  margin: 0.35rem 0;
+  color: var(--ink);
+  font-size: 2rem;
+  font-weight: 580;
+}
+
+.value-indeterminate {
+  color: var(--amber);
+  font-style: italic;
+}
+
+@media (max-width: 800px) {
+  .workspace-hero,
+  .workspace-split,
+  .replay {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-section {
+    grid-column: 1 / -1;
+  }
+
+  .workspace-topbar {
+    padding: 0 1.25rem;
+  }
+
+  .workspace-facts,
+  .overview-grid,
+  .deliverable-grid,
+  .execution-card dl,
+  .qa-signals,
+  .replay-focus dl {
+    grid-template-columns: 1fr;
+  }
+
+  .record-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .intelligence-panel {

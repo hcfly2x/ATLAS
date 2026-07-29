@@ -1,4 +1,4 @@
-import type { MissionControlResponse } from "@atlas/contracts";
+import type { DemandWorkspaceResponse, MissionControlResponse } from "@atlas/contracts";
 
 const taskId = "10000000-0000-4000-8000-000000000001";
 const occurredAt = "2026-07-29T12:00:00.000Z";
@@ -177,4 +177,135 @@ export const indeterminateMissionControlFixture: MissionControlResponse = {
     "recentlyCompleted",
     "review",
   ],
+};
+
+export const demandWorkspaceFixture: DemandWorkspaceResponse = {
+  approvals: [
+    {
+      actor: "USER",
+      approvalId: "approval-1",
+      occurredAt,
+      status: "APPROVED",
+      targetVersion: 4,
+      type: "RESULT",
+    },
+  ],
+  cost: {
+    currency: "USD",
+    estimatedUsd: 2.75,
+    methodology: "persisted_estimates",
+  },
+  demand: {
+    objective: "Construir o Workspace read-only da demanda",
+  },
+  executions: [
+    {
+      attempt: 1,
+      diffSummary: {
+        deletions: 8,
+        filesChanged: 5,
+        insertions: 240,
+      },
+      durationMs: 42_000,
+      executables: ["pnpm", "git"],
+      executionId: "execution-1",
+      protectedPathMatchCount: 0,
+      resultStatus: "PASS",
+      specificationVersion: 4,
+      status: "COMPLETED",
+    },
+  ],
+  generatedAt: occurredAt,
+  header: {
+    autonomyLevel: 2,
+    createdAt: "2026-07-29T10:00:00.000Z",
+    deliveryMode: "repository_change",
+    executionState: "COMPLETED",
+    originChannel: "telegram",
+    project: {
+      id: "atlas",
+      name: "ATLAS",
+    },
+    risk: "LOW",
+    taskId,
+    taskState: "WAITING_RESULT_APPROVAL",
+    updatedAt: occurredAt,
+  },
+  memory: {
+    byType: {
+      DECISION: 2,
+      NOTE: 1,
+      SUMMARY: 1,
+    },
+    total: 4,
+  },
+  plan: {
+    acceptanceCriteria: [
+      "Workspace consome apenas o read-model sanitizado",
+      "UI permanece GET-only",
+    ],
+    implementationStrategy: ["Adicionar rota tipada", "Renderizar seções independentes"],
+    specificationVersion: 4,
+  },
+  qa: [
+    {
+      empiricalVerdict: "PASS",
+      executionId: "execution-1",
+      reconciliationReason: "qa_signals_approved",
+      reviewerDecision: "APPROVED",
+    },
+  ],
+  timeline: [
+    {
+      action: "task.created",
+      correlationId: "correlation-1",
+      eventId: "event-1",
+      occurredAt: "2026-07-29T10:00:00.000Z",
+    },
+    {
+      action: "execution.completed",
+      correlationId: "correlation-1",
+      eventId: "event-2",
+      occurredAt,
+    },
+  ],
+};
+
+export const emptyDemandWorkspaceFixture: DemandWorkspaceResponse = {
+  ...demandWorkspaceFixture,
+  approvals: [],
+  executions: [],
+  memory: {
+    byType: { DECISION: 0, NOTE: 0, SUMMARY: 0 },
+    total: 0,
+  },
+  plan: {
+    acceptanceCriteria: [],
+    implementationStrategy: [],
+    specificationVersion: "indeterminado",
+  },
+  qa: [],
+  timeline: [],
+};
+
+export const indeterminateDemandWorkspaceFixture: DemandWorkspaceResponse = {
+  ...emptyDemandWorkspaceFixture,
+  cost: {
+    ...emptyDemandWorkspaceFixture.cost,
+    estimatedUsd: "indeterminado",
+  },
+  demand: { objective: "indeterminado" },
+  header: {
+    ...emptyDemandWorkspaceFixture.header,
+    autonomyLevel: "indeterminado",
+    deliveryMode: "indeterminado",
+    executionState: "indeterminado",
+    originChannel: "indeterminado",
+    risk: "indeterminado",
+  },
+  plan: {
+    acceptanceCriteria: "indeterminado",
+    implementationStrategy: "indeterminado",
+    specificationVersion: "indeterminado",
+  },
 };

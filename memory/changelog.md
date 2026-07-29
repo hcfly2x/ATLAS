@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Dashboard Trilha B2 Workspace e Replay
+
+- A Home Mission Control passa a abrir o Workspace read-only por demanda em
+  `/demand/:taskId`, preservando o fragmento de autenticação na navegação.
+- `apps/dashboard` consome somente `GET /dashboard/api/demand/:taskId` e valida a
+  resposta estrita com `demandWorkspaceResponseSchema`.
+- O Workspace apresenta cabeçalho, visão geral, plano, execuções limitadas ao
+  executável, aprovações, QA, evidências de entrega, custos estimados e Replay
+  passo a passo de eventos persistidos.
+- Loading, vazio, erro, 404 e sinais `indeterminado` são explícitos. Campos
+  extras ou conteúdo bruto invalidam o contrato e nunca são renderizados.
+- Não há rota ou controle de aprovação, edição, pausa ou cancelamento. Backend,
+  schema, `.atlas/**`, estados, autonomia, `always_human` e enforcement
+  permanecem inalterados; a escrita segue exclusiva da Trilha C não autorizada.
+
 ## Unreleased — Dashboard Trilha B1 read-model do Workspace
 
 - O coordinator passa a expor `GET /dashboard/api/demand/:taskId` sob a mesma
