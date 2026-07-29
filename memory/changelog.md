@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Dashboard C2·Serving
+
+- O coordinator passa a servir o build Vite de `apps/dashboard` em
+  `/dashboard`, publicando as Trilhas A, B e C2a já implementadas.
+- Shell e deep links exigem `dashboard:shell:read`, usam `no-store` e CSP sem
+  script inline; assets hasheados exigem sessão e usam cache imutável.
+- O catch-all do React Router não sombreia APIs ou assets inexistentes. A
+  página inline de Mission Control foi removida e somente o login
+  pré-autenticação permanece inline.
+- O grafo Turbo constrói o dashboard antes do coordinator. ADR-029 permanece
+  Proposto; nenhuma rota de escrita, domínio, estado, schema, enforcement,
+  autonomia, `always_human` ou worker mudou.
+- C2b1 (criar/cancelar) e C2c (pausa/retomada/prioridade) continuam fases
+  próprias.
+
 ## Unreleased — loop-breaker de retrabalho pós-execução
 
 - `ATLAS_MAX_AUTOMATIC_REWORK` limita rejeições consecutivas pelo mesmo código

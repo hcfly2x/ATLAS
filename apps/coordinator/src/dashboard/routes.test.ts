@@ -274,7 +274,7 @@ describe("dashboard session authentication and RBAC", () => {
 
     const response = await app.inject({
       method: "GET",
-      url: "/dashboard/api/mission-control",
+      url: "/dashboard",
       headers: { cookie },
     });
 
@@ -384,7 +384,7 @@ describe("dashboard session authentication and RBAC", () => {
           url,
         })
       ).statusCode,
-    ).toBe(403);
+    ).toBe(404);
 
     const readOnlyAuth = createAuth({
       permissions: new Set(["dashboard:session:read"]),
@@ -428,6 +428,77 @@ describe("dashboard session authentication and RBAC", () => {
         expect(response.statusCode).toBe(403);
       }
     }
+  });
+
+  it("serves the authenticated React shell, immutable assets and client deep-links", async () => {
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(app);
+
+    const shell = await app.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/dashboard",
+    });
+    const assetPath = /\/dashboard\/assets\/[^"']+\.js/u.exec(shell.body)?.[0];
+
+    expect(shell.statusCode).toBe(200);
+    expect(shell.headers["cache-control"]).toBe("no-store");
+    expect(shell.headers["content-security-policy"]).toContain("script-src 'self'");
+    expect(shell.headers["content-security-policy"]).not.toContain("script-src 'unsafe-inline'");
+    expect(shell.body).toContain('<div id="root"></div>');
+    expect(shell.body).not.toContain("Coordinator · somente leitura");
+    expect(assetPath).toBeDefined();
+
+    const deepLink = await app.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/dashboard/demand/10000000-0000-4000-8000-000000000001",
+    });
+    const deniedDeepLink = await app.inject({
+      method: "GET",
+      url: "/dashboard/demand/10000000-0000-4000-8000-000000000001",
+    });
+    const missingApi = await app.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/dashboard/api/not-a-route",
+    });
+
+    expect(deepLink.statusCode).toBe(200);
+    expect(deepLink.body).toBe(shell.body);
+    expect(deniedDeepLink.statusCode).toBe(401);
+    expect(missingApi.statusCode).toBe(404);
+    expect(missingApi.json()).toEqual({ code: "DASHBOARD_NOT_FOUND" });
+
+    const asset = await app.inject({
+      headers: { cookie },
+      method: "GET",
+      url: assetPath ?? "/dashboard/assets/missing.js",
+    });
+    const deniedAsset = await app.inject({
+      method: "GET",
+      url: assetPath ?? "/dashboard/assets/missing.js",
+    });
+    const missingAsset = await app.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/dashboard/assets/not-a-real-asset.js",
+    });
+
+    expect(asset.statusCode).toBe(200);
+    expect(asset.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    expect(asset.headers["x-content-type-options"]).toBe("nosniff");
+    expect(deniedAsset.statusCode).toBe(401);
+    expect(missingAsset.statusCode).toBe(404);
+    expect(`${shell.body}${asset.body}`).not.toContain(ownerCredential);
+    expect(`${shell.body}${asset.body}`).not.toContain("DATABASE_URL");
+    expect(`${shell.body}${asset.body}`).not.toContain("SECRET_PAYLOAD");
   });
 
   it("keeps loopback default and marks a remotely enabled session Secure", async () => {

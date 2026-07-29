@@ -1,5 +1,13 @@
 # Decisões
 
+- ADR-029 permanece Proposto: o coordinator serve o build React/Vite em
+  `/dashboard`, com shell e deep links autenticados, assets hasheados e
+  catch-all que não sombreia APIs.
+- O shell usa `no-store`; assets usam cache imutável; a CSP do SPA aceita
+  scripts apenas da própria origem. A página inline de Mission Control foi
+  aposentada, preservando somente o login pré-autenticação.
+- O serving não cria escrita ou domínio. C2b1 e C2c permanecem fases próprias.
+
 - ADR-027 permanece Proposto: a primeira escrita da Dashboard decide somente
   Approval `USER` pendente por um resolvedor transacional compartilhado com o
   Telegram.

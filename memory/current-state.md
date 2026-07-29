@@ -71,6 +71,13 @@ Dashboard, com RBAC de escrita, CSRF por sessão, idempotência e versões
 otimistas, usando o mesmo resolvedor transacional do Telegram. ADR-027 permanece
 Proposto. Criar demanda, pausar, priorizar e cancelar continuam para C2b.
 
+A C2·Serving está implementada: o coordinator publica o build React das Trilhas
+A, B e C2a em `/dashboard`, com base Vite correta, deep links autenticados,
+assets hasheados sob cache imutável e shell sem cache. O catch-all não sombreia
+APIs ou assets inexistentes, e a página inline de Mission Control foi
+aposentada. ADR-029 permanece Proposto. Esta entrega não acrescenta escrita;
+C2b1 (criar/cancelar) e C2c (pausa/retomada/prioridade) continuam separadas.
+
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
 `SPECIFYING` somente abaixo do limite configurado. No limiar, a Task permanece

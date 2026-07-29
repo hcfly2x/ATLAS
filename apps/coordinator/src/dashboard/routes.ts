@@ -1,4 +1,7 @@
+import fastifyStatic from "@fastify/static";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 
 import { approvalDecisionRequestSchema } from "@atlas/contracts";
@@ -15,7 +18,7 @@ import {
 } from "../approvals/service.js";
 import type { DashboardAuthenticator, DashboardPermission } from "./auth.js";
 import type { DashboardApprovalService } from "./approval-service.js";
-import { dashboardLoginPage, dashboardPage } from "./page.js";
+import { dashboardLoginPage } from "./page.js";
 import type { DashboardService } from "./service.js";
 
 const loopback = new Set(["127.0.0.1", "::1"]);
@@ -37,6 +40,7 @@ export interface DashboardAuthAuditEvent {
 
 export interface DashboardRouteOptions {
   readonly authAudit?: ((event: DashboardAuthAuditEvent) => void) | undefined;
+  readonly dashboardDistPath?: string | undefined;
   readonly remoteAccessEnabled?: boolean | undefined;
 }
 
@@ -51,11 +55,13 @@ export function assertRemoteDashboardConfiguration(
   }
 }
 
-function securityHeaders(reply: FastifyReply): FastifyReply {
+function securityHeaders(reply: FastifyReply, page: "login" | "spa"): FastifyReply {
   return reply
     .header(
       "content-security-policy",
-      "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
+      page === "login"
+        ? "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
     )
     .header("cache-control", "no-store")
     .header("referrer-policy", "no-referrer")
@@ -71,6 +77,14 @@ export function registerDashboardRoutes(
   options: DashboardRouteOptions = {},
 ): void {
   const remoteAccessEnabled = options.remoteAccessEnabled ?? false;
+  const dashboardDistPath =
+    options.dashboardDistPath ??
+    [
+      resolve(process.cwd(), "../dashboard/dist"),
+      resolve(process.cwd(), "apps/dashboard/dist"),
+    ].find((candidate) => existsSync(join(candidate, "index.html"))) ??
+    resolve(process.cwd(), "../dashboard/dist");
+  const dashboardShell = readFileSync(join(dashboardDistPath, "index.html"), "utf8");
   const audit = (request: FastifyRequest, event: DashboardAuthAuditEvent): void => {
     try {
       if (options.authAudit === undefined) {
@@ -101,9 +115,12 @@ export function registerDashboardRoutes(
     }
     const config = request.routeOptions.config as DashboardRouteConfig;
     if (config.dashboardPublic === true) return;
+    const requiredPermission = request.url.startsWith("/dashboard/assets/")
+      ? "dashboard:shell:read"
+      : config.dashboardPermission;
     let result;
     try {
-      result = auth.authorize(request.headers.cookie, config.dashboardPermission);
+      result = auth.authorize(request.headers.cookie, requiredPermission);
     } catch {
       await reply.code(401).send({ code: "DASHBOARD_UNAUTHORIZED" });
       return;
@@ -143,7 +160,7 @@ export function registerDashboardRoutes(
     "/dashboard/login",
     { config: { dashboardPublic: true } satisfies DashboardRouteConfig },
     async (_request, reply) =>
-      securityHeaders(reply).type("text/html; charset=utf-8").send(dashboardLoginPage),
+      securityHeaders(reply, "login").type("text/html; charset=utf-8").send(dashboardLoginPage),
   );
 
   app.post(
@@ -257,7 +274,7 @@ export function registerDashboardRoutes(
       } satisfies DashboardRouteConfig,
     },
     async (_request, reply) =>
-      securityHeaders(reply).type("text/html; charset=utf-8").send(dashboardPage),
+      securityHeaders(reply, "spa").type("text/html; charset=utf-8").send(dashboardShell),
   );
   app.get(
     "/dashboard/api/overview",
@@ -348,5 +365,36 @@ export function registerDashboardRoutes(
       } satisfies DashboardRouteConfig,
     },
     async (request) => service.memory(projectSchema.parse(request.query).projectId),
+  );
+
+  void app.register(fastifyStatic, {
+    cacheControl: true,
+    decorateReply: false,
+    immutable: true,
+    maxAge: "1y",
+    prefix: "/dashboard/assets/",
+    root: join(dashboardDistPath, "assets"),
+    setHeaders(reply) {
+      void reply.header("cache-control", "public, max-age=31536000, immutable");
+      void reply.header("referrer-policy", "no-referrer");
+      void reply.header("x-content-type-options", "nosniff");
+      void reply.header("x-frame-options", "DENY");
+    },
+  });
+
+  app.get(
+    "/dashboard/*",
+    {
+      config: {
+        dashboardPermission: "dashboard:shell:read",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      const clientPath = (request.params as { "*": string })["*"];
+      if (clientPath.startsWith("api/") || clientPath.startsWith("assets/")) {
+        return reply.code(404).send({ code: "DASHBOARD_NOT_FOUND" });
+      }
+      return securityHeaders(reply, "spa").type("text/html; charset=utf-8").send(dashboardShell);
+    },
   );
 }
