@@ -135,10 +135,13 @@
 - Priorizar e atribuir fase ao epic de tarefas agendadas/webhooks somente após o
   epic de infraestrutura.
 
-## Dashboard operacional — plano oficial, execução não autorizada
+## Dashboard operacional — plano oficial
 
-- Trilha A: Atlas Intelligence, Mission Control e Proatividade sobre sinais
-  existentes, somente leitura.
+- Trilha A v1 está implementada nesta entrega: Atlas Intelligence determinística,
+  Mission Control e Proatividade sobre sinais existentes, somente leitura.
+- Validar em uso real a ordem de prioridade, a utilidade dos alertas e a
+  apresentação de sinais `indeterminado` antes de ampliar a inteligência.
+- Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
 - Trilha B: Workspace da Demanda em modo leitura e Replay operacional sem
   chain-of-thought.
 - Trilha C: autenticação/RBAC, rotas de escrita, Command Center e aprovações
@@ -147,7 +150,8 @@
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.
-- Nenhum item acima constitui fase antes de ADR e autorização explícita.
+- Nenhum item ainda pendente acima constitui fase antes de ADR e autorização
+  explícita.
 
 ## Alinhamento de mercado — registrado, não autorizado
 

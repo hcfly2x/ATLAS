@@ -1,5 +1,14 @@
 # Decisões
 
+- A Trilha A estende a dashboard existente com uma única projeção GET de
+  Mission Control. Não cria SPA, entidade, cache persistente ou rota de escrita.
+- Atlas Intelligence v1 é determinística e sem LLM. Progresso usa TaskState;
+  ETA e dúvidas sem metodologia verificável são `indeterminado`.
+- Proatividade deriva somente Approval, Task, reviews, outbox e custos já
+  persistidos. Falha de um sinal não derruba os demais blocos.
+- Todas as projeções web omitem conteúdo bruto e expõem somente metadados
+  seguros e IDs correlacionáveis.
+
 - Approval de resultado nasce `PENDING`; candidata de política só é decidida
   depois da reconciliação `EmpiricalReview.PASS + reviewer approved`.
 - A decisão proporcional é pura e fail-closed: nível, risco, testes, evidência

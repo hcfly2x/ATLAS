@@ -41,7 +41,11 @@ autorização.
 
 O plano operacional oficial da Dashboard está em
 `docs/dashboard-operational-plan.md`. Ele substitui a antiga Fase 10 monolítica
-por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
+por trilhas orientadas ao workflow. A Trilha A read-only está implementada nesta
+entrega: Mission Control, Proatividade v1 e resumo executivo determinístico
+consultam somente sinais existentes, falham por bloco para `indeterminado` e não
+criam rota de escrita. Narrativa por LLM e as Trilhas B–E continuam sem
+autorização.
 
 ## Implementado
 
@@ -122,10 +126,14 @@ por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
   interrompe Codex quando necessário e limpa a worktree. O worker não continua
   renovando, finalizando ou repetindo uma Assignment cuja posse deixou de poder
   comprovar; o reconciliador durável do coordinator trata o estado ambíguo.
-- A unificação da dashboard em um único destino web no coordinator do Render
-  está preparada em PR próprio: exige flag explícita e Bearer token e mantém
-  dados/rotas somente leitura. Ainda não está habilitada nem autoriza escrita de
-  configuração, agentes ou times.
+- A dashboard usa um único destino web no coordinator do Render, exige flag
+  explícita para acesso remoto e Bearer token e mantém dados/rotas somente
+  leitura. Ela não autoriza escrita de configuração, agentes ou times.
+- A Home Mission Control expõe somente metadados seguros de trabalho: aprovações
+  humanas pendentes, etapas reais, bloqueios, conclusões recentes, entrega,
+  retrabalho, revisão indisponível e custo contra teto declarado. O resumo não usa LLM,
+  progresso não vira percentual inventado e ETA/dúvidas sem sinal ficam
+  `indeterminado`.
 - O primeiro caller de paths protegidos executa a decisão pura em modo shadow.
   `findProtectedPathMatches` continua autoritativo e produz o mesmo
   `protected_path_matches`; o shadow apenas registra decisão, hashes e se a
@@ -189,7 +197,7 @@ por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
 
 ## Decisões vigentes
 
-- ADRs 001–012 aceitos; ADRs 013–022 permanecem Propostos.
+- ADRs 001–012 aceitos; ADRs 013–023 permanecem Propostos.
 - ADR-003 é aplicado com pareceres independentes, supervisor consolidando e no
   máximo duas rodadas.
 - GPT-5.6 Luna é o default configurável dos pareceristas; GPT-5.6 Terra permanece
@@ -228,9 +236,10 @@ por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
 
 ## Próximo passo
 
-Coletar amostras reais versionadas dos shadows de paths e comandos. Qualquer
-`MORE_PERMISSIVE` bloqueia o respectivo cutover; mesmo com amostra limpa, cada
-cutover exige fase e autorização próprias.
+Validar empiricamente a Trilha A read-only e coletar amostras reais versionadas
+dos shadows de paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o
+respectivo cutover; mesmo com amostra limpa, cada cutover exige fase e
+autorização próprias.
 
 ## Restrições ativas
 
