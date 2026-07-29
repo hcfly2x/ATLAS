@@ -25,23 +25,18 @@
 
 ## Enforcement determinístico — escopo definido
 
-- Revisar o primeiro caller em modo shadow antes de qualquer cutover.
-- Executar uma amostra real versionada e bloquear o cutover se houver
-  `MORE_PERMISSIVE`; divergência aceitável é somente `none` ou `stricter`.
-- Autorizar o cutover do caller de paths em fase própria, preservando corpus e
-  fallback até a revisão completa.
-- A revisão completa da paridade de comandos foi concluída; observar caller
-  somente em fase shadow explicitamente autorizada.
+- Para paths, a decisão pura e o shadow estão integrados; coletar amostra real
+  versionada e bloquear o cutover enquanto houver qualquer `MORE_PERMISSIVE`.
+- Autorizar o cutover do caller de paths somente em fase própria, depois de
+  amostra shadow com zero divergência mais permissiva.
+- Para comandos, a paridade, a revisão e o shadow estão integrados; coletar
+  amostra real versionada e bloquear o cutover enquanto houver qualquer
+  `MORE_PERMISSIVE`.
 - Manter `parseSpecificationCommand` no caller até fase própria; a decisão pura
   recebe somente comandos já estruturados.
-- Revisar empiricamente o shadow de comandos e confirmar que logs reais não
-  contêm argumentos, payloads ou mensagens de erro.
-- Coletar uma amostra real versionada e bloquear o cutover enquanto houver
-  qualquer divergência `MORE_PERMISSIVE`.
 - Migrar `authorizeCommands`/`authorizeRuntimeCommands` somente depois da
-  amostra shadow com zero divergência mais permissiva.
-- Revisar e aprovar separadamente o merge da substituição de `.env*` por
-  `**/.env*` na área `secrets` e em `effective_globs`.
+  amostra shadow com zero divergência mais permissiva, em fase e autorização
+  próprias.
 - Manter explícito que o caller legado é case-sensitive até sua migração para a
   decisão pura; não misturar essa migração com a correção de configuração.
 - Planejar resolução física de symlinks dentro da worktree em entrega própria;

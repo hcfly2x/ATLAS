@@ -14,8 +14,9 @@ ampliação de autonomia.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
-também estão integradas. O shadow dos callers de comandos está em branch
-própria; nenhum caller foi migrado para a decisão pura.
+também estão integradas. Para paths, a decisão pura e o shadow estão integrados;
+para comandos, a paridade e o shadow estão integrados e revisados. Nos dois
+casos, o caller legado permanece autoritativo e o cutover está pendente.
 
 As decisões documentais de alinhamento com o mercado e sua sequência de
 avaliação estão registradas em `docs/market-alignment.md`. Esse registro não
@@ -160,9 +161,9 @@ concluída ou autorizada para implementação.
   entrega; o guard então exige repositório configurado.
 - A dashboard não oferece resolução ou reenvio; qualquer ação administrativa
   futura exige fase própria.
-- O shadow de comandos ainda precisa de revisão e amostra real com zero
-  `MORE_PERMISSIVE`; até um cutover separado, os autorizadores legados continuam
-  sendo a única decisão efetiva do worker.
+- Os shadows de paths e comandos ainda precisam de amostras reais versionadas
+  com zero `MORE_PERMISSIVE`. Até cutovers separados, os autorizadores legados
+  continuam sendo as únicas decisões efetivas do worker.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -179,8 +180,8 @@ concluída ou autorizada para implementação.
 
 ## Próximo passo
 
-Revisar empiricamente o shadow de comandos e coletar amostra real versionada.
-Qualquer `MORE_PERMISSIVE` bloqueia o cutover; mesmo com amostra limpa, o
+Coletar amostras reais versionadas dos shadows de paths e comandos. Qualquer
+`MORE_PERMISSIVE` bloqueia o respectivo cutover; mesmo com amostra limpa, cada
 cutover exige fase e autorização próprias.
 
 ## Restrições ativas
@@ -190,8 +191,8 @@ cutover exige fase e autorização próprias.
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
 - não adicionar retry ou reenvio administrativo à Fase C;
-- não iniciar cutover de comandos sem revisão, amostra limpa e autorização
-  explícita;
+- não iniciar cutover de paths ou comandos sem amostra limpa, fase própria e
+  autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
 - não alterar ADRs aceitos ou os status Propostos dos ADRs 013–019;
