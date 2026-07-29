@@ -32,6 +32,11 @@ payload validado, hash canônico, chave idempotente, claim com expiração, moti
 falha? e timestamps. O parecer final é imutável e fica ligado ao resultado exato
 da Execution; o revisor não pode ser o emissor da Specification.
 
+**EmpiricalReview** — id, task_id, execution_id único, specification_id, versão,
+worker revisor, veredito (`pass|fail|unavailable`), evidência sanitizada e
+limitada, hash canônico, chave idempotente e timestamps. O registro é imutável;
+não contém args ou output bruto e apenas alimenta o PostExecutionReview.
+
 **Worker** — id, nome, token hash, escopo de projetos, capacidades/preflight, limite de concorrência, último heartbeat, status.
 
 **WorkerLogChunk** — id, execution_id, sequência, checksum, tamanho, conteúdo
@@ -80,6 +85,7 @@ Specification 1—N Execution
 Execution 1—N WorkerLogChunk
 Execution 1—1 CodexUsage
 Execution 1—1 PostExecutionReview
+Execution 1—1 EmpiricalReview
 Approval N—1 alvo versionado (Specification, Execution/result ou ação sensível)
 Task 1—N AuditEvent
 Task 1—N ResultDeliveryOutbox
@@ -109,6 +115,8 @@ Project 1—N ResultDeliveryOutbox
   não substitui o parecer independente. QA aprovado + Approval automática válida
   permite `FINALIZING`; QA rejeitado ou indisponível retorna a Task a
   `SPECIFYING` para retrabalho versionado, sem entregar o resultado.
+- A evidência empírica é advisory: `pass` não substitui o revisor ou Approval;
+  `fail|unavailable` são apresentados ao mesmo revisor, sem transição autônoma.
 - Aprovação automática também cria Approval com `actor=system`, `target_type`,
   `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
   e não pode produzir trilha mais fraca que a aprovação manual.

@@ -245,6 +245,51 @@ export const workerLogChunkReferenceSchema = z.object({
   created_at: utcTimestampSchema,
 });
 
+export const empiricalCommandEvidenceSchema = z.object({
+  command_hash: hashSchema,
+  duration_ms: z.number().int().nonnegative(),
+  executable: z.string().min(1).max(128),
+  exit_code: z.number().int().nullable(),
+  status: z.enum(["passed", "failed", "denied", "unavailable"]),
+});
+
+export const empiricalReviewEvidenceContentSchema = z.object({
+  changed_paths_hash: hashSchema,
+  commands: z.array(empiricalCommandEvidenceSchema).max(32),
+  expected_scope_hash: hashSchema,
+  finished_at: utcTimestampSchema,
+  reviewer_id: z.string().uuid(),
+  scope_matches: z.boolean(),
+  started_at: utcTimestampSchema,
+  unavailable_reason_code: z
+    .enum([
+      "command_denied",
+      "execution_error",
+      "frozen_install_not_declared",
+      "runtime_manifest_missing",
+      "timeout",
+    ])
+    .nullable(),
+  unexpected_path_hashes: z.array(hashSchema).max(128),
+  verdict: z.enum(["pass", "fail", "unavailable"]),
+});
+export type EmpiricalReviewEvidenceContent = z.infer<typeof empiricalReviewEvidenceContentSchema>;
+
+export const empiricalReviewEvidenceSchema = empiricalReviewEvidenceContentSchema.extend({
+  evidence_hash: hashSchema,
+});
+export type EmpiricalReviewEvidence = z.infer<typeof empiricalReviewEvidenceSchema>;
+
+export function createEmpiricalReviewEvidence(
+  content: EmpiricalReviewEvidenceContent,
+): EmpiricalReviewEvidence {
+  const parsed = empiricalReviewEvidenceContentSchema.parse(content);
+  return empiricalReviewEvidenceSchema.parse({
+    ...parsed,
+    evidence_hash: canonicalPayloadHash(parsed),
+  });
+}
+
 const workerResultBaseSchema = z.object({
   contract_version: z.literal(WORKER_RESULT_CONTRACT_VERSION),
   task_id: z.string().uuid(),
@@ -284,6 +329,7 @@ const workerResultBaseSchema = z.object({
   codex_estimated_cost_usd: z.number().nonnegative(),
   idempotency_key: z.string().min(1).max(255),
   sequence: z.number().int().positive(),
+  empirical_review: empiricalReviewEvidenceSchema.optional(),
 });
 
 function validateWorkerFailureStage(

@@ -6,6 +6,7 @@ import {
   ApprovalStatus,
   ApprovalTargetType,
   ApprovalType,
+  EmpiricalReviewVerdict,
   ExecutionStatus,
   MemoryType,
   TaskState,
@@ -16,6 +17,7 @@ import { z } from "zod";
 
 import {
   canonicalPayloadHash,
+  createEmpiricalReviewEvidence,
   executableSpecificationPayloadSchema,
   workerRuntimeSchema,
   workerCapabilitiesSchema,
@@ -694,6 +696,27 @@ export class WorkerService {
     }
     const testsGreen =
       result.tests.length > 0 && result.tests.every((test) => test.status === "passed");
+    const empiricalReview =
+      result.empirical_review ??
+      createEmpiricalReviewEvidence({
+        changed_paths_hash: canonicalPayloadHash([...result.changed_paths].sort()),
+        commands: [],
+        expected_scope_hash: canonicalPayloadHash([]),
+        finished_at: result.finished_at,
+        reviewer_id: input.workerId,
+        scope_matches: false,
+        started_at: result.finished_at,
+        unavailable_reason_code: "runtime_manifest_missing",
+        unexpected_path_hashes: [],
+        verdict: "unavailable",
+      });
+    if (empiricalReview.reviewer_id !== input.workerId) {
+      throw new WorkerConflictError("empirical reviewer does not match the submitting worker");
+    }
+    const { evidence_hash: evidenceHash, ...empiricalPayload } = empiricalReview;
+    if (canonicalPayloadHash(empiricalPayload) !== evidenceHash) {
+      throw new WorkerConflictError("empirical evidence_hash is not canonical");
+    }
     const policyAutoApproval =
       testsGreen &&
       result.protected_path_matches.length === 0 &&
@@ -769,6 +792,41 @@ export class WorkerService {
           resultSequence: result.sequence,
           status: executionStatus,
           testResult: json(result.tests),
+        },
+      });
+      const persistedEmpiricalReview = await transaction.empiricalReview.create({
+        data: {
+          executionId: execution.id,
+          idempotencyKey: `execution:${execution.id}:empirical-review:v1`,
+          payload: json(empiricalPayload),
+          payloadHash: evidenceHash,
+          reviewedAt: new Date(empiricalReview.finished_at),
+          reviewerId: empiricalReview.reviewer_id,
+          specificationId: execution.specificationId,
+          taskId: execution.taskId,
+          verdict:
+            empiricalReview.verdict === "pass"
+              ? EmpiricalReviewVerdict.PASS
+              : empiricalReview.verdict === "fail"
+                ? EmpiricalReviewVerdict.FAIL
+                : EmpiricalReviewVerdict.UNAVAILABLE,
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          action: "empirical_review.recorded",
+          actor: "WORKER",
+          correlationId: result.idempotency_key,
+          idempotencyKey: `audit:execution:${execution.id}:empirical-review:v1`,
+          payload: json({
+            evidenceHash,
+            reviewerId: empiricalReview.reviewer_id,
+            verdict: empiricalReview.verdict,
+          }),
+          projectId: execution.task.projectId,
+          targetId: persistedEmpiricalReview.id,
+          targetType: "empirical_review",
+          taskId: execution.taskId,
         },
       });
       await transaction.approval.create({

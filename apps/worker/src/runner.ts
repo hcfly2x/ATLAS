@@ -20,6 +20,7 @@ import {
   authorizeCommandsWithShadow,
   authorizeRuntimeCommandsWithShadow,
 } from "./command-enforcement-shadow.js";
+import { runEmpiricalReview, unavailableEmpiricalReview } from "./empirical-review.js";
 import { runPreflight } from "./preflight.js";
 import { findProtectedPathMatchesWithShadow } from "./protected-path-shadow.js";
 
@@ -35,6 +36,8 @@ export interface WorkerRunnerOptions {
   readonly codex: CodexAdapter;
   readonly codexEstimatedCostUsdPerExecution: number;
   readonly executeCommand?: typeof executeAllowedCommand;
+  readonly executeEmpiricalCommand?: typeof executeAllowedCommand;
+  readonly empiricalTimeoutMs?: number;
   readonly git: GitAdapter;
   readonly githubToken: string;
   readonly leaseRenewalMs: number;
@@ -306,6 +309,32 @@ export class WorkerRunner {
         (left, right) => left.sequence - right.sequence,
       );
       const succeeded = codex.exitCode === 0 && tests.every((test) => test.status === "passed");
+      let empiricalReview: Awaited<ReturnType<typeof runEmpiricalReview>> | undefined;
+      if (succeeded) {
+        try {
+          empiricalReview = await runEmpiricalReview({
+            assignment,
+            changedPaths: diff.changedPaths,
+            executeCommand: this.options.executeEmpiricalCommand ?? this.options.executeCommand,
+            reviewerId: this.options.workerId,
+            timeoutMs:
+              this.options.empiricalTimeoutMs ??
+              (assignment.runtime === null
+                ? 60_000
+                : (this.options.runtimeTimeoutMs ?? runtimeTimeoutMilliseconds)(
+                    assignment.runtime.timeout_minutes,
+                  )),
+            worktreePath,
+          });
+        } catch {
+          empiricalReview = unavailableEmpiricalReview({
+            assignment,
+            changedPaths: diff.changedPaths,
+            reasonCode: "execution_error",
+            reviewerId: this.options.workerId,
+          });
+        }
+      }
       result = createWorkerResult({
         changed_paths: [...diff.changedPaths],
         codex_estimated_cost_usd: this.options.codexEstimatedCostUsdPerExecution,
@@ -320,6 +349,7 @@ export class WorkerRunner {
           insertions: diff.insertions,
         },
         error: succeeded ? null : { code: "EXECUTION_FAILED", message: "Codex or tests failed" },
+        empirical_review: empiricalReview,
         execution_id: assignment.execution_id,
         failure_stage: succeeded ? null : "testing",
         finished_at: new Date().toISOString(),

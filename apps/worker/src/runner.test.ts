@@ -307,6 +307,10 @@ describe("WorkerRunner", () => {
     const result = await runner.execute(assignment(root));
 
     expect(result.status).toBe("succeeded");
+    expect(result.empirical_review).toMatchObject({
+      unavailable_reason_code: "runtime_manifest_missing",
+      verdict: "unavailable",
+    });
     expect(calls).toEqual(["create", "finalize", "coordinator-finalize", "cleanup"]);
   });
 

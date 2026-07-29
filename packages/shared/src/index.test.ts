@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalPayloadHash,
+  createEmpiricalReviewEvidence,
   createMemoryItemSchema,
   createStructuredLog,
   createWorkerResult,
@@ -56,6 +57,37 @@ describe("canonicalPayloadHash", () => {
   it("rejects values outside the JSON data model", () => {
     expect(() => canonicalPayloadHash({ invalid: undefined })).toThrow(TypeError);
     expect(() => canonicalPayloadHash({ invalid: Number.NaN })).toThrow(TypeError);
+  });
+});
+
+describe("empirical review evidence", () => {
+  it("hashes bounded evidence without retaining raw command arguments", () => {
+    const evidence = createEmpiricalReviewEvidence({
+      changed_paths_hash: canonicalPayloadHash(["docs/readme.md"]),
+      commands: [
+        {
+          command_hash: canonicalPayloadHash({
+            args: ["validate", "SECRET"],
+            executable: "pnpm",
+          }),
+          duration_ms: 42,
+          executable: "pnpm",
+          exit_code: 0,
+          status: "passed",
+        },
+      ],
+      expected_scope_hash: canonicalPayloadHash(["docs/**"]),
+      finished_at: "2026-07-28T12:00:01.000Z",
+      reviewer_id: "10000000-0000-4000-8000-000000000005",
+      scope_matches: true,
+      started_at: "2026-07-28T12:00:00.000Z",
+      unavailable_reason_code: null,
+      unexpected_path_hashes: [],
+      verdict: "pass",
+    });
+    const { evidence_hash: evidenceHash, ...content } = evidence;
+    expect(evidenceHash).toBe(canonicalPayloadHash(content));
+    expect(JSON.stringify(evidence)).not.toContain("SECRET");
   });
 });
 

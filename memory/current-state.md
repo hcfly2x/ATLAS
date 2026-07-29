@@ -12,6 +12,10 @@ projeto — também está integrado. O Bloco 3 — recuperação durável — es
 integrado. QA pós-execução também está integrado; isso não autoriza Fase 8 ou
 ampliação de autonomia.
 
+O QA empírico v1 está em entrega própria como evidência advisory: repete apenas
+verificações declaradas/autorizadas na worktree e alimenta o revisor existente.
+Ele não é gate autoritativo, não substitui Approval e não amplia autonomia.
+
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
 também estão integradas. Para paths, a decisão pura e o shadow estão integrados;
@@ -81,6 +85,8 @@ concluída ou autorizada para implementação.
   antes de liberar `FINALIZING`. O revisor usa papel distinto do supervisor;
   rejeição ou indisponibilidade retornam a Task a `SPECIFYING`, preservando o
   retrabalho por nova Specification e impedindo entrega final do resultado.
+- A evidência `EmpiricalReview` é imutável e sanitizada; seu veredito
+  `pass|fail|unavailable` é apenas contexto do PostExecutionReview.
 - O retorno do QA a `SPECIFYING` publica ao autor Telegram uma mensagem
   idempotente por Task e versão, com resumo, ações requeridas e próximo passo.
   A publicação não dispara supervisor, não cria Specification e não repete a

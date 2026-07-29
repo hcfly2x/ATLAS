@@ -45,6 +45,12 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
 - timeouts;
 - limite de recursos e uma execução concorrente por padrão (ADR-011);
 - logs sanitizados.
+- QA empírico executa somente instalação congelada e validação já declaradas
+  pela runtime, sempre pela allowlist existente;
+- evidência empírica guarda executável, status, duração e hashes, nunca args,
+  output, prompt, payload bruto, token ou credencial;
+- timeout, exceção, runtime ausente ou comando negado resultam em
+  `UNAVAILABLE`, sem aprovação automática.
 
 ## Dashboard web
 

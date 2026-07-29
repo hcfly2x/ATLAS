@@ -15,6 +15,11 @@
 
 ## QA pós-execução — acompanhamento após integração
 
+- Revisar empiricamente o QA empírico v1 antes de merge; confirmar instalação
+  congelada, allowlist, diff scope, sanitização e natureza advisory.
+- Medir concordância entre `EmpiricalReview` e PostExecutionReview antes de
+  considerar probes gerados, outro provedor ou qualquer papel autoritativo.
+
 - Definir e executar a amostra mensurável de resultados reais para comprovar
   100% de parecer pós-execução antes de considerar o loop autônomo confiável.
 - Validar no piloto que cada retorno a `SPECIFYING` entrega exatamente uma
