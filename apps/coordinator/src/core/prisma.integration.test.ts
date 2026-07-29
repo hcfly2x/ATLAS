@@ -19,6 +19,7 @@ import {
 } from "@atlas/shared";
 
 import { PrismaTaskCoreStore } from "./prisma-task-core-store.js";
+import { PostExecutionQaService } from "../post-execution/service.js";
 import type { CouncilConfig } from "../supervisor/council-config.js";
 import { PrismaSupervisorStore } from "../supervisor/prisma-supervisor-store.js";
 import { SupervisorService } from "../supervisor/service.js";
@@ -90,6 +91,26 @@ class IntegrationAgentRuntime implements AgentRuntime {
       latencyMs: 1,
       model: request.model,
       output: request.outputSchema.parse(fixture),
+      outputTokens: 10,
+    });
+  }
+}
+
+class ApprovedReviewRuntime implements AgentRuntime {
+  run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
+    return Promise.resolve({
+      estimatedCostUsd: 0.001,
+      inputTokens: 10,
+      latencyMs: 1,
+      model: request.model,
+      output: request.outputSchema.parse({
+        confidence: 1,
+        decision: "approved",
+        findings: [],
+        required_actions: [],
+        risks: [],
+        summary: "approved after empirical pass",
+      }),
       outputTokens: 10,
     });
   }
@@ -780,7 +801,7 @@ describe("Prisma core persistence", () => {
       }),
     ).rejects.toThrow("final post_execution_reviews are immutable");
     expect(persisted.task.approvals).toEqual([
-      expect.objectContaining({ actor: "SYSTEM", channel: "POLICY", status: "APPROVED" }),
+      expect.objectContaining({ actor: "USER", channel: "TELEGRAM", status: "PENDING" }),
     ]);
     await prisma.project.update({ where: { id: projectId }, data: { autonomyLevel: 3 } });
     await prisma.execution.update({
@@ -942,5 +963,196 @@ describe("Prisma core persistence", () => {
         },
       }),
     ).toMatchObject({ action: "task.transition.rejected" });
+  });
+
+  it("decides a policy-eligible result only after reconciled QA passes", async () => {
+    const projectId = `proportional-autonomy-${randomUUID()}`;
+    const taskId = randomUUID();
+    const executionId = randomUUID();
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        autonomyLevel: 2,
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Proportional Autonomy Integration",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "moderate",
+      },
+    });
+    await prisma.task.create({
+      data: {
+        id: taskId,
+        idempotencyKey: `proportional-task-${taskId}`,
+        origin: "telegram:42:-100500",
+        originalMessage: "apply a bounded documentation change",
+        projectId,
+        state: "WAITING_RESULT_APPROVAL",
+      },
+    });
+    const payload = specificationPayload(taskId, projectId);
+    const specification = await prisma.specification.create({
+      data: {
+        payload,
+        payloadHash: canonicalPayloadHash(payload),
+        taskId,
+        version: 1,
+      },
+    });
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { activeSpecificationId: specification.id },
+    });
+    const empirical = createEmpiricalReviewEvidence({
+      changed_paths_hash: canonicalPayloadHash(["docs/readme.md"]),
+      commands: [],
+      expected_scope_hash: canonicalPayloadHash(["docs/**"]),
+      finished_at: "2026-07-29T00:00:01.000Z",
+      reviewer_id: randomUUID(),
+      scope_matches: true,
+      started_at: "2026-07-29T00:00:00.000Z",
+      unavailable_reason_code: null,
+      unexpected_path_hashes: [],
+      verdict: "pass",
+    });
+    const result = createWorkerResult({
+      changed_paths: ["docs/readme.md"],
+      codex_estimated_cost_usd: 0,
+      commands: [
+        {
+          args: ["validate"],
+          executable: "pnpm",
+          exit_code: 0,
+          finished_at: "2026-07-29T00:00:01.000Z",
+          started_at: "2026-07-29T00:00:00.000Z",
+          status: "passed",
+        },
+      ],
+      contract_version: "1.0",
+      diff_hash: canonicalPayloadHash("bounded diff"),
+      diff_ref: `execution:${executionId}:diff`,
+      diff_summary: {
+        deletions: 0,
+        description: "bounded documentation change",
+        files_changed: 1,
+        insertions: 1,
+      },
+      empirical_review: empirical,
+      error: null,
+      execution_id: executionId,
+      failure_stage: null,
+      finished_at: "2026-07-29T00:00:02.000Z",
+      idempotency_key: `proportional-result-${executionId}`,
+      log_chunks: [],
+      logs_truncated: false,
+      pending_items: [],
+      protected_path_matches: [],
+      redaction_applied: true,
+      risks: [],
+      sequence: 1,
+      specification_hash: canonicalPayloadHash(payload),
+      specification_id: specification.id,
+      specification_version: 1,
+      started_at: "2026-07-29T00:00:00.000Z",
+      status: "succeeded",
+      summary: "bounded change complete",
+      task_id: taskId,
+      tests: [
+        {
+          command_index: 0,
+          duration_ms: 1_000,
+          name: "validate",
+          status: "passed",
+          summary: "passed",
+        },
+      ],
+      worker_id: randomUUID(),
+    });
+    await prisma.execution.create({
+      data: {
+        attempt: 1,
+        diffHash: result.diff_hash,
+        id: executionId,
+        idempotencyKey: `proportional-execution-${executionId}`,
+        resultHash: result.result_hash,
+        resultPayload: result,
+        specificationId: specification.id,
+        status: "AWAITING_RESULT_APPROVAL",
+        taskId,
+      },
+    });
+    const { evidence_hash: evidenceHash, ...empiricalPayload } = empirical;
+    await prisma.empiricalReview.create({
+      data: {
+        executionId,
+        idempotencyKey: `execution:${executionId}:empirical-review:v1`,
+        payload: empiricalPayload,
+        payloadHash: evidenceHash,
+        reviewedAt: new Date(empirical.finished_at),
+        reviewerId: empirical.reviewer_id,
+        specificationId: specification.id,
+        taskId,
+        verdict: "PASS",
+      },
+    });
+    const approval = await prisma.approval.create({
+      data: {
+        actor: "SYSTEM",
+        channel: "POLICY",
+        idempotencyKey: `execution:${executionId}:result-approval`,
+        presentedPayload: {
+          diffHash: result.diff_hash,
+          resultHash: result.result_hash,
+        },
+        requestedBy: "worker",
+        targetHash: result.result_hash,
+        targetId: executionId,
+        targetType: "EXECUTION_RESULT",
+        targetVersion: 1,
+        taskId,
+        type: "RESULT",
+      },
+    });
+    expect(approval.status).toBe("PENDING");
+
+    const service = new PostExecutionQaService({
+      claimDurationMs: 30_000,
+      council: integrationCouncil,
+      monthlyBudgetUsd: 25,
+      prisma,
+      runtime: new ApprovedReviewRuntime(),
+    });
+    await expect(
+      service.reviewExecution(executionId, new Date("2026-07-29T00:01:00.000Z")),
+    ).resolves.toBe(true);
+
+    expect(await prisma.approval.findUniqueOrThrow({ where: { id: approval.id } })).toMatchObject({
+      actor: "SYSTEM",
+      channel: "POLICY",
+      decidedBy: "proportional-autonomy-policy",
+      status: "APPROVED",
+    });
+    expect(
+      await prisma.postExecutionReview.findUniqueOrThrow({ where: { executionId } }),
+    ).toMatchObject({
+      empiricalVerdict: "PASS",
+      reconciliationReason: "qa_signals_approved",
+      reviewerDecision: "APPROVED",
+      status: "APPROVED",
+    });
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({
+      state: "FINALIZING",
+    });
+    expect(await prisma.execution.findUniqueOrThrow({ where: { id: executionId } })).toMatchObject({
+      status: "FINALIZING",
+    });
   });
 });

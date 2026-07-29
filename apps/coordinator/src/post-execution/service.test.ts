@@ -18,6 +18,7 @@ const reviewer = { id: "qa", instructions: "Review delivered work." };
 const workerId = "10000000-0000-4000-8000-000000000005";
 
 function qaHarness(input: {
+  approvalActor?: "SYSTEM" | "USER";
   approvalStatus: "APPROVED" | "PENDING";
   empiricalVerdict: "fail" | "pass" | "unavailable" | null;
   reviewerDecision: "approved" | "rejected";
@@ -111,6 +112,7 @@ function qaHarness(input: {
     worker_id: workerId,
   });
   const taskUpdates: unknown[] = [];
+  const approvalUpdates: unknown[] = [];
   const auditEvents: unknown[] = [];
   const reviewUpdates: unknown[] = [];
   let runtimeInput = "";
@@ -142,7 +144,17 @@ function qaHarness(input: {
   };
   const transaction = {
     approval: {
-      findUnique: () => Promise.resolve({ status: input.approvalStatus }),
+      findUnique: () =>
+        Promise.resolve({
+          actor: input.approvalActor ?? "USER",
+          channel: input.approvalActor === "SYSTEM" ? "POLICY" : "TELEGRAM",
+          id: "10000000-0000-4000-8000-000000000007",
+          status: input.approvalStatus,
+        }),
+      updateMany: (value: unknown) => {
+        approvalUpdates.push(value);
+        return Promise.resolve({ count: 1 });
+      },
     },
     auditEvent: {
       create: (value: unknown) => {
@@ -229,6 +241,7 @@ function qaHarness(input: {
     } as never,
   });
   return {
+    approvalUpdates,
     auditEvents,
     getRuntimeInput: () => runtimeInput,
     reviewUpdates,
@@ -310,6 +323,8 @@ describe("PostExecutionQaService", () => {
     expect(harness.taskUpdates).toContainEqual(
       expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
     );
+    expect(JSON.stringify(harness.approvalUpdates)).toContain('"decidedBy":"post-execution-qa"');
+    expect(JSON.stringify(harness.approvalUpdates)).toContain('"status":"REJECTED"');
   });
 
   it.each([
@@ -391,6 +406,31 @@ describe("PostExecutionQaService", () => {
     expect(persistedReview).toContain('"reviewerDecision":"APPROVED"');
     expect(persistedReview).toContain('"status":"APPROVED"');
     expect(harness.taskUpdates).toEqual([]);
+  });
+
+  it("auto-approves a policy-eligible result only after both QA signals approve", async () => {
+    const harness = qaHarness({
+      approvalActor: "SYSTEM",
+      approvalStatus: "PENDING",
+      empiricalVerdict: "pass",
+      reviewerDecision: "approved",
+    });
+
+    await expect(
+      harness.service.reviewExecution(
+        "10000000-0000-4000-8000-000000000002",
+        new Date("2026-07-28T12:01:00.000Z"),
+      ),
+    ).resolves.toBe(true);
+
+    expect(JSON.stringify(harness.approvalUpdates)).toContain(
+      '"decidedBy":"proportional-autonomy-policy"',
+    );
+    expect(JSON.stringify(harness.approvalUpdates)).toContain('"status":"APPROVED"');
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "FINALIZING", version: { increment: 1 } } }),
+    );
+    expect(JSON.stringify(harness.auditEvents)).toContain("approval.auto_approved");
   });
 
   it("fails closed when the empirical signal is missing", async () => {

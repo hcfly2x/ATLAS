@@ -168,6 +168,11 @@
 - O provedor Claude está restrito à entrega autorizada do revisor
   pós-execução; abstração genérica e uso por outros agentes continuam sem
   autorização.
+- A reconciliação independente e a autonomia proporcional v1 estão integradas:
+  somente `PASS + approved` permite decisão de política, e risco crítico
+  permanece humano.
+- Definir um corpus de evals versionado, métricas, tamanho mínimo de amostra e
+  limiares conservadores antes de sequer propor abertura do gate crítico.
 - Manter merge e deploy em `always_human` e revisão humana adicional em pull
   requests de alto risco até evals comprovarem a confiabilidade do revisor.
 - Nenhum item acima constitui fase antes de ADR e autorização explícita.

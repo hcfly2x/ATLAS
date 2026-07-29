@@ -18,9 +18,11 @@ permanece advisory; `FAIL|UNAVAILABLE` bloqueiam a liberação automática. Ele 
 substitui Approval nem amplia autonomia. O
 provedor Claude para o revisor pós-execução está integrado, com OpenAI
 preservado como default e sem extensão a outros agentes. A reconciliação
-independente entre os dois sinais está nesta entrega: somente `PASS + approved`
+independente entre os dois sinais está integrada: somente `PASS + approved`
 libera o gate da Approval existente; divergência ou indisponibilidade falham
-fechado.
+fechado. A autonomia proporcional de resultado está nesta entrega: Approval
+nasce pendente, risco simples ou moderado elegível só é aprovado pela política
+depois dos dois sinais, e risco crítico continua humano sem baseline de evals.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
@@ -103,6 +105,11 @@ por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
   Somente `PASS + approved` produz status aprovado; rejeição, divergência, sinal
   ausente ou erro retornam para revisão humana/retrabalho. A Approval de
   resultado continua sendo um gate separado.
+- A Approval de resultado nasce pendente. Em risco `simple|moderate`, níveis
+  2–3, testes verdes, evidência `PASS`, ausência de paths protegidos e ações
+  sensíveis permitem candidata de política, decidida somente depois do reviewer
+  aprovado. Resultado crítico continua humano até evals versionados e
+  autorização próprios.
 - O revisor pós-execução pode selecionar Claude por configuração própria. A
   ausência da seleção mantém OpenAI; Claude usa endpoint fixo, saída estruturada
   revalidada por Zod e erros sanitizados. Supervisor, conselho, normalizador e
@@ -200,6 +207,8 @@ por trilhas orientadas ao workflow, sem autorizar qualquer implementação.
   continuam sendo as únicas decisões efetivas do worker.
 - A diversidade de provedor do revisor ainda precisa de avaliação real de
   qualidade, latência, custo e concordância antes de influenciar autonomia.
+- O gate crítico de autonomia proporcional permanece fechado: não há baseline
+  versionado de evals nem configuração capaz de liberá-lo.
 - A reconciliação independente continua conservadora: indisponibilidade de
   qualquer sinal exige revisão humana/retrabalho e pode gerar falso negativo,
   mas nunca libera resultado sem as duas confirmações.
@@ -226,7 +235,8 @@ cutover exige fase e autorização próprias.
 ## Restrições ativas
 
 - não iniciar a Fase 8;
-- não iniciar a Fase 8 ou ampliação de autonomia;
+- não iniciar a Fase 8 nem ampliar autonomia além da decisão proporcional
+  autorizada nesta entrega;
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
 - não adicionar retry ou reenvio administrativo à Fase C;
@@ -234,8 +244,10 @@ cutover exige fase e autorização próprias.
   autorização explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;
-- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–022;
+- não alterar ADRs aceitos ou os status Propostos dos ADRs 013–023;
 - não executar deploy nem integrar credenciais reais.
 - não usar o adaptador Claude em supervisor, conselho ou qualquer agente fora
   do revisor pós-execução;
 - não iniciar abstração genérica de provedor ou ampliar a autoridade do QA.
+- não liberar Approval automática de resultado crítico sem evals versionados,
+  ADR e autorização próprios.

@@ -2,11 +2,12 @@
 
 ## Status e regra de autorização
 
-Este documento registra uma direção de arquitetura e sua ordem de avaliação.
-Ele não autoriza código, integração de provedor, fase, mudança de política ou
-ampliação de autonomia. Para cada peça vale a regra **registrado não equivale a
-autorizado**: qualquer avanço exige ADR e autorização explícita próprios e deve
-respeitar a ordem de estabilização do ATLAS.
+Este documento registra a direção de arquitetura e sua ordem de avaliação. QA
+empírico, provedor independente, reconciliação e a primeira política de
+autonomia proporcional foram autorizados em entregas próprias. Qualquer avanço
+além desse limite — especialmente liberar resultado crítico com base em evals —
+continua sujeito à regra **registrado não equivale a autorizado** e exige ADR e
+autorização explícita próprios.
 
 ## Meta
 
@@ -92,4 +93,6 @@ Esta é uma ordem de dependência, não uma autorização:
 4. **Autonomia proporcional:** ajustar autonomia por risco somente conforme os
    evals, mantendo merge e deploy sempre humanos.
 
-Nenhum item desta sequência constitui fase antes de ADR e autorização explícita.
+A primeira decisão proporcional permanece fechada para risco crítico enquanto
+não há baseline versionado de evals. Nenhum item posterior dessa sequência
+constitui fase antes de ADR e autorização explícita.

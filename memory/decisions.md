@@ -1,5 +1,13 @@
 # Decisões
 
+- Approval de resultado nasce `PENDING`; candidata de política só é decidida
+  depois da reconciliação `EmpiricalReview.PASS + reviewer approved`.
+- A decisão proporcional é pura e fail-closed: nível, risco, testes, evidência
+  empírica, paths protegidos e ações sensíveis determinam ator e código estável.
+- Resultado crítico permanece humano em todos os níveis até baseline versionado
+  de evals, ADR e autorização próprios. Merge, deploy e `always_human` não
+  mudam.
+
 - O shadow de comandos envolve os dois callers, mas
   `authorizeCommands`/`authorizeRuntimeCommands` continuam sendo a única
   decisão autoritativa. A decisão pura apenas observa comandos estruturados.

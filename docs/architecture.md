@@ -64,6 +64,13 @@ gate somente quando a evidência empírica é `PASS` e o revisor decide
 Rejeição, divergência, sinal ausente ou indisponibilidade retornam a demanda
 para retrabalho versionado.
 
+Toda Approval de resultado nasce pendente. Para trabalho reversível
+`simple|moderate`, uma decisão pura pode marcá-la como candidata à política com
+base no nível de autonomia, testes, evidência empírica, paths protegidos e ações
+sensíveis. A decisão automática só ocorre depois da reconciliação
+`PASS + approved`. Resultado crítico permanece humano enquanto o gate de evals
+estiver fechado; não existe configuração que contorne essa fronteira.
+
 Falha, timeout, recusa ou resposta inválida do provedor do revisor são tratados
 como QA indisponível com código sanitizado. A diversidade de provedor não
 transforma o parecer em autorização de merge ou deploy.

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — autonomia proporcional de resultado
+
+- Toda Approval de resultado nasce pendente; a decisão automática ocorre
+  somente depois de `EmpiricalReview.PASS + reviewer approved`.
+- Uma decisão pura limita a candidata de política a risco `simple|moderate`,
+  níveis 2–3, testes verdes, ausência de paths protegidos e ausência de ações
+  sensíveis.
+- Resultado crítico permanece humano enquanto não houver baseline versionado
+  de evals, ADR e autorização próprios.
+- QA rejeitado ou indisponível invalida a Approval pendente antes do retrabalho.
+- ADR-023 registrado como Proposto. `always_human`, TaskState, merge, deploy,
+  retry e `.atlas/**` permanecem inalterados.
+
 ## Unreleased — reconciliação independente do QA pós-execução
 
 - `PostExecutionReview` persiste separadamente o veredito empírico, a decisão
