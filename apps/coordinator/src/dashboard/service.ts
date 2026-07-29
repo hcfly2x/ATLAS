@@ -314,6 +314,7 @@ export class DashboardService {
           expiresAt: true,
           id: true,
           requestedAt: true,
+          requestedBy: true,
           task: {
             select: {
               id: true,
@@ -324,13 +325,22 @@ export class DashboardService {
       });
       return approvals.map((approval): ProactiveItem => {
         const expired = approval.expiresAt !== null && approval.expiresAt <= now;
+        const reworkEscalated = approval.requestedBy === "post-execution-rework-loop-breaker";
         return {
           id: `approval:${approval.id}`,
-          kind: expired ? "approval_expired" : "approval_pending",
-          label: expired ? "Aprovação pendente vencida" : "Aprovação pendente",
+          kind: expired
+            ? "approval_expired"
+            : reworkEscalated
+              ? "rework_required"
+              : "approval_pending",
+          label: expired
+            ? "Aprovação pendente vencida"
+            : reworkEscalated
+              ? "Retrabalho exige decisão humana"
+              : "Aprovação pendente",
           occurredAt: approval.requestedAt,
           projectId: approval.task.projectId,
-          severity: expired ? "high" : "medium",
+          severity: expired || reworkEscalated ? "high" : "medium",
           source: { id: approval.id, type: "approval" },
           taskId: approval.task.id,
         };

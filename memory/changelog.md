@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — loop-breaker de retrabalho pós-execução
+
+- `ATLAS_MAX_AUTOMATIC_REWORK` limita rejeições consecutivas pelo mesmo código
+  determinístico e falha no startup quando não é inteiro positivo.
+- Abaixo do limiar, o QA mantém o retorno atual para `SPECIFYING`; no limiar, a
+  Task permanece em `WAITING_RESULT_APPROVAL`, o worker é liberado e a Approval
+  pendente passa a exigir decisão humana.
+- A escalada gera AuditEvent sanitizado, aparece em “Precisam de você” pela
+  Approval e notifica uma única vez o destino derivado de `Task.origin`.
+- ADR-026 permanece Proposto. Não há estado, entidade ou migração nova e não há
+  autoaprovação, finalização, execução, cancelamento, merge ou deploy.
+
 ## Unreleased — Dashboard Trilha C1 autenticação e RBAC
 
 - A credencial do dono passa a existir somente em

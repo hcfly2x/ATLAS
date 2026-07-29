@@ -60,6 +60,37 @@ export function safePostExecutionFailureCode(error: unknown): string {
   return SAFE_FAILURE_CODES.has(message) ? message : "post_execution_qa_failed";
 }
 
+export const DEFAULT_MAX_AUTOMATIC_REWORK = 3;
+
+export function parseMaxAutomaticRework(value: string | undefined): number {
+  const parsed = Number(value ?? String(DEFAULT_MAX_AUTOMATIC_REWORK));
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error("ATLAS_MAX_AUTOMATIC_REWORK must be a positive safe integer");
+  }
+  return parsed;
+}
+
+export function countConsecutiveAutomaticReworks(
+  reviews: readonly {
+    readonly reconciliationReason: string | null;
+    readonly status: PostExecutionReviewStatus;
+  }[],
+  reason: QaReconciliationReason,
+): number {
+  let count = 0;
+  for (const review of reviews) {
+    if (
+      (review.status !== PostExecutionReviewStatus.REJECTED &&
+        review.status !== PostExecutionReviewStatus.FAILED) ||
+      review.reconciliationReason !== reason
+    ) {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+}
+
 export function postExecutionReviewInstructions(answerOnly: boolean): string {
   return `You are the post-execution quality gate. Review the worker result against the immutable Specification. EmpiricalReview is independent evidence produced by a separate worker-side probe: PASS never approves by itself; FAIL requires rework; UNAVAILABLE must never be treated as proof of success. Produce your independent reviewer signal. A separate deterministic reconciliation releases the existing Approval gate only for empirical PASS plus reviewer approved; your approval cannot override FAIL or UNAVAILABLE. The existing Approval remains a separate gate. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
     answerOnly
@@ -82,6 +113,7 @@ export class PostExecutionQaService {
       claimDurationMs: number;
       council: CouncilConfig;
       monthlyBudgetUsd: number;
+      maxAutomaticRework: number;
       prisma: PrismaClient;
       reviewerModel?: string;
       runtime: AgentRuntime;
@@ -91,6 +123,9 @@ export class PostExecutionQaService {
     if (reviewer === undefined) throw new Error("QA reviewer is not registered");
     if (reviewer.id === options.council.supervisorId) {
       throw new Error("Post-execution reviewer must differ from the supervisor");
+    }
+    if (!Number.isSafeInteger(options.maxAutomaticRework) || options.maxAutomaticRework <= 0) {
+      throw new Error("maxAutomaticRework must be a positive safe integer");
     }
     this.reviewer = reviewer;
   }
@@ -334,10 +369,8 @@ export class PostExecutionQaService {
           transaction,
           execution,
           correlationId,
-          reconciliation.outcome === "failed" ||
-            reconciliation.reasonCode === "qa_empirical_unavailable"
-            ? "qa_unavailable"
-            : "qa_rejected",
+          reconciliation.reasonCode,
+          now,
         );
         return true;
       }
@@ -482,7 +515,13 @@ export class PostExecutionQaService {
         review.execution.status === ExecutionStatus.AWAITING_RESULT_APPROVAL &&
         review.execution.task.state === TaskState.WAITING_RESULT_APPROVAL
       ) {
-        await this.returnForRework(transaction, review.execution, correlationId, "qa_unavailable");
+        await this.returnForRework(
+          transaction,
+          review.execution,
+          correlationId,
+          reconciliationReason,
+          now,
+        );
       }
       return true;
     });
@@ -504,8 +543,79 @@ export class PostExecutionQaService {
       };
     },
     correlationId: string,
-    reason: "qa_rejected" | "qa_unavailable",
+    reason: QaReconciliationReason,
+    now: Date,
   ): Promise<void> {
+    const recentReviews = await transaction.postExecutionReview.findMany({
+      where: {
+        reviewedAt: { not: null },
+        taskId: execution.taskId,
+      },
+      orderBy: [{ reviewedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      select: {
+        reconciliationReason: true,
+        status: true,
+      },
+      take: this.options.maxAutomaticRework,
+    });
+    const consecutiveReworkCount = countConsecutiveAutomaticReworks(recentReviews, reason);
+    if (consecutiveReworkCount >= this.options.maxAutomaticRework) {
+      const escalatedApproval = await transaction.approval.updateMany({
+        where: {
+          status: ApprovalStatus.PENDING,
+          targetId: execution.id,
+          targetType: "EXECUTION_RESULT",
+        },
+        data: {
+          actor: ApprovalActor.USER,
+          channel: ApprovalChannel.TELEGRAM,
+          expiresAt: null,
+          requestedBy: "post-execution-rework-loop-breaker",
+        },
+      });
+      if (escalatedApproval.count !== 1) {
+        throw new Error("post_execution_rework_escalation_requires_one_pending_approval");
+      }
+      await transaction.execution.updateMany({
+        where: { id: execution.id, status: ExecutionStatus.AWAITING_RESULT_APPROVAL },
+        data: {
+          failureStage: "post_execution_rework_limit",
+          leaseExpiresAt: null,
+          leaseId: null,
+          status: ExecutionStatus.FAILED,
+        },
+      });
+      if (execution.workerId !== null) {
+        await transaction.worker.update({
+          where: { id: execution.workerId },
+          data: { status: WorkerStatus.IDLE },
+        });
+      }
+      await transaction.auditEvent.create({
+        data: {
+          action: "post_execution_rework.escalated",
+          actor: "SYSTEM",
+          correlationId,
+          idempotencyKey: `audit:${correlationId}:rework-limit`,
+          payload: json({
+            consecutiveReworkCount,
+            reason,
+            task: {
+              id: execution.taskId,
+              projectId: execution.task.projectId,
+              state: TaskState.WAITING_RESULT_APPROVAL,
+              version: execution.task.version,
+            },
+            threshold: this.options.maxAutomaticRework,
+          }),
+          projectId: execution.task.projectId,
+          targetId: execution.id,
+          targetType: "execution",
+          taskId: execution.taskId,
+        },
+      });
+      return;
+    }
     const transitioned = await transaction.task.updateMany({
       where: {
         id: execution.taskId,
@@ -523,7 +633,7 @@ export class PostExecutionQaService {
       },
       data: {
         decidedBy: "post-execution-qa",
-        respondedAt: new Date(),
+        respondedAt: now,
         status: ApprovalStatus.REJECTED,
       },
     });
@@ -550,7 +660,13 @@ export class PostExecutionQaService {
         idempotencyKey: `audit:${correlationId}:rework`,
         payload: json({
           fromState: TaskState.WAITING_RESULT_APPROVAL,
-          reason,
+          reason:
+            reason === "qa_empirical_unavailable" ||
+            reason === "qa_empirical_signal_missing" ||
+            reason === "qa_reviewer_signal_missing"
+              ? "qa_unavailable"
+              : "qa_rejected",
+          reconciliationReason: reason,
           task: {
             failureStage: execution.task.failureStage,
             id: execution.taskId,

@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 import { postExecutionReviewSchema } from "@atlas/shared";
 
@@ -6,12 +7,26 @@ import type { TelegramClient } from "./client.js";
 import { telegramResultDestination } from "./result-publisher.js";
 
 const TELEGRAM_TEXT_LIMIT = 4096;
+const escalationPayloadSchema = z.object({
+  consecutiveReworkCount: z.number().int().positive(),
+  reason: z.enum([
+    "qa_empirical_failed",
+    "qa_empirical_signal_missing",
+    "qa_empirical_unavailable",
+    "qa_reviewer_rejected",
+    "qa_reviewer_signal_missing",
+  ]),
+  threshold: z.number().int().positive(),
+});
 
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 export interface TelegramReworkCandidate {
+  readonly consecutiveReworkCount?: number;
+  readonly executionId: string;
+  readonly kind: "automatic_rework" | "human_escalation";
   readonly origin: string;
   readonly projectId: string;
   readonly requiredActions: readonly string[];
@@ -19,6 +34,7 @@ export interface TelegramReworkCandidate {
   readonly summary: string;
   readonly taskId: string;
   readonly taskVersion: number;
+  readonly threshold?: number;
 }
 
 export interface TelegramReworkStore {
@@ -59,10 +75,21 @@ export function selectTelegramReworkContent(review: {
 }
 
 function deliveryKey(candidate: TelegramReworkCandidate): string {
-  return `telegram:qa-rework:${candidate.taskId}:v${String(candidate.taskVersion)}`;
+  return candidate.kind === "human_escalation"
+    ? `telegram:qa-rework-escalated:${candidate.taskId}:execution:${candidate.executionId}`
+    : `telegram:qa-rework:${candidate.taskId}:v${String(candidate.taskVersion)}`;
 }
 
 export function formatTelegramRework(candidate: TelegramReworkCandidate): string {
+  if (candidate.kind === "human_escalation") {
+    const text = [
+      `Task ${candidate.taskId}: retrabalho automático interrompido`,
+      `O mesmo motivo de QA se repetiu ${String(candidate.consecutiveReworkCount)} vezes e atingiu o limite configurado de ${String(candidate.threshold)}.`,
+      "A Task permanece aguardando uma decisão humana. Nenhuma nova Specification, execução, aprovação ou cancelamento será feito automaticamente.",
+      "Próximo passo:\nRevise a demanda. Rejeite a aprovação atual para reespecificar ou solicite explicitamente o cancelamento da Task.",
+    ].join("\n\n");
+    return text.length <= TELEGRAM_TEXT_LIMIT ? text : `${text.slice(0, TELEGRAM_TEXT_LIMIT - 1)}…`;
+  }
   const actions =
     candidate.requiredActions.length === 0
       ? ["Revise a demanda e envie instruções adicionais para uma nova Specification."]
@@ -83,19 +110,39 @@ export class PrismaTelegramReworkStore implements TelegramReworkStore {
   async listCandidates(): Promise<readonly TelegramReworkCandidate[]> {
     const tasks = await this.prisma.task.findMany({
       where: {
-        state: "SPECIFYING",
-        postExecutionReviews: {
-          some: {
-            status: { in: ["REJECTED", "FAILED"] },
-            execution: { failureStage: "post_execution_qa" },
+        OR: [
+          {
+            state: "SPECIFYING",
+            postExecutionReviews: {
+              some: {
+                status: { in: ["REJECTED", "FAILED"] },
+                execution: { failureStage: "post_execution_qa" },
+              },
+            },
           },
-        },
+          {
+            state: "WAITING_RESULT_APPROVAL",
+            postExecutionReviews: {
+              some: {
+                status: { in: ["REJECTED", "FAILED"] },
+                execution: { failureStage: "post_execution_rework_limit" },
+              },
+            },
+          },
+        ],
       },
       include: {
+        auditEvents: {
+          where: { action: "post_execution_rework.escalated" },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        },
         postExecutionReviews: {
           where: {
             status: { in: ["REJECTED", "FAILED"] },
-            execution: { failureStage: "post_execution_qa" },
+            execution: {
+              failureStage: { in: ["post_execution_qa", "post_execution_rework_limit"] },
+            },
           },
           orderBy: { updatedAt: "desc" },
           take: 1,
@@ -107,6 +154,20 @@ export class PrismaTelegramReworkStore implements TelegramReworkStore {
     return tasks.flatMap((task) => {
       const review = task.postExecutionReviews[0];
       if (review === undefined) return [];
+      const escalation =
+        task.state === "WAITING_RESULT_APPROVAL"
+          ? task.auditEvents.find(
+              (event) =>
+                event.correlationId === `execution:${review.executionId}:post-execution-review:v1`,
+            )
+          : undefined;
+      const escalationPayload =
+        escalation === undefined
+          ? undefined
+          : escalationPayloadSchema.safeParse(escalation.payload);
+      if (task.state === "WAITING_RESULT_APPROVAL" && escalationPayload?.success !== true) {
+        return [];
+      }
       const content = selectTelegramReworkContent({
         payload: review.payload,
         reconciliationReason: review.reconciliationReason,
@@ -115,6 +176,14 @@ export class PrismaTelegramReworkStore implements TelegramReworkStore {
       });
       return [
         {
+          ...(escalationPayload?.success === true
+            ? {
+                consecutiveReworkCount: escalationPayload.data.consecutiveReworkCount,
+                threshold: escalationPayload.data.threshold,
+              }
+            : {}),
+          executionId: review.executionId,
+          kind: escalationPayload?.success === true ? "human_escalation" : "automatic_rework",
           origin: task.origin,
           projectId: task.projectId,
           requiredActions: content.requiredActions,
@@ -138,6 +207,7 @@ export class PrismaTelegramReworkStore implements TelegramReworkStore {
           idempotencyKey: `audit:${key}:claimed`,
           payload: json({
             chatId: chatId.toString(),
+            kind: candidate.kind,
             reviewStatus: candidate.reviewStatus,
             taskVersion: candidate.taskVersion,
           }),

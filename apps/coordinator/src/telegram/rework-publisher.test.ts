@@ -25,7 +25,7 @@ class ReworkStore implements TelegramReworkStore {
 
   claim(candidate: TelegramReworkCandidate, chatId: bigint) {
     this.destinations.push(chatId);
-    const key = `${candidate.taskId}:${String(candidate.taskVersion)}`;
+    const key = `${candidate.kind}:${candidate.taskId}:${candidate.executionId}:${String(candidate.taskVersion)}`;
     if (this.claims.has(key)) return Promise.resolve(false);
     this.claims.add(key);
     return Promise.resolve(true);
@@ -70,6 +70,8 @@ class ReworkClient implements TelegramClient {
 
 function candidate(overrides: Partial<TelegramReworkCandidate> = {}): TelegramReworkCandidate {
   return {
+    executionId: "22222222-2222-4222-8222-222222222222",
+    kind: "automatic_rework",
     origin: "telegram:42:100",
     projectId: "atlas",
     requiredActions: ["Corrigir o teste de aceite.", "Preservar o escopo original."],
@@ -155,6 +157,59 @@ describe("TelegramReworkPublisher", () => {
       "Revise a demanda e envie instruções adicionais",
     );
     expect(client.messages[0]?.responses[0]?.text).not.toContain("provider");
+  });
+
+  it("stops at the threshold and asks for an explicit human decision once", async () => {
+    const store = new ReworkStore();
+    const client = new ReworkClient();
+    store.candidates = [
+      candidate({
+        consecutiveReworkCount: 3,
+        kind: "human_escalation",
+        requiredActions: ["SECRET_ACTION"],
+        summary: "SECRET_REVIEW_PAYLOAD",
+        threshold: 3,
+      }),
+    ];
+    const publisher = new TelegramReworkPublisher(store, client);
+
+    await publisher.poll();
+    await publisher.poll();
+
+    expect(client.messages).toHaveLength(1);
+    const text = client.messages[0]?.responses[0]?.text ?? "";
+    expect(text).toContain("retrabalho automático interrompido");
+    expect(text).toContain("aguardando uma decisão humana");
+    expect(text).toContain("Nenhuma nova Specification, execução, aprovação ou cancelamento");
+    expect(text).not.toContain("SECRET_ACTION");
+    expect(text).not.toContain("SECRET_REVIEW_PAYLOAD");
+  });
+
+  it("uses the execution identity for distinct human escalations", async () => {
+    const store = new ReworkStore();
+    const client = new ReworkClient();
+    const publisher = new TelegramReworkPublisher(store, client);
+
+    store.candidates = [
+      candidate({
+        consecutiveReworkCount: 3,
+        executionId: "22222222-2222-4222-8222-222222222222",
+        kind: "human_escalation",
+        threshold: 3,
+      }),
+    ];
+    await publisher.poll();
+    store.candidates = [
+      candidate({
+        consecutiveReworkCount: 3,
+        executionId: "33333333-3333-4333-8333-333333333333",
+        kind: "human_escalation",
+        threshold: 3,
+      }),
+    ];
+    await publisher.poll();
+
+    expect(client.messages).toHaveLength(2);
   });
 
   it("never accepts a destination from QA content", async () => {
