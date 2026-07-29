@@ -41,18 +41,23 @@ autorização.
 
 O plano operacional oficial da Dashboard está em
 `docs/dashboard-operational-plan.md`. Ele substitui a antiga Fase 10 monolítica
-por trilhas orientadas ao workflow. A Trilha A read-only está implementada nesta
-entrega: Mission Control, Proatividade v1 e resumo executivo determinístico
+por trilhas orientadas ao workflow. A Trilha A read-only está implementada:
+Mission Control, Proatividade v1 e resumo executivo determinístico
 consultam somente sinais existentes, falham por bloco para `indeterminado` e não
-criam rota de escrita. Narrativa por LLM e as Trilhas B–E continuam sem
-autorização.
+criam rota de escrita. Narrativa por LLM continua sem autorização.
 O guia subordinado `docs/dashboard-tooling.md` registra o núcleo adotável,
 tooling e skills de desenvolvimento. A UI frontend da Trilha A consome esse
 read-model sem refazê-lo, por GET autenticado e validação estrita de
 `@atlas/contracts`. A Fase 0 permanece registrada com ADR-024 Proposto, três
 skills versionadas e tooling do Codex. A Home cobre dados, vazio, erro e sinais
-indeterminados sem inventar progresso e sem rota de escrita. Trilhas B–E e
-qualquer escrita continuam não autorizadas.
+indeterminados sem inventar progresso e sem rota de escrita.
+
+O backend da Trilha B1 expõe um Workspace sanitizado por demanda em
+`GET /dashboard/api/demand/:taskId`, validado por `@atlas/contracts`. Ele agrega
+somente conteúdo próprio permitido da demanda e metadados/códigos derivados dos
+registros existentes; memória fica limitada a tipo/contagem e comandos ao
+executável. A UI e o Replay da Trilha B2, as Trilhas C–E e qualquer escrita
+continuam não autorizados.
 
 ## Implementado
 

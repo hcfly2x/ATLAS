@@ -146,8 +146,10 @@
 - Validar em uso real a ordem de prioridade, a utilidade dos alertas e a
   apresentação de sinais `indeterminado` antes de ampliar a inteligência.
 - Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
-- Trilha B: Workspace da Demanda em modo leitura e Replay operacional sem
-  chain-of-thought.
+- Trilha B1 backend está implementada: revisar empiricamente o contrato,
+  sanitização, 404 estável e ausência de escritas do Workspace por demanda.
+- Trilha B2 permanece não autorizada: UI do Workspace e Replay operacional sem
+  chain-of-thought, consumindo o read-model B1 sem criar fonte paralela.
 - Trilha C: autenticação/RBAC, rotas de escrita, Command Center e aprovações
   contextuais pela UI, reutilizando `Approval` e `always_human`, com auditoria
   completa.
