@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — comandos, Fase 3: cutover determinístico
+
+- `decideEnforcement` passa a decidir efetivamente comandos estruturados da
+  Specification e das fases `bootstrap|validate`.
+- O autorizador legado permanece como guarda comparativa: divergência
+  `MORE_PERMISSIVE` bloqueia o comando; indisponibilidade da decisão pura
+  também nega de forma fail-closed.
+- Telemetria distingue decisão efetiva, decisão pura, fonte e divergência sem
+  registrar argumentos, manifestos ou mensagens de erro.
+- A amostra real versionada do shadow registrou uma avaliação `none` e zero
+  `MORE_PERMISSIVE`. Parsing de strings permanece no caller.
+
 ## Unreleased — comandos, Fase 2: shadow dos callers
 
 - `authorizeCommands` e `authorizeRuntimeCommands` continuam sendo a única

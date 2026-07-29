@@ -14,8 +14,9 @@ ampliação de autonomia.
 
 A Fase A de `delivery_mode` está integrada na `main` pelo PR #38. A Fase 1 da
 paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
-também estão integradas. O shadow dos callers de comandos está em branch
-própria; nenhum caller foi migrado para a decisão pura.
+também estão integradas. O shadow dos callers de comandos está integrado; o
+cutover determinístico está em branch própria e ainda não foi revisado nem
+mergeado.
 
 ## Implementado
 
@@ -99,10 +100,9 @@ própria; nenhum caller foi migrado para a decisão pura.
   novo foi introduzido.
 - A decisão pura de comandos reproduz o gate legado de ferramentas GNU
   declaradas, além de token seguro, precedência da negação e allowlist exata.
-  `parseSpecificationCommand` continua no caller e
-  `authorizeCommands`/`authorizeRuntimeCommands` permanecem autoritativos. O
-  shadow de comandos apenas compara cada decisão, não registra argumentos crus
-  e falha sem afetar o caminho legado.
+  `parseSpecificationCommand` continua no caller. No cutover em revisão,
+  `decideEnforcement` autoriza efetivamente cada comando; a decisão legada
+  permanece como guarda que bloqueia qualquer divergência mais permissiva.
 - O classificador de `delivery_mode` usa uma única fonte de formas verbais para
   detectar mudança e neutralizar negações. Entregáveis textuais com mudança
   apenas futura usam `answer_only`; mudança efetiva não negada e ambiguidade
@@ -133,6 +133,10 @@ própria; nenhum caller foi migrado para a decisão pura.
 - No shadow de comandos, o corpus cobre os dois callers, decisões permitidas e
   negadas, múltiplos comandos, divergências artificiais nas duas direções,
   falha da decisão/logger, ausência de mutação e não-vazamento de argumentos.
+- No cutover, testes cobrem autoridade determinística, fallback
+  `MORE_PERMISSIVE`, indisponibilidade fail-closed, lote misto, os dois callers
+  `require_human` conservador e preservação do parsing sem argumentos crus em
+  logs.
 - Na Fase C, testes unitários cobrem SLA, idempotência, projeção segura da
   dashboard e ausência de mutação; integração PostgreSQL cobre os três sinais
   operacionais e a unicidade do alerta.
@@ -152,9 +156,9 @@ própria; nenhum caller foi migrado para a decisão pura.
   entrega; o guard então exige repositório configurado.
 - A dashboard não oferece resolução ou reenvio; qualquer ação administrativa
   futura exige fase própria.
-- O shadow de comandos ainda precisa de revisão e amostra real com zero
-  `MORE_PERMISSIVE`; até um cutover separado, os autorizadores legados continuam
-  sendo a única decisão efetiva do worker.
+- O cutover de comandos ainda precisa de revisão empírica. A guarda legada
+  continua bloqueando regressão `MORE_PERMISSIVE` e pode ser removida somente em
+  fase posterior, caso exista evidência suficiente.
 - Queda do coordinator no meio de uma rodada pode deixar Deliberation em
   `RUNNING` e Task em `SPECIFYING`; reconciliação retomável foi registrada para
   a Fase 11.
@@ -171,9 +175,9 @@ própria; nenhum caller foi migrado para a decisão pura.
 
 ## Próximo passo
 
-Revisar empiricamente o shadow de comandos e coletar amostra real versionada.
-Qualquer `MORE_PERMISSIVE` bloqueia o cutover; mesmo com amostra limpa, o
-cutover exige fase e autorização próprias.
+Revisar empiricamente o cutover de comandos. Não mergear nem remover a guarda
+legada antes de confirmar corpus, fail-closed e ausência de argumentos nos
+logs.
 
 ## Restrições ativas
 
@@ -182,7 +186,7 @@ cutover exige fase e autorização próprias.
 - não iniciar trabalho além das fases de comandos e entrega durável
   explicitamente autorizadas;
 - não adicionar retry ou reenvio administrativo à Fase C;
-- não iniciar cutover de comandos sem revisão, amostra limpa e autorização
+- não mergear o cutover de comandos sem revisão completa e autorização
   explícita;
 - não implementar skills, personas, modo consulta, scheduler ou webhooks;
 - não provisionar staging/produção nem criar `render.yaml`;

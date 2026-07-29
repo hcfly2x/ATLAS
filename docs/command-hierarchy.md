@@ -42,7 +42,9 @@ O roteamento implementado seleciona:
   especificação. Não decide por maioria simples e não revisa a própria saída.
 - **Worker local:** executa somente a especificação validada, em worktree
   isolada, usando comandos permitidos. Não redefine escopo ou arquitetura e não
-  pode fazer merge ou deploy.
+  pode fazer merge ou deploy. A decisão pura de enforcement autoriza cada
+  comando estruturado; qualquer regressão `MORE_PERMISSIVE` em relação ao
+  autorizador legado falha fechada.
 - **Codex:** executa sob o controle do worker; não recebe autoridade própria para
   alterar o escopo.
 
