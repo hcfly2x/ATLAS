@@ -98,7 +98,7 @@ O CEO age como gerente de projeto, não como chat. Ele:
 ## Tooling, stack e skills (Fase 0 implementada; ampliações não autorizadas)
 
 O read-model de Mission Control entregue pelo PR #52 é o backend da primeira
-interface. A UI será um app frontend que consome esse contrato; não deve
+interface. A UI da Trilha A consome esse contrato; não
 reimplementar o read-model nem criar um backend concorrente. O coordinator
 permanece o backend canônico. Atlas Intelligence v1 continua determinística;
 uma narrativa por LLM, se autorizada no futuro, será assíncrona, cacheada e não
@@ -147,9 +147,10 @@ Esta preparação anterior à UI reúne:
 - configurar o tooling de desenvolvimento do Codex.
 
 **Estado:** autorizada e implementada nesta entrega como preparação técnica.
-ADR-024 permanece Proposto; `apps/dashboard` builda um shell sem dados ou
+ADR-024 permanece Proposto; `apps/dashboard` partiu de um shell sem dados ou
 ações, `@atlas/contracts` valida o read-model real, e skills/tooling estão
-versionados. A UI da Trilha A e qualquer escrita continuam não autorizadas.
+versionados. A Trilha A foi autorizada depois em entrega própria; qualquer
+escrita continua não autorizada.
 
 ### Trilha A — Inteligência + Mission Control
 
@@ -165,10 +166,12 @@ Trilha somente leitura, de baixo conflito, priorizada para começar cedo:
 
 É a maior alavanca inicial de valor e não exige rota de escrita.
 
-**Estado:** v1 autorizada e implementada nesta entrega sobre a dashboard
-existente. O resumo é determinístico e sem LLM; progresso deriva do estado real,
-ETA sem metodologia aparece como indeterminado e os alertas não executam ação.
-Narrativa por LLM e qualquer escrita continuam fases futuras não autorizadas.
+**Estado:** v1 autorizada e implementada ponta a ponta. O frontend React consome
+somente `GET /dashboard/api/mission-control`, valida a resposta por
+`@atlas/contracts` e preserva autenticação Bearer. O resumo é determinístico e
+sem LLM; progresso deriva do estado real, ETA sem metodologia aparece como
+indeterminado e os alertas não executam ação. Narrativa por LLM e qualquer
+escrita continuam fases futuras não autorizadas.
 
 ### Trilha B — Workspace da Demanda
 

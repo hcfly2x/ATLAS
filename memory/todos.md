@@ -137,14 +137,12 @@
 
 ## Dashboard operacional — plano oficial
 
-- Revisar empiricamente a Fase 0 da Dashboard: ADR-024 Proposto, shell de
-  `apps/dashboard`, contrato real em `@atlas/contracts`, três skills e tooling
-  do Codex. A revisão não autoriza a UI da Trilha A.
 - O read-model backend da Trilha A v1 está implementado: Atlas Intelligence
   determinística, Mission Control e Proatividade sobre sinais existentes,
   somente leitura.
-- Trilha A frontend: construir a UI Mission Control consumindo esse read-model,
-  sem reimplementar o backend.
+- Revisar empiricamente a UI da Trilha A: consumo GET autenticado do read-model,
+  validação por `@atlas/contracts`, estados de loading/vazio/erro/indeterminado,
+  ausência de conteúdo sensível e ausência real de ações de escrita.
 - Validar em uso real a ordem de prioridade, a utilidade dos alertas e a
   apresentação de sinais `indeterminado` antes de ampliar a inteligência.
 - Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
