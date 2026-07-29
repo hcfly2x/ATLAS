@@ -17,6 +17,10 @@ paridade de comandos, a Fase B de entrega durável e a Fase C de watchdog/SLA
 também estão integradas. O shadow dos callers de comandos está em branch
 própria; nenhum caller foi migrado para a decisão pura.
 
+As decisões documentais de alinhamento com o mercado e sua sequência de
+avaliação estão registradas em `docs/market-alignment.md`. Esse registro não
+declara capacidade concluída nem autoriza adoção, dependência, fase ou execução.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade

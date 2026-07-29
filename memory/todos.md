@@ -124,6 +124,18 @@
 - Priorizar e atribuir fase ao epic de tarefas agendadas/webhooks somente após o
   epic de infraestrutura.
 
+## Alinhamento de mercado — registrado, não autorizado
+
+- Decidir ADR de MCP como interface padrão de ferramenta e ação, mantendo no
+  ATLAS a decisão `allow|deny|require_human` e as regras de `always_human`.
+- Decidir a camada de conhecimento documental entre `pgvector` com retrieval
+  fino e LlamaIndex, com ingestão via MarkItDown.
+- Definir “RH de agentes” — custo, qualidade e desempenho — como extensão de
+  evals, com substituição de agente sempre humana.
+- Avaliar OpenHands como worker adicional somente depois da abstração de
+  provedor.
+- Nenhum item acima constitui fase antes de ADR e autorização explícita.
+
 ## Fase 11 — hardening da deliberação
 
 - Tornar a orquestração do conselho retomável após queda do coordinator: hoje
