@@ -8,8 +8,10 @@ import {
 } from "@atlas/shared";
 
 import {
+  countConsecutiveAutomaticReworks,
   PostExecutionQaService,
   assertEmpiricalReviewerIndependent,
+  parseMaxAutomaticRework,
   postExecutionReviewInstructions,
   safePostExecutionFailureCode,
 } from "./service.js";
@@ -20,7 +22,10 @@ const workerId = "10000000-0000-4000-8000-000000000005";
 function qaHarness(input: {
   approvalActor?: "SYSTEM" | "USER";
   approvalStatus: "APPROVED" | "PENDING";
+  consecutiveReasons?: readonly string[];
   empiricalVerdict: "fail" | "pass" | "unavailable" | null;
+  existingReviewStatus?: "FAILED" | "PENDING" | "REJECTED";
+  maxAutomaticRework?: number;
   reviewerDecision: "approved" | "rejected";
   reviewerFailureCode?: string;
 }) {
@@ -114,7 +119,9 @@ function qaHarness(input: {
   const taskUpdates: unknown[] = [];
   const approvalUpdates: unknown[] = [];
   const auditEvents: unknown[] = [];
+  const executionUpdates: unknown[] = [];
   const reviewUpdates: unknown[] = [];
+  const workerUpdates: unknown[] = [];
   let runtimeInput = "";
   const execution = {
     empiricalReview:
@@ -164,10 +171,20 @@ function qaHarness(input: {
     },
     execution: {
       findUniqueOrThrow: () => Promise.resolve(execution),
-      updateMany: () => Promise.resolve({ count: 1 }),
+      updateMany: (value: unknown) => {
+        executionUpdates.push(value);
+        return Promise.resolve({ count: 1 });
+      },
     },
     llmCall: { create: () => Promise.resolve({}) },
     postExecutionReview: {
+      findMany: () =>
+        Promise.resolve(
+          (input.consecutiveReasons ?? []).map((reconciliationReason) => ({
+            reconciliationReason,
+            status: "REJECTED",
+          })),
+        ),
       findUniqueOrThrow: () =>
         Promise.resolve({
           execution,
@@ -188,7 +205,12 @@ function qaHarness(input: {
         return Promise.resolve({ count: 1 });
       },
     },
-    worker: { update: () => Promise.resolve({}) },
+    worker: {
+      update: (value: unknown) => {
+        workerUpdates.push(value);
+        return Promise.resolve({});
+      },
+    },
   };
   const prisma = {
     $transaction: (callback: (client: typeof transaction) => Promise<boolean>) =>
@@ -202,7 +224,7 @@ function qaHarness(input: {
           executionId,
           id: "10000000-0000-4000-8000-000000000006",
           reviewerId: "qa",
-          status: "PENDING",
+          status: input.existingReviewStatus ?? "PENDING",
           taskId,
         }),
     },
@@ -214,6 +236,7 @@ function qaHarness(input: {
       routes: { critical: ["qa"], moderate: ["qa"], simple: ["qa"] },
       supervisorId: "engineering_supervisor",
     },
+    maxAutomaticRework: input.maxAutomaticRework ?? 3,
     monthlyBudgetUsd: 25,
     prisma: prisma as never,
     runtime: {
@@ -243,10 +266,12 @@ function qaHarness(input: {
   return {
     approvalUpdates,
     auditEvents,
+    executionUpdates,
     getRuntimeInput: () => runtimeInput,
     reviewUpdates,
     service,
     taskUpdates,
+    workerUpdates,
   };
 }
 
@@ -261,6 +286,7 @@ describe("PostExecutionQaService", () => {
             routes: { critical: ["qa"], moderate: ["qa"], simple: ["qa"] },
             supervisorId: "qa",
           },
+          maxAutomaticRework: 3,
           monthlyBudgetUsd: 25,
           prisma: {} as never,
           runtime: {} as never,
@@ -272,6 +298,131 @@ describe("PostExecutionQaService", () => {
     expect(() => {
       assertEmpiricalReviewerIndependent("worker", "supervisor");
     }).not.toThrow();
+  });
+
+  it("parses a small positive automatic rework limit and fails closed", () => {
+    expect(parseMaxAutomaticRework(undefined)).toBe(3);
+    expect(parseMaxAutomaticRework("1")).toBe(1);
+    for (const invalid of ["0", "-1", "1.5", "NaN", "Infinity", ""]) {
+      expect(() => parseMaxAutomaticRework(invalid)).toThrow(
+        "ATLAS_MAX_AUTOMATIC_REWORK must be a positive safe integer",
+      );
+    }
+  });
+
+  it("counts only consecutive terminal reviews with the same stable reason", () => {
+    expect(
+      countConsecutiveAutomaticReworks(
+        [
+          { reconciliationReason: "qa_empirical_failed", status: "REJECTED" },
+          { reconciliationReason: "qa_empirical_failed", status: "FAILED" },
+          { reconciliationReason: "qa_reviewer_rejected", status: "REJECTED" },
+          { reconciliationReason: "qa_empirical_failed", status: "REJECTED" },
+        ],
+        "qa_empirical_failed",
+      ),
+    ).toBe(2);
+    expect(
+      countConsecutiveAutomaticReworks(
+        [
+          { reconciliationReason: "qa_empirical_failed", status: "REJECTED" },
+          { reconciliationReason: "qa_signals_approved", status: "APPROVED" },
+          { reconciliationReason: "qa_empirical_failed", status: "REJECTED" },
+        ],
+        "qa_empirical_failed",
+      ),
+    ).toBe(1);
+  });
+
+  it("escalates exactly on the configured same-reason threshold without requeueing", async () => {
+    const harness = qaHarness({
+      approvalActor: "SYSTEM",
+      approvalStatus: "PENDING",
+      consecutiveReasons: ["qa_empirical_failed", "qa_empirical_failed", "qa_empirical_failed"],
+      empiricalVerdict: "fail",
+      maxAutomaticRework: 3,
+      reviewerDecision: "approved",
+    });
+
+    await expect(
+      harness.service.reviewExecution(
+        "10000000-0000-4000-8000-000000000002",
+        new Date("2026-07-28T12:01:00.000Z"),
+      ),
+    ).resolves.toBe(true);
+
+    expect(harness.taskUpdates).toEqual([]);
+    expect(JSON.stringify(harness.approvalUpdates)).toContain('"actor":"USER"');
+    expect(JSON.stringify(harness.approvalUpdates)).toContain(
+      '"requestedBy":"post-execution-rework-loop-breaker"',
+    );
+    expect(JSON.stringify(harness.executionUpdates)).toContain(
+      '"failureStage":"post_execution_rework_limit"',
+    );
+    expect(JSON.stringify(harness.auditEvents)).toContain("post_execution_rework.escalated");
+    expect(JSON.stringify(harness.auditEvents)).toContain('"consecutiveReworkCount":3');
+    expect(harness.workerUpdates).toHaveLength(1);
+  });
+
+  it("keeps the N-1 same-reason rejection on the existing rework path", async () => {
+    const harness = qaHarness({
+      approvalStatus: "PENDING",
+      consecutiveReasons: ["qa_empirical_failed", "qa_empirical_failed"],
+      empiricalVerdict: "fail",
+      maxAutomaticRework: 3,
+      reviewerDecision: "approved",
+    });
+
+    await harness.service.reviewExecution(
+      "10000000-0000-4000-8000-000000000002",
+      new Date("2026-07-28T12:01:00.000Z"),
+    );
+
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+    );
+    expect(JSON.stringify(harness.auditEvents)).not.toContain("post_execution_rework.escalated");
+  });
+
+  it("resets the automatic rework count when the stable reason changes", async () => {
+    const harness = qaHarness({
+      approvalStatus: "PENDING",
+      consecutiveReasons: ["qa_empirical_failed", "qa_reviewer_rejected", "qa_reviewer_rejected"],
+      empiricalVerdict: "fail",
+      maxAutomaticRework: 3,
+      reviewerDecision: "approved",
+    });
+
+    await harness.service.reviewExecution(
+      "10000000-0000-4000-8000-000000000002",
+      new Date("2026-07-28T12:01:00.000Z"),
+    );
+
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+    );
+    expect(JSON.stringify(harness.auditEvents)).not.toContain("post_execution_rework.escalated");
+  });
+
+  it("does not count or escalate a terminal review again", async () => {
+    const harness = qaHarness({
+      approvalStatus: "PENDING",
+      consecutiveReasons: ["qa_empirical_failed", "qa_empirical_failed", "qa_empirical_failed"],
+      empiricalVerdict: "fail",
+      existingReviewStatus: "REJECTED",
+      maxAutomaticRework: 3,
+      reviewerDecision: "approved",
+    });
+
+    await expect(
+      harness.service.reviewExecution(
+        "10000000-0000-4000-8000-000000000002",
+        new Date("2026-07-28T12:01:00.000Z"),
+      ),
+    ).resolves.toBe(false);
+    expect(harness.taskUpdates).toEqual([]);
+    expect(harness.approvalUpdates).toEqual([]);
+    expect(harness.auditEvents).toEqual([]);
   });
 
   it("accepts only a bounded, structured post-execution decision", () => {

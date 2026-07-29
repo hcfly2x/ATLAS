@@ -15,6 +15,14 @@
 
 ## QA pós-execução — acompanhamento após integração
 
+- Revisar empiricamente o loop-breaker: N-1 retorna a `SPECIFYING`, N mantém
+  `WAITING_RESULT_APPROVAL`, motivo diferente reinicia a contagem e
+  reprocessamento não duplica escalada ou notificação.
+- Validar no piloto que a Approval escalada aparece uma vez em “Precisam de
+  você” e que o chat de `Task.origin` recebe somente códigos e instruções
+  sanitizados.
+- Manter cancelamento e reespecificação como decisões humanas; C2 não é
+  autorizado por esta entrega.
 - Manter a revisão empírica do QA v1 como baseline: instalação congelada,
   allowlist, diff scope, sanitização, `PASS` advisory e falha fechada para
   `FAIL|UNAVAILABLE`.

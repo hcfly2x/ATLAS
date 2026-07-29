@@ -23,7 +23,7 @@ import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashb
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
-import { PostExecutionQaService } from "./post-execution/service.js";
+import { PostExecutionQaService, parseMaxAutomaticRework } from "./post-execution/service.js";
 import { selectPostExecutionReviewerRuntime } from "./post-execution/reviewer-runtime.js";
 import {
   DeliveryWatchdog,
@@ -47,6 +47,7 @@ const projectConfigStore = setupWizardEnabled
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
 const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_MS);
+const maxAutomaticRework = parseMaxAutomaticRework(process.env.ATLAS_MAX_AUTOMATIC_REWORK);
 const dashboardCredential = process.env.DASHBOARD_OWNER_CREDENTIAL;
 const dashboardRemoteAccessEnabled = process.env.DASHBOARD_REMOTE_ACCESS_ENABLED === "true";
 assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardCredential);
@@ -121,6 +122,7 @@ const postExecutionQaService =
     : new PostExecutionQaService({
         claimDurationMs: Number(process.env.ATLAS_POST_EXECUTION_QA_CLAIM_MS ?? "300000"),
         council,
+        maxAutomaticRework,
         monthlyBudgetUsd: parseMonthlyBudgetUsd(process.env.LLM_MONTHLY_BUDGET_USD),
         prisma,
         reviewerModel: postExecutionReviewer.model,

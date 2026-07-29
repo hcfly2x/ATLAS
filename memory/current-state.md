@@ -68,6 +68,14 @@ permissão falha fechado. Loopback por default e flag de acesso remoto foram
 preservados. ADR-025 permanece Proposto. C2, Command Center, aprovações pela UI
 e qualquer mutação de domínio continuam não autorizados.
 
+O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
+consecutivas pelo mesmo `reconciliationReason` continuam retornando a
+`SPECIFYING` somente abaixo do limite configurado. No limiar, a Task permanece
+em `WAITING_RESULT_APPROVAL`, a Approval passa a exigir humano, o worker é
+liberado e uma notificação at-most-once é derivada de `Task.origin`. ADR-026
+permanece Proposto; nenhuma ação é aprovada, executada ou cancelada
+automaticamente.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
@@ -258,11 +266,11 @@ e qualquer mutação de domínio continuam não autorizados.
 
 ## Próximo passo
 
-Revisar empiricamente o Workspace e o Replay read-only da Trilha B2, incluindo
-navegação a partir do Mission Control, estados vazios/indeterminados e
-não-vazamento. Em paralelo, coletar amostras reais versionadas dos shadows de
-paths e comandos. Qualquer `MORE_PERMISSIVE` bloqueia o respectivo cutover;
-mesmo com amostra limpa, cada cutover exige fase e autorização próprias.
+Revisar empiricamente o loop-breaker, incluindo limiar, reset por motivo,
+idempotência, projeção em “Precisam de você” e notificação única. Em paralelo,
+coletar amostras reais versionadas dos shadows de paths e comandos. Qualquer
+`MORE_PERMISSIVE` bloqueia o respectivo cutover; mesmo com amostra limpa, cada
+cutover exige fase e autorização próprias. A Trilha C2 continua não autorizada.
 
 ## Restrições ativas
 

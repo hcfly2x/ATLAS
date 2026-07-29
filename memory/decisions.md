@@ -1,5 +1,13 @@
 # Decisões
 
+- ADR-026 permanece Proposto: retrabalho pós-execução é limitado por rejeições
+  consecutivas com o mesmo `reconciliationReason`; motivo diferente ou review
+  aprovado reinicia a sequência.
+- No limiar, a Task permanece em `WAITING_RESULT_APPROVAL`, a Execution termina,
+  o worker é liberado e a Approval existente passa a exigir ator humano.
+- A escalada é idempotente, sanitizada e notificada at-most-once somente por
+  `Task.origin`; nunca aprova, finaliza, reexecuta, cancela, faz merge ou deploy.
+
 - ADR-025 permanece Proposto: o dono autentica a Dashboard com credencial
   exclusiva do ambiente e recebe sessão assinada e expirável em cookie
   HttpOnly; não existe token no bundle ou fragmento da URL.

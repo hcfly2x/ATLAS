@@ -1126,6 +1126,7 @@ describe("Prisma core persistence", () => {
     const service = new PostExecutionQaService({
       claimDurationMs: 30_000,
       council: integrationCouncil,
+      maxAutomaticRework: 3,
       monthlyBudgetUsd: 25,
       prisma,
       runtime: new ApprovedReviewRuntime(),

@@ -18,7 +18,9 @@ function workTask(state: string, updatedAt = new Date("2026-07-29T10:00:00.000Z"
   };
 }
 
-function missionPrisma(options: { readonly failApprovals?: boolean } = {}) {
+function missionPrisma(
+  options: { readonly failApprovals?: boolean; readonly reworkEscalated?: boolean } = {},
+) {
   const write = vi.fn(() => {
     throw new Error("read-only projection attempted a write");
   });
@@ -30,10 +32,13 @@ function missionPrisma(options: { readonly failApprovals?: boolean } = {}) {
           ? Promise.reject(new Error("approval signal unavailable"))
           : Promise.resolve([
               {
-                expiresAt: new Date("2026-07-29T11:00:00.000Z"),
+                expiresAt: options.reworkEscalated ? null : new Date("2026-07-29T11:00:00.000Z"),
                 id: "approval-1",
                 presentedPayload: "SECRET_APPROVAL_PAYLOAD",
                 requestedAt: new Date("2026-07-29T09:00:00.000Z"),
+                requestedBy: options.reworkEscalated
+                  ? "post-execution-rework-loop-breaker"
+                  : "worker",
                 task: { id: taskId, projectId: "atlas" },
               },
             ]),
@@ -525,6 +530,27 @@ describe("DashboardService", () => {
     ]) {
       expect(serialized).not.toContain(forbidden);
     }
+  });
+
+  it("surfaces a loop-breaker Approval as high-priority human rework", async () => {
+    const service = new DashboardService(missionPrisma({ reworkEscalated: true }) as never, {
+      now: () => now,
+    });
+
+    const result = await service.missionControl("atlas");
+
+    expect(result.needsAttention).toMatchObject({
+      count: 1,
+      items: [
+        {
+          kind: "rework_required",
+          label: "Retrabalho exige decisão humana",
+          severity: "high",
+          taskId,
+        },
+      ],
+      status: "available",
+    });
   });
 
   it("marks one unavailable signal indeterminate without taking down the other Home blocks", async () => {
