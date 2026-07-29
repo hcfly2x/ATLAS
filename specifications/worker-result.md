@@ -36,6 +36,17 @@ Contrato documental normativo para o schema Zod previsto no ADR-009.
 - `commands`: lista ordenada com executável resolvido, argumentos sanitizados, início, fim, exit code e status. Não contém strings de shell arbitrárias.
 - `tests`: lista com nome, comando referenciado, status (`passed|failed|skipped`), duração e resumo sanitizado.
 
+## Evidência empírica advisory
+
+- `empirical_review` é opcional para compatibilidade de rollout e obrigatório
+  nos novos resultados bem-sucedidos do worker;
+- contém `verdict` (`pass|fail|unavailable`), identidade UUID do worker revisor,
+  tempos, evidência limitada de comandos, hashes do escopo/diff e hashes dos
+  paths inesperados;
+- comandos empíricos expõem somente executável, hash, duração, exit code e
+  status. Args e output bruto nunca entram no contrato;
+- o hash canônico `evidence_hash` protege o conteúdo exato persistido.
+
 ## Logs
 
 - `log_chunks`: referências ordenadas contendo sequência, checksum, tamanho e timestamps.
@@ -58,6 +69,8 @@ Contrato documental normativo para o schema Zod previsto no ADR-009.
 - Aprovação do usuário referencia `execution_id`, `result_hash` e `diff_hash`.
 - Logs, erros, comandos e resumo devem estar sanitizados antes do envio.
 - Paths protegidos impedem `FINALIZING` sem a aprovação exigida pelo ADR-010.
+- Evidência empírica não substitui PostExecutionReview nem Approval e não pode
+  liberar `FINALIZING`.
 - `commands[].executable` contém o caminho resolvido do binário, nunca uma
   string interpretada por shell.
 - `log_chunks` é contíguo e corresponde aos chunks persistidos pelo coordinator.

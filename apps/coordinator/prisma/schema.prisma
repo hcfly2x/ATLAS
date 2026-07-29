@@ -111,6 +111,12 @@ enum PostExecutionReviewStatus {
   FAILED
 }
 
+enum EmpiricalReviewVerdict {
+  PASS
+  FAIL
+  UNAVAILABLE
+}
+
 enum SpecificationDeliveryMode {
   ANSWER_ONLY
   REPOSITORY_CHANGE
@@ -177,6 +183,7 @@ model Task {
   telegramDelivery      TelegramTaskDelivery?
   deliberations         Deliberation[]
   postExecutionReviews  PostExecutionReview[]
+  empiricalReviews      EmpiricalReview[]
   deliveryOutbox        ResultDeliveryOutbox[]
 
   @@index([projectId, state])
@@ -228,6 +235,7 @@ model Specification {
   activeForTask        Task?                 @relation("ActiveSpecification")
   executions           Execution[]
   postExecutionReviews PostExecutionReview[]
+  empiricalReviews     EmpiricalReview[]
 
   @@unique([taskId, version])
   @@unique([taskId, payloadHash])
@@ -316,6 +324,7 @@ model Execution {
   logChunks                  WorkerLogChunk[]
   codexUsage                 CodexUsage?
   postExecutionReview        PostExecutionReview?
+  empiricalReview            EmpiricalReview?
 
   @@unique([taskId, attempt])
   @@index([status, leaseExpiresAt])
@@ -348,6 +357,29 @@ model PostExecutionReview {
   @@index([status, claimExpiresAt])
   @@index([taskId, createdAt])
   @@map("post_execution_reviews")
+}
+
+model EmpiricalReview {
+  id              String                 @id @default(uuid())
+  taskId          String                 @map("task_id")
+  executionId     String                 @unique @map("execution_id")
+  specificationId String                 @map("specification_id")
+  version         Int                    @default(1)
+  reviewerId      String                 @map("reviewer_id")
+  verdict         EmpiricalReviewVerdict
+  payload         Json
+  payloadHash     String                 @map("payload_hash")
+  idempotencyKey  String                 @unique @map("idempotency_key")
+  reviewedAt      DateTime               @map("reviewed_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  task            Task                   @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  execution       Execution              @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  specification   Specification          @relation(fields: [specificationId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, version])
+  @@index([taskId, createdAt])
+  @@index([verdict, createdAt])
+  @@map("empirical_reviews")
 }
 
 model Worker {

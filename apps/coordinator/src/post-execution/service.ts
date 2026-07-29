@@ -31,11 +31,17 @@ function monthStart(now: Date): Date {
 }
 
 export function postExecutionReviewInstructions(answerOnly: boolean): string {
-  return `You are the post-execution quality gate. Review the worker result against the immutable Specification. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
+  return `You are the post-execution quality gate. Review the worker result against the immutable Specification. EmpiricalReview is advisory evidence produced by a separate worker-side probe: PASS never approves by itself; FAIL is evidence that rework is required; UNAVAILABLE must never be treated as proof of success. You remain the decision maker and the existing Approval remains a separate gate. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
     answerOnly
       ? "This is answer_only: an empty diff is valid and must not be rejected for lack of a repository artifact. Validate the textual summary against the acceptance criteria and the authorized delivery contract."
       : "This is repository_change: preserve the existing diff and artifact review behavior."
   } Do not implement code, alter scope, send messages or authorize merge/deploy.`;
+}
+
+export function assertEmpiricalReviewerIndependent(reviewerId: string, supervisorId: string): void {
+  if (reviewerId === supervisorId) {
+    throw new Error("empirical reviewer must differ from the supervisor");
+  }
 }
 
 export class PostExecutionQaService {
@@ -78,6 +84,7 @@ export class PostExecutionQaService {
     const execution = await this.options.prisma.execution.findUnique({
       where: { id: executionId },
       include: {
+        empiricalReview: true,
         postExecutionReview: true,
         specification: true,
         task: true,
@@ -142,6 +149,13 @@ export class PostExecutionQaService {
       const specification = executableSpecificationPayloadSchema.parse(
         execution.specification.payload,
       );
+      if (execution.empiricalReview === null) {
+        throw new Error("empirical_review_unavailable");
+      }
+      assertEmpiricalReviewerIndependent(
+        execution.empiricalReview.reviewerId,
+        this.options.council.supervisorId,
+      );
       const answerOnly = specification.delivery_mode === "answer_only";
       const destinationAuthorized =
         !answerOnly || telegramResultDestination(execution.task.origin) !== undefined;
@@ -164,6 +178,12 @@ export class PostExecutionQaService {
             delivery_contract: {
               destination_authorized: destinationAuthorized,
               mode: specification.delivery_mode,
+            },
+            empirical_review: {
+              evidence_hash: execution.empiricalReview.payloadHash,
+              evidence: execution.empiricalReview.payload,
+              reviewer_id: execution.empiricalReview.reviewerId,
+              verdict: execution.empiricalReview.verdict.toLowerCase(),
             },
             specification,
           },

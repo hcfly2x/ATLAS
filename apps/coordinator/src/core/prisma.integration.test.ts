@@ -8,6 +8,7 @@ import { InvalidTaskTransitionError, TaskStateMachine } from "@atlas/core";
 import {
   canonicalPayloadHash,
   complexityClassificationSchema,
+  createEmpiricalReviewEvidence,
   createWorkerResult,
   divergenceAnalysisSchema,
   executableSpecificationPayloadSchema,
@@ -626,6 +627,26 @@ describe("Prisma core persistence", () => {
       }),
     ).rejects.toBeInstanceOf(WorkerConflictError);
 
+    const empiricalReview = createEmpiricalReviewEvidence({
+      changed_paths_hash: canonicalPayloadHash(["docs/readme.md"]),
+      commands: [
+        {
+          command_hash: canonicalPayloadHash({ args: ["validate"], executable: "pnpm" }),
+          duration_ms: 10,
+          executable: "pnpm",
+          exit_code: 1,
+          status: "failed",
+        },
+      ],
+      expected_scope_hash: canonicalPayloadHash(["docs/**"]),
+      finished_at: "2026-07-24T13:00:50.000Z",
+      reviewer_id: registration.workerId,
+      scope_matches: true,
+      started_at: "2026-07-24T13:00:40.000Z",
+      unavailable_reason_code: null,
+      unexpected_path_hashes: [],
+      verdict: "fail",
+    });
     const result = createWorkerResult({
       changed_paths: ["docs/readme.md"],
       codex_estimated_cost_usd: 1,
@@ -649,6 +670,7 @@ describe("Prisma core persistence", () => {
         insertions: 1,
       },
       error: null,
+      empirical_review: empiricalReview,
       execution_id: assignment.execution_id,
       failure_stage: null,
       finished_at: "2026-07-24T13:01:00.000Z",
@@ -695,10 +717,25 @@ describe("Prisma core persistence", () => {
     ).toEqual({ replayed: false, state: "WAITING_RESULT_APPROVAL" });
     const persisted = await prisma.execution.findUniqueOrThrow({
       where: { id: assignment.execution_id },
-      include: { codexUsage: true, task: { include: { approvals: true } } },
+      include: {
+        codexUsage: true,
+        empiricalReview: true,
+        task: { include: { approvals: true } },
+      },
     });
     expect(persisted.status).toBe("AWAITING_RESULT_APPROVAL");
     expect(Number(persisted.codexUsage?.estimatedCostUsd)).toBe(1);
+    expect(persisted.empiricalReview).toMatchObject({
+      payloadHash: empiricalReview.evidence_hash,
+      reviewerId: registration.workerId,
+      verdict: "FAIL",
+    });
+    await expect(
+      prisma.empiricalReview.update({
+        where: { executionId: assignment.execution_id },
+        data: { verdict: "PASS" },
+      }),
+    ).rejects.toThrow("empirical_reviews are immutable");
     expect(persisted.task.approvals).toEqual([
       expect.objectContaining({ actor: "SYSTEM", channel: "POLICY", status: "APPROVED" }),
     ]);

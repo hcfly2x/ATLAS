@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — QA empírico v1 advisory
+
+- O worker repete instalação com lockfile congelado e validação declarada na
+  worktree entregue, usando a allowlist/enforcement existentes, e confere o diff
+  contra o escopo da Specification.
+- A evidência limitada é persistida em `EmpiricalReview` imutável com veredito
+  `pass|fail|unavailable` e alimenta o revisor pós-execução existente.
+- Falha, timeout ou indisponibilidade do probe não altera execução, lease,
+  fencing, máquina de estados ou finalização e nunca aprova sozinho.
+- ADR-020 registrado como Proposto. Não há mudança de autonomia, `always_human`,
+  `.atlas/**`, merge ou deploy.
+
 ## Unreleased — reconciliação documental do enforcement
 
 - O estado documentado passa a refletir os callers reais do worker: paths usam
