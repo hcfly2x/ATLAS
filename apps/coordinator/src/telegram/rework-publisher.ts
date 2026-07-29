@@ -29,6 +29,35 @@ export interface TelegramReworkStore {
   recordSent(candidate: TelegramReworkCandidate): Promise<void>;
 }
 
+export function selectTelegramReworkContent(review: {
+  readonly payload: unknown;
+  readonly reconciliationReason: string | null;
+  readonly reviewerDecision: "APPROVED" | "REJECTED" | null;
+  readonly status: "FAILED" | "REJECTED";
+}): Pick<TelegramReworkCandidate, "requiredActions" | "summary"> {
+  const parsed = postExecutionReviewSchema.safeParse(review.payload);
+  const reviewerRejected =
+    review.status === "REJECTED" &&
+    (review.reviewerDecision === null || review.reviewerDecision === "REJECTED");
+  if (reviewerRejected && parsed.success) {
+    return {
+      requiredActions: parsed.data.required_actions,
+      summary: parsed.data.summary,
+    };
+  }
+  if (review.reconciliationReason === "qa_empirical_failed") {
+    return {
+      requiredActions: [],
+      summary:
+        "A verificação empírica falhou; o resultado não foi liberado e requer revisão humana.",
+    };
+  }
+  return {
+    requiredActions: [],
+    summary: "A revisão pós-execução não pôde ser concluída; o resultado não foi liberado.",
+  };
+}
+
 function deliveryKey(candidate: TelegramReworkCandidate): string {
   return `telegram:qa-rework:${candidate.taskId}:v${String(candidate.taskVersion)}`;
 }
@@ -78,18 +107,19 @@ export class PrismaTelegramReworkStore implements TelegramReworkStore {
     return tasks.flatMap((task) => {
       const review = task.postExecutionReviews[0];
       if (review === undefined) return [];
-      const parsed = postExecutionReviewSchema.safeParse(review.payload);
+      const content = selectTelegramReworkContent({
+        payload: review.payload,
+        reconciliationReason: review.reconciliationReason,
+        reviewerDecision: review.reviewerDecision,
+        status: review.status as "FAILED" | "REJECTED",
+      });
       return [
         {
           origin: task.origin,
           projectId: task.projectId,
-          requiredActions:
-            review.status === "REJECTED" && parsed.success ? parsed.data.required_actions : [],
+          requiredActions: content.requiredActions,
           reviewStatus: review.status as "REJECTED" | "FAILED",
-          summary:
-            review.status === "REJECTED" && parsed.success
-              ? parsed.data.summary
-              : "A revisão pós-execução não pôde ser concluída; o resultado não foi liberado.",
+          summary: content.summary,
           taskId: task.id,
           taskVersion: task.version,
         },

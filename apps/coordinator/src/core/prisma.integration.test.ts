@@ -737,6 +737,48 @@ describe("Prisma core persistence", () => {
         data: { verdict: "PASS" },
       }),
     ).rejects.toThrow("empirical_reviews are immutable");
+    const reconciledReview = await prisma.postExecutionReview.create({
+      data: {
+        empiricalVerdict: "FAIL",
+        executionId: assignment.execution_id,
+        idempotencyKey: `execution:${assignment.execution_id}:post-execution-review:v1`,
+        payload: {
+          confidence: 1,
+          decision: "approved",
+          findings: [],
+          required_actions: [],
+          risks: [],
+          summary: "reviewer approved",
+        },
+        payloadHash: canonicalPayloadHash({
+          confidence: 1,
+          decision: "approved",
+          findings: [],
+          required_actions: [],
+          risks: [],
+          summary: "reviewer approved",
+        }),
+        reconciliationReason: "qa_empirical_failed",
+        reviewedAt: new Date("2026-07-24T13:02:00.000Z"),
+        reviewerDecision: "APPROVED",
+        reviewerId: "qa",
+        specificationId: assignment.specification_id,
+        status: "REJECTED",
+        taskId: assignment.task_id,
+      },
+    });
+    expect(reconciledReview).toMatchObject({
+      empiricalVerdict: "FAIL",
+      reconciliationReason: "qa_empirical_failed",
+      reviewerDecision: "APPROVED",
+      status: "REJECTED",
+    });
+    await expect(
+      prisma.postExecutionReview.update({
+        where: { id: reconciledReview.id },
+        data: { reconciliationReason: "qa_signals_approved" },
+      }),
+    ).rejects.toThrow("final post_execution_reviews are immutable");
     expect(persisted.task.approvals).toEqual([
       expect.objectContaining({ actor: "SYSTEM", channel: "POLICY", status: "APPROVED" }),
     ]);

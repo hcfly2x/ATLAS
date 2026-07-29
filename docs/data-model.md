@@ -29,8 +29,11 @@ criada_em. Cada versão é imutável; uma Task aponta para sua versão ativa.
 **PostExecutionReview** — id, task_id, execution_id único, specification_id,
 versão, revisor, modelo?, status (`pending|running|approved|rejected|failed`),
 payload validado, hash canônico, chave idempotente, claim com expiração, motivo de
-falha? e timestamps. O parecer final é imutável e fica ligado ao resultado exato
-da Execution; o revisor não pode ser o emissor da Specification.
+falha?, veredito empírico?, decisão do revisor?, código de reconciliação? e
+timestamps. O parecer final é imutável e fica ligado ao resultado exato da
+Execution; o revisor não pode ser o emissor da Specification. Os campos de
+reconciliação são nulos somente para compatibilidade com registros históricos
+ou enquanto o review ainda não terminou.
 
 **EmpiricalReview** — id, task_id, execution_id único, specification_id, versão,
 worker revisor, veredito (`pass|fail|unavailable`), evidência sanitizada e
@@ -115,8 +118,10 @@ Project 1—N ResultDeliveryOutbox
   não substitui o parecer independente. QA aprovado + Approval automática válida
   permite `FINALIZING`; QA rejeitado ou indisponível retorna a Task a
   `SPECIFYING` para retrabalho versionado, sem entregar o resultado.
-- A evidência empírica é advisory: `pass` não substitui o revisor ou Approval;
-  `fail|unavailable` são apresentados ao mesmo revisor, sem transição autônoma.
+- A reconciliação libera o gate somente para evidência empírica `pass` e decisão
+  do revisor `approved`; ainda assim, não substitui a Approval. `fail`,
+  `unavailable`, rejeição, erro ou sinal ausente fecham em retrabalho/revisão
+  humana e nunca aprovam sozinhos.
 - Aprovação automática também cria Approval com `actor=system`, `target_type`,
   `target_id`, `target_version` e os hashes correspondentes. Ela gera AuditEvent
   e não pode produzir trilha mais fraca que a aprovação manual.

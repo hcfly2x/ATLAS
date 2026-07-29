@@ -16,7 +16,13 @@
 ## QA pós-execução — acompanhamento após integração
 
 - Manter a revisão empírica do QA v1 como baseline: instalação congelada,
-  allowlist, diff scope, sanitização e natureza advisory.
+  allowlist, diff scope, sanitização, `PASS` advisory e falha fechada para
+  `FAIL|UNAVAILABLE`.
+- Revisar empiricamente a matriz reconciliada: somente `PASS + approved`
+  alcança a Approval existente; `FAIL`, `UNAVAILABLE`, rejeição, sinal ausente
+  ou erro permanecem fechados e voltam para revisão humana/retrabalho.
+- Medir divergência por código de reconciliação, sem guardar conteúdo bruto, e
+  manter qualquer ampliação de autonomia condicionada a evals próprios.
 - Medir concordância entre `EmpiricalReview` e PostExecutionReview antes de
   considerar probes gerados, outro provedor ou qualquer papel autoritativo.
 - Revisar empiricamente o adaptador Claude antes do merge: endpoint único,

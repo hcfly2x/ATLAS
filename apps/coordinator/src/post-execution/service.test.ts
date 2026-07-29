@@ -11,6 +11,7 @@ import {
   PostExecutionQaService,
   assertEmpiricalReviewerIndependent,
   postExecutionReviewInstructions,
+  safePostExecutionFailureCode,
 } from "./service.js";
 
 const reviewer = { id: "qa", instructions: "Review delivered work." };
@@ -18,7 +19,7 @@ const workerId = "10000000-0000-4000-8000-000000000005";
 
 function qaHarness(input: {
   approvalStatus: "APPROVED" | "PENDING";
-  empiricalVerdict: "fail" | "pass";
+  empiricalVerdict: "fail" | "pass" | "unavailable" | null;
   reviewerDecision: "approved" | "rejected";
   reviewerFailureCode?: string;
 }) {
@@ -51,9 +52,9 @@ function qaHarness(input: {
     reviewer_id: workerId,
     scope_matches: true,
     started_at: "2026-07-28T12:00:00.000Z",
-    unavailable_reason_code: null,
+    unavailable_reason_code: input.empiricalVerdict === "unavailable" ? "command_denied" : null,
     unexpected_path_hashes: [],
-    verdict: input.empiricalVerdict,
+    verdict: input.empiricalVerdict ?? "pass",
   });
   const { evidence_hash: evidenceHash, ...empiricalPayload } = empirical;
   const result = createWorkerResult({
@@ -114,12 +115,15 @@ function qaHarness(input: {
   const reviewUpdates: unknown[] = [];
   let runtimeInput = "";
   const execution = {
-    empiricalReview: {
-      payload: empiricalPayload,
-      payloadHash: evidenceHash,
-      reviewerId: workerId,
-      verdict: input.empiricalVerdict.toUpperCase(),
-    },
+    empiricalReview:
+      input.empiricalVerdict === null
+        ? null
+        : {
+            payload: empiricalPayload,
+            payloadHash: evidenceHash,
+            reviewerId: workerId,
+            verdict: input.empiricalVerdict.toUpperCase(),
+          },
     id: executionId,
     resultPayload: result,
     specification: { payload: specification },
@@ -281,8 +285,9 @@ describe("PostExecutionQaService", () => {
     );
     expect(postExecutionReviewInstructions(false)).not.toContain("an empty diff is valid");
     expect(postExecutionReviewInstructions(false)).toContain("PASS never approves by itself");
+    expect(postExecutionReviewInstructions(false)).toContain("FAIL requires rework");
     expect(postExecutionReviewInstructions(false)).toContain(
-      "FAIL is evidence that rework is required",
+      "empirical PASS plus reviewer approved",
     );
     expect(postExecutionReviewInstructions(false)).toContain(
       "existing Approval remains a separate gate",
@@ -307,6 +312,66 @@ describe("PostExecutionQaService", () => {
     );
   });
 
+  it.each([
+    {
+      empiricalVerdict: "fail",
+      reason: "qa_empirical_failed",
+    },
+    {
+      empiricalVerdict: "unavailable",
+      reason: "qa_empirical_unavailable",
+    },
+  ] as const)(
+    "never approves reviewer approval when empirical evidence is $empiricalVerdict",
+    async ({ empiricalVerdict, reason }) => {
+      const harness = qaHarness({
+        approvalStatus: "APPROVED",
+        empiricalVerdict,
+        reviewerDecision: "approved",
+      });
+
+      await expect(
+        harness.service.reviewExecution(
+          "10000000-0000-4000-8000-000000000002",
+          new Date("2026-07-28T12:01:00.000Z"),
+        ),
+      ).resolves.toBe(true);
+
+      const persistedReview = JSON.stringify(harness.reviewUpdates);
+      expect(persistedReview).toContain(`"empiricalVerdict":"${empiricalVerdict.toUpperCase()}"`);
+      expect(persistedReview).toContain(`"reconciliationReason":"${reason}"`);
+      expect(persistedReview).toContain('"reviewerDecision":"APPROVED"');
+      expect(persistedReview).toContain('"status":"REJECTED"');
+      expect(harness.taskUpdates).toContainEqual(
+        expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+      );
+      expect(harness.taskUpdates).not.toContainEqual(
+        expect.objectContaining({ data: { state: "FINALIZING", version: { increment: 1 } } }),
+      );
+    },
+  );
+
+  it("returns pass plus reviewer rejection for rework", async () => {
+    const harness = qaHarness({
+      approvalStatus: "APPROVED",
+      empiricalVerdict: "pass",
+      reviewerDecision: "rejected",
+    });
+
+    await harness.service.reviewExecution(
+      "10000000-0000-4000-8000-000000000002",
+      new Date("2026-07-28T12:01:00.000Z"),
+    );
+
+    const persistedReview = JSON.stringify(harness.reviewUpdates);
+    expect(persistedReview).toContain('"reconciliationReason":"qa_reviewer_rejected"');
+    expect(persistedReview).toContain('"reviewerDecision":"REJECTED"');
+    expect(persistedReview).toContain('"status":"REJECTED"');
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+    );
+  });
+
   it("keeps empirical pass advisory when the separate Approval is pending", async () => {
     const harness = qaHarness({
       approvalStatus: "PENDING",
@@ -320,7 +385,35 @@ describe("PostExecutionQaService", () => {
       ),
     ).resolves.toBe(true);
     expect(harness.getRuntimeInput()).toContain('"verdict": "pass"');
+    const persistedReview = JSON.stringify(harness.reviewUpdates);
+    expect(persistedReview).toContain('"empiricalVerdict":"PASS"');
+    expect(persistedReview).toContain('"reconciliationReason":"qa_signals_approved"');
+    expect(persistedReview).toContain('"reviewerDecision":"APPROVED"');
+    expect(persistedReview).toContain('"status":"APPROVED"');
     expect(harness.taskUpdates).toEqual([]);
+  });
+
+  it("fails closed when the empirical signal is missing", async () => {
+    const harness = qaHarness({
+      approvalStatus: "APPROVED",
+      empiricalVerdict: null,
+      reviewerDecision: "approved",
+    });
+
+    await expect(
+      harness.service.reviewExecution(
+        "10000000-0000-4000-8000-000000000002",
+        new Date("2026-07-28T12:01:00.000Z"),
+      ),
+    ).resolves.toBe(true);
+
+    const persistedReview = JSON.stringify(harness.reviewUpdates);
+    expect(persistedReview).toContain('"empiricalVerdict":null');
+    expect(persistedReview).toContain('"reconciliationReason":"qa_empirical_signal_missing"');
+    expect(persistedReview).toContain('"status":"FAILED"');
+    expect(harness.taskUpdates).toContainEqual(
+      expect.objectContaining({ data: { state: "SPECIFYING", version: { increment: 1 } } }),
+    );
   });
 
   it.each([
@@ -349,5 +442,14 @@ describe("PostExecutionQaService", () => {
     );
     expect(JSON.stringify(harness.auditEvents)).toContain(code);
     expect(JSON.stringify(harness.auditEvents)).not.toContain("synthetic-review-input");
+  });
+
+  it("maps unknown failures to a stable sanitized code", () => {
+    expect(safePostExecutionFailureCode(new Error("secret prompt and remote body"))).toBe(
+      "post_execution_qa_failed",
+    );
+    expect(safePostExecutionFailureCode(new Error("CLAUDE_REVIEWER_TIMEOUT"))).toBe(
+      "CLAUDE_REVIEWER_TIMEOUT",
+    );
   });
 });

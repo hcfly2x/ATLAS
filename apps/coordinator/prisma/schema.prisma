@@ -111,6 +111,11 @@ enum PostExecutionReviewStatus {
   FAILED
 }
 
+enum PostExecutionReviewerDecision {
+  APPROVED
+  REJECTED
+}
+
 enum EmpiricalReviewVerdict {
   PASS
   FAIL
@@ -332,26 +337,29 @@ model Execution {
 }
 
 model PostExecutionReview {
-  id              String                    @id @default(uuid())
-  taskId          String                    @map("task_id")
-  executionId     String                    @unique @map("execution_id")
-  specificationId String                    @map("specification_id")
-  version         Int                       @default(1)
-  reviewerId      String                    @map("reviewer_id")
-  model           String?
-  status          PostExecutionReviewStatus @default(PENDING)
-  payload         Json?
-  payloadHash     String?                   @map("payload_hash")
-  idempotencyKey  String                    @unique @map("idempotency_key")
-  claimToken      String?                   @map("claim_token")
-  claimExpiresAt  DateTime?                 @map("claim_expires_at")
-  failureReason   String?                   @map("failure_reason")
-  reviewedAt      DateTime?                 @map("reviewed_at")
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
-  task            Task                      @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  execution       Execution                 @relation(fields: [executionId], references: [id], onDelete: Restrict)
-  specification   Specification             @relation(fields: [specificationId], references: [id], onDelete: Restrict)
+  id                   String                         @id @default(uuid())
+  taskId               String                         @map("task_id")
+  executionId          String                         @unique @map("execution_id")
+  specificationId      String                         @map("specification_id")
+  version              Int                            @default(1)
+  reviewerId           String                         @map("reviewer_id")
+  model                String?
+  status               PostExecutionReviewStatus      @default(PENDING)
+  payload              Json?
+  payloadHash          String?                        @map("payload_hash")
+  idempotencyKey       String                         @unique @map("idempotency_key")
+  claimToken           String?                        @map("claim_token")
+  claimExpiresAt       DateTime?                      @map("claim_expires_at")
+  failureReason        String?                        @map("failure_reason")
+  empiricalVerdict     EmpiricalReviewVerdict?        @map("empirical_verdict")
+  reviewerDecision     PostExecutionReviewerDecision? @map("reviewer_decision")
+  reconciliationReason String?                        @map("reconciliation_reason")
+  reviewedAt           DateTime?                      @map("reviewed_at")
+  createdAt            DateTime                       @default(now()) @map("created_at")
+  updatedAt            DateTime                       @updatedAt @map("updated_at")
+  task                 Task                           @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  execution            Execution                      @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  specification        Specification                  @relation(fields: [specificationId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, version])
   @@index([status, claimExpiresAt])

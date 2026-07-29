@@ -51,6 +51,10 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
   output, prompt, payload bruto, token ou credencial;
 - timeout, exceção, runtime ausente ou comando negado resultam em
   `UNAVAILABLE`, sem aprovação automática.
+- a reconciliação pós-execução libera o gate somente com evidência `PASS` e
+  decisão `approved`; divergência, sinal ausente ou erro falham fechado;
+- o registro reconciliado contém somente enums, hashes e códigos estáveis,
+  nunca prompt, resposta remota ou mensagem bruta de erro.
 
 ## Provedor do revisor pós-execução
 

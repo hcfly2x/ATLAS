@@ -4,7 +4,9 @@ import type { AgentRuntime } from "@atlas/agent-runtime";
 import { OPENAI_MODELS } from "@atlas/agent-runtime";
 import {
   ApprovalStatus,
+  EmpiricalReviewVerdict,
   ExecutionStatus,
+  PostExecutionReviewerDecision,
   PostExecutionReviewStatus,
   Prisma,
   TaskState,
@@ -21,6 +23,11 @@ import {
 
 import type { CouncilAgent, CouncilConfig } from "../supervisor/council-config.js";
 import { telegramResultDestination } from "../telegram/origin.js";
+import {
+  reconcileQaSignals,
+  type EmpiricalQaSignal,
+  type QaReconciliationReason,
+} from "./reconciliation.js";
 
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -30,8 +37,29 @@ function monthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
+function empiricalSignal(verdict: EmpiricalReviewVerdict): EmpiricalQaSignal {
+  if (verdict === EmpiricalReviewVerdict.PASS) return "pass";
+  if (verdict === EmpiricalReviewVerdict.FAIL) return "fail";
+  return "unavailable";
+}
+
+const SAFE_FAILURE_CODES = new Set([
+  "answer_only_destination_is_not_authorized",
+  "empirical_review_unavailable",
+  "monthly_budget_exceeded",
+  "CLAUDE_REVIEWER_INVALID_RESPONSE",
+  "CLAUDE_REVIEWER_TIMEOUT",
+  "CLAUDE_REVIEWER_UNAVAILABLE",
+  "CLAUDE_REVIEWER_UNSUPPORTED_MODEL",
+]);
+
+export function safePostExecutionFailureCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  return SAFE_FAILURE_CODES.has(message) ? message : "post_execution_qa_failed";
+}
+
 export function postExecutionReviewInstructions(answerOnly: boolean): string {
-  return `You are the post-execution quality gate. Review the worker result against the immutable Specification. EmpiricalReview is advisory evidence produced by a separate worker-side probe: PASS never approves by itself; FAIL is evidence that rework is required; UNAVAILABLE must never be treated as proof of success. You remain the decision maker and the existing Approval remains a separate gate. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
+  return `You are the post-execution quality gate. Review the worker result against the immutable Specification. EmpiricalReview is independent evidence produced by a separate worker-side probe: PASS never approves by itself; FAIL requires rework; UNAVAILABLE must never be treated as proof of success. Produce your independent reviewer signal. A separate deterministic reconciliation releases the existing Approval gate only for empirical PASS plus reviewer approved; your approval cannot override FAIL or UNAVAILABLE. The existing Approval remains a separate gate. Approve only when the delivered result, tests and constraints satisfy it. Reject when rework is required. ${
     answerOnly
       ? "This is answer_only: an empty diff is valid and must not be rejected for lack of a repository artifact. Validate the textual summary against the acceptance criteria and the authorized delivery contract."
       : "This is repository_change: preserve the existing diff and artifact review behavior."
@@ -199,12 +227,7 @@ export class PostExecutionQaService {
       });
       return await this.completeReview(execution.id, review.id, claimToken, response, now);
     } catch (error: unknown) {
-      return this.failReview(
-        review.id,
-        claimToken,
-        error instanceof Error ? error.message : "post_execution_qa_failed",
-        now,
-      );
+      return this.failReview(review.id, claimToken, safePostExecutionFailureCode(error), now);
     }
   }
 
@@ -227,7 +250,14 @@ export class PostExecutionQaService {
     return this.options.prisma.$transaction(async (transaction) => {
       const execution = await transaction.execution.findUniqueOrThrow({
         where: { id: executionId },
-        include: { task: true },
+        include: { empiricalReview: true, task: true },
+      });
+      const reconciliation = reconcileQaSignals({
+        empiricalVerdict:
+          execution.empiricalReview === null
+            ? null
+            : empiricalSignal(execution.empiricalReview.verdict),
+        reviewerDecision: review.decision,
       });
       const updatedReview = await transaction.postExecutionReview.updateMany({
         where: {
@@ -237,14 +267,22 @@ export class PostExecutionQaService {
         },
         data: {
           claimExpiresAt: null,
+          empiricalVerdict: execution.empiricalReview?.verdict ?? null,
           model: response.model,
           payload: json(review),
           payloadHash,
+          reconciliationReason: reconciliation.reasonCode,
+          reviewerDecision:
+            review.decision === "approved"
+              ? PostExecutionReviewerDecision.APPROVED
+              : PostExecutionReviewerDecision.REJECTED,
           reviewedAt: now,
           status:
-            review.decision === "approved"
+            reconciliation.outcome === "approved"
               ? PostExecutionReviewStatus.APPROVED
-              : PostExecutionReviewStatus.REJECTED,
+              : reconciliation.outcome === "rejected"
+                ? PostExecutionReviewStatus.REJECTED
+                : PostExecutionReviewStatus.FAILED,
         },
       });
       if (updatedReview.count !== 1) return false;
@@ -269,9 +307,11 @@ export class PostExecutionQaService {
           correlationId,
           idempotencyKey: `audit:${correlationId}`,
           payload: json({
-            decision: review.decision,
+            empiricalVerdict: execution.empiricalReview?.verdict ?? null,
             executionId: execution.id,
             payloadHash,
+            reconciliationReason: reconciliation.reasonCode,
+            reviewerDecision: review.decision,
             reviewerId: this.reviewer.id,
             specificationId: execution.specificationId,
           }),
@@ -287,8 +327,16 @@ export class PostExecutionQaService {
       ) {
         return true;
       }
-      if (review.decision === "rejected") {
-        await this.returnForRework(transaction, execution, correlationId, "qa_rejected");
+      if (!reconciliation.releasesApprovalGate) {
+        await this.returnForRework(
+          transaction,
+          execution,
+          correlationId,
+          reconciliation.outcome === "failed" ||
+            reconciliation.reasonCode === "qa_empirical_unavailable"
+            ? "qa_unavailable"
+            : "qa_rejected",
+        );
         return true;
       }
       const policyApproval = await transaction.approval.findUnique({
@@ -344,8 +392,12 @@ export class PostExecutionQaService {
     return this.options.prisma.$transaction(async (transaction) => {
       const review = await transaction.postExecutionReview.findUniqueOrThrow({
         where: { id: reviewId },
-        include: { execution: { include: { task: true } } },
+        include: { execution: { include: { empiricalReview: true, task: true } } },
       });
+      const reconciliationReason: QaReconciliationReason =
+        review.execution.empiricalReview === null
+          ? "qa_empirical_signal_missing"
+          : "qa_reviewer_signal_missing";
       const failedReview = await transaction.postExecutionReview.updateMany({
         where: {
           id: review.id,
@@ -357,7 +409,9 @@ export class PostExecutionQaService {
         },
         data: {
           claimExpiresAt: null,
-          failureReason: reason.slice(0, 500),
+          empiricalVerdict: review.execution.empiricalReview?.verdict ?? null,
+          failureReason: reason,
+          reconciliationReason,
           reviewedAt: now,
           status: PostExecutionReviewStatus.FAILED,
         },
@@ -370,7 +424,12 @@ export class PostExecutionQaService {
           actor: "SYSTEM",
           correlationId,
           idempotencyKey: `audit:${correlationId}:failed`,
-          payload: json({ reason: reason.slice(0, 500), reviewerId: review.reviewerId }),
+          payload: json({
+            empiricalVerdict: review.execution.empiricalReview?.verdict ?? null,
+            reason,
+            reconciliationReason,
+            reviewerId: review.reviewerId,
+          }),
           projectId: review.execution.task.projectId,
           targetId: review.id,
           targetType: "post_execution_review",
