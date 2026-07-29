@@ -21,6 +21,10 @@ As decisões documentais de alinhamento com o mercado e sua sequência de
 avaliação estão registradas em `docs/market-alignment.md`. Esse registro não
 declara capacidade concluída nem autoriza adoção, dependência, fase ou execução.
 
+A direção documental para internalizar o papel de arquiteto e revisor está em
+`docs/self-development-loop.md`. Nenhuma peça desse loop está declarada como
+concluída ou autorizada para implementação.
+
 ## Implementado
 
 - Trilha 1 (Fases 1–5), memória por projeto, Pilot Setup Wizard, visibilidade
