@@ -61,12 +61,15 @@ abrem o Workspace por URL, e a UI apresenta as seções read-only e um Replay
 passo a passo somente dos eventos sanitizados. Estados loading, vazio,
 indeterminado, erro e 404 são explícitos.
 
-A Trilha C1 está implementada sem escrita: o dono usa credencial exclusiva do
+A Trilha C1 está implementada: o dono usa credencial exclusiva do
 ambiente para criar sessão assinada e expirável em cookie HttpOnly. Toda rota
 `/dashboard` exige sessão e permissão de leitura declarada no backend; rota sem
 permissão falha fechado. Loopback por default e flag de acesso remoto foram
-preservados. ADR-025 permanece Proposto. C2, Command Center, aprovações pela UI
-e qualquer mutação de domínio continuam não autorizados.
+preservados. ADR-025 permanece Proposto. A Trilha C2a acrescenta a primeira
+escrita governada: o dono pode decidir somente Approvals `USER` pendentes pela
+Dashboard, com RBAC de escrita, CSRF por sessão, idempotência e versões
+otimistas, usando o mesmo resolvedor transacional do Telegram. ADR-027 permanece
+Proposto. Criar demanda, pausar, priorizar e cancelar continuam para C2b.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a

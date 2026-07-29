@@ -184,9 +184,12 @@ export const demandWorkspaceFixture: DemandWorkspaceResponse = {
     {
       actor: "USER",
       approvalId: "approval-1",
+      canDecide: false,
       occurredAt,
       status: "APPROVED",
+      targetType: "EXECUTION_RESULT",
       targetVersion: 4,
+      taskVersion: 8,
       type: "RESULT",
     },
   ],

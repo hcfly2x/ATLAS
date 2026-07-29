@@ -25,6 +25,13 @@ import { PrismaSupervisorStore } from "../supervisor/prisma-supervisor-store.js"
 import { SupervisorService } from "../supervisor/service.js";
 import { ApprovalTargetHashMismatchError, PrismaTelegramStore } from "../telegram/store.js";
 import {
+  ApprovalDecisionNotHumanError,
+  ApprovalDecisionVersionConflictError,
+  PrismaApprovalDecisionService,
+  SensitiveApprovalDashboardDeniedError,
+} from "../approvals/service.js";
+import { DashboardApprovalService } from "../dashboard/approval-service.js";
+import {
   CodexMonthlyBudgetExceededError,
   WorkerConflictError,
   WorkerLeaseError,
@@ -35,6 +42,9 @@ const prisma = new PrismaClient();
 const store = new PrismaTaskCoreStore(prisma);
 const machine = new TaskStateMachine(store);
 const telegramStore = new PrismaTelegramStore(prisma);
+const dashboardApprovalService = new DashboardApprovalService(
+  new PrismaApprovalDecisionService(prisma),
+);
 
 class IntegrationAgentRuntime implements AgentRuntime {
   run<Output>(request: AgentRequest<Output>): Promise<AgentResponse<Output>> {
@@ -449,6 +459,137 @@ describe("Prisma core persistence", () => {
         },
       }),
     ).not.toBeNull();
+  });
+
+  it("decides a human Approval once and fails closed for stale, system and sensitive targets", async () => {
+    const projectId = `dashboard-approval-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Dashboard Approval Test",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: { audit_events_expire: false, files_days: 1, logs_days: 1 },
+        risk: "low",
+      },
+    });
+    const task = await prisma.task.create({
+      data: {
+        idempotencyKey: `dashboard-task-${randomUUID()}`,
+        origin: "dashboard",
+        originalMessage: "approve safely",
+        projectId,
+      },
+    });
+    const payload = specificationPayload(task.id, projectId);
+    const payloadHash = canonicalPayloadHash(payload);
+    const specification = await prisma.specification.create({
+      data: { payload, payloadHash, taskId: task.id, version: 1 },
+    });
+    const currentTask = await prisma.task.update({
+      where: { id: task.id },
+      data: { activeSpecificationId: specification.id, state: "WAITING_APPROVAL" },
+    });
+    const approval = await prisma.approval.create({
+      data: {
+        actor: "USER",
+        channel: "TELEGRAM",
+        idempotencyKey: `dashboard-approval-${randomUUID()}`,
+        presentedPayload: payload,
+        requestedBy: "system",
+        targetHash: payloadHash,
+        targetId: specification.id,
+        targetType: "SPECIFICATION",
+        targetVersion: 1,
+        taskId: task.id,
+        type: "PRE_EXECUTION",
+      },
+    });
+    const request = {
+      decision: "approve" as const,
+      idempotencyKey: randomUUID(),
+      targetVersion: 1,
+      taskVersion: currentTask.version,
+    };
+
+    const decided = await dashboardApprovalService.decide(
+      approval.id,
+      request,
+      "dashboard-correlation",
+    );
+    const replay = await dashboardApprovalService.decide(
+      approval.id,
+      request,
+      "dashboard-correlation-replay",
+    );
+    expect(decided).toMatchObject({ idempotentReplay: false, status: "APPROVED" });
+    expect(replay).toMatchObject({ idempotentReplay: true, status: "APPROVED" });
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({
+      state: "QUEUED",
+      version: currentTask.version + 1,
+    });
+
+    const staleApproval = await prisma.approval.create({
+      data: {
+        actor: "USER",
+        channel: "TELEGRAM",
+        idempotencyKey: `stale-dashboard-approval-${randomUUID()}`,
+        presentedPayload: payload,
+        requestedBy: "system",
+        targetHash: payloadHash,
+        targetId: specification.id,
+        targetType: "SPECIFICATION",
+        targetVersion: 1,
+        taskId: task.id,
+        type: "PRE_EXECUTION",
+      },
+    });
+    await expect(
+      dashboardApprovalService.decide(
+        staleApproval.id,
+        { ...request, idempotencyKey: randomUUID() },
+        "stale-dashboard",
+      ),
+    ).rejects.toBeInstanceOf(ApprovalDecisionVersionConflictError);
+
+    for (const fixture of [
+      { actor: "SYSTEM" as const, type: "PRE_EXECUTION" as const },
+      { actor: "USER" as const, type: "SENSITIVE_ACTION" as const },
+    ]) {
+      const candidate = await prisma.approval.create({
+        data: {
+          actor: fixture.actor,
+          channel: "POLICY",
+          idempotencyKey: `denied-dashboard-approval-${randomUUID()}`,
+          presentedPayload: {},
+          requestedBy: "policy",
+          targetHash: "sensitive",
+          targetId: randomUUID(),
+          targetType: "SENSITIVE_ACTION",
+          targetVersion: 1,
+          taskId: task.id,
+          type: fixture.type,
+        },
+      });
+      const action = dashboardApprovalService.decide(
+        candidate.id,
+        {
+          decision: "approve",
+          idempotencyKey: randomUUID(),
+          targetVersion: 1,
+          taskVersion: currentTask.version + 1,
+        },
+        "denied-dashboard",
+      );
+      await expect(action).rejects.toBeInstanceOf(
+        fixture.actor === "SYSTEM"
+          ? ApprovalDecisionNotHumanError
+          : SensitiveApprovalDashboardDeniedError,
+      );
+    }
   });
 
   it("persists a moderate level-2 Specification with system policy Approval and LLM usage", async () => {

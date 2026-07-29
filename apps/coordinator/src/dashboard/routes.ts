@@ -1,7 +1,20 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { approvalDecisionRequestSchema } from "@atlas/contracts";
+
+import {
+  ApprovalDecisionIdempotencyConflictError,
+  ApprovalDecisionNotFoundError,
+  ApprovalDecisionNotHumanError,
+  ApprovalDecisionNotPendingError,
+  ApprovalDecisionVersionConflictError,
+  ApprovalTargetHashMismatchError,
+  PostExecutionReviewPendingError,
+  SensitiveApprovalDashboardDeniedError,
+} from "../approvals/service.js";
 import type { DashboardAuthenticator, DashboardPermission } from "./auth.js";
+import type { DashboardApprovalService } from "./approval-service.js";
 import { dashboardLoginPage, dashboardPage } from "./page.js";
 import type { DashboardService } from "./service.js";
 
@@ -54,6 +67,7 @@ export function registerDashboardRoutes(
   app: FastifyInstance,
   service: DashboardService,
   auth: DashboardAuthenticator,
+  approvalService: DashboardApprovalService | undefined,
   options: DashboardRouteOptions = {},
 ): void {
   const remoteAccessEnabled = options.remoteAccessEnabled ?? false;
@@ -94,7 +108,20 @@ export function registerDashboardRoutes(
       await reply.code(401).send({ code: "DASHBOARD_UNAUTHORIZED" });
       return;
     }
-    if (result.status === "allowed") return;
+    if (result.status === "allowed") {
+      if (
+        ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
+        !auth.verifyCsrf(
+          request.headers.cookie,
+          typeof request.headers["x-atlas-csrf-token"] === "string"
+            ? request.headers["x-atlas-csrf-token"]
+            : undefined,
+        )
+      ) {
+        await reply.code(403).send({ code: "DASHBOARD_CSRF_INVALID" });
+      }
+      return;
+    }
     if (result.status === "expired") {
       audit(request, {
         action: "dashboard.auth.session_expired",
@@ -172,9 +199,53 @@ export function registerDashboardRoutes(
         return reply.code(401).send({ code: "DASHBOARD_UNAUTHORIZED" });
       }
       return {
+        csrfToken: auth.csrfToken(request.headers.cookie),
         expiresAt: new Date(authentication.principal.expiresAt).toISOString(),
         role: authentication.principal.role,
       };
+    },
+  );
+  app.post(
+    "/dashboard/api/approvals/:approvalId/decision",
+    {
+      config: {
+        dashboardPermission: "dashboard:approval:decide",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (approvalService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_APPROVALS_UNAVAILABLE" });
+      }
+      const approvalId = z
+        .string()
+        .uuid()
+        .parse((request.params as { approvalId?: unknown }).approvalId);
+      const input = approvalDecisionRequestSchema.parse(request.body);
+      try {
+        return await approvalService.decide(approvalId, input, request.id);
+      } catch (error: unknown) {
+        if (error instanceof ApprovalDecisionNotFoundError) {
+          return reply.code(404).send({ code: error.code });
+        }
+        if (
+          error instanceof ApprovalDecisionVersionConflictError ||
+          error instanceof ApprovalDecisionNotPendingError ||
+          error instanceof ApprovalDecisionIdempotencyConflictError ||
+          error instanceof ApprovalTargetHashMismatchError
+        ) {
+          return reply.code(409).send({ code: error.code });
+        }
+        if (
+          error instanceof ApprovalDecisionNotHumanError ||
+          error instanceof SensitiveApprovalDashboardDeniedError
+        ) {
+          return reply.code(403).send({ code: error.code });
+        }
+        if (error instanceof PostExecutionReviewPendingError) {
+          return reply.code(422).send({ code: error.code });
+        }
+        throw error;
+      }
     },
   );
 

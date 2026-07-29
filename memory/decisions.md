@@ -1,5 +1,14 @@
 # Decisões
 
+- ADR-027 permanece Proposto: a primeira escrita da Dashboard decide somente
+  Approval `USER` pendente por um resolvedor transacional compartilhado com o
+  Telegram.
+- A rota exige sessão, `dashboard:approval:decide`, CSRF ligado à sessão,
+  idempotência e versões do alvo e da Task. Divergência ou erro falham fechado.
+- `SYSTEM` e aprovação de `SENSITIVE_ACTION` não são decididos pela rota.
+  `always_human`, merge, deploy, autonomia, enforcement e estados canônicos não
+  mudam. Criar demanda, pausar, priorizar e cancelar permanecem em C2b.
+
 - ADR-026 permanece Proposto: retrabalho pós-execução é limitado por rejeições
   consecutivas com o mesmo `reconciliationReason`; motivo diferente ou review
   aprovado reinicia a sequência.

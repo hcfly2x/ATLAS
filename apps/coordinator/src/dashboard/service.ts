@@ -858,6 +858,7 @@ export class DashboardService {
             requestedAt: true,
             respondedAt: true,
             status: true,
+            targetType: true,
             targetVersion: true,
             type: true,
           },
@@ -931,6 +932,7 @@ export class DashboardService {
         },
         state: true,
         updatedAt: true,
+        version: true,
       },
     });
     if (task === null) return null;
@@ -957,9 +959,15 @@ export class DashboardService {
       approvals: task.approvals.map((approval) => ({
         actor: approval.actor,
         approvalId: approval.id,
+        canDecide:
+          approval.actor === "USER" &&
+          approval.status === "PENDING" &&
+          approval.targetVersion !== null,
         occurredAt: approval.respondedAt ?? approval.requestedAt,
         status: approval.status,
+        targetType: approval.targetType,
         targetVersion: approval.targetVersion ?? INDETERMINATE,
+        taskVersion: task.version,
         type: approval.type,
       })),
       cost: {

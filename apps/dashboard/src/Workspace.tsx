@@ -1,6 +1,9 @@
-import type { DemandWorkspaceResponse } from "@atlas/contracts";
-import { useState, type ReactNode } from "react";
+import type { ApprovalDecisionRequest, DemandWorkspaceResponse } from "@atlas/contracts";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { Link } from "react-router-dom";
+
+import { ApprovalDecisionError, type ApprovalDecisionClient } from "./approval-decision.js";
 
 type WorkspaceValue = string;
 
@@ -228,7 +231,61 @@ function Plan({ data }: { readonly data: DemandWorkspaceResponse }) {
   );
 }
 
-function Approvals({ approvals }: { readonly approvals: DemandWorkspaceResponse["approvals"] }) {
+function Approvals({
+  approvals,
+  client,
+  taskId,
+}: {
+  readonly approvals: DemandWorkspaceResponse["approvals"];
+  readonly client: ApprovalDecisionClient;
+  readonly taskId: string;
+}) {
+  const queryClient = useQueryClient();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [selected, setSelected] = useState<{
+    readonly approval: DemandWorkspaceResponse["approvals"][number];
+    readonly decision: ApprovalDecisionRequest["decision"];
+  }>();
+  const [comment, setComment] = useState("");
+  const mutation = useMutation({
+    mutationFn: client,
+    onSuccess: async () => {
+      setSelected(undefined);
+      setComment("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["demand-workspace", taskId] }),
+        queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+      ]);
+    },
+  });
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (selected === undefined) {
+      if (dialog?.open === true) dialog.close();
+      return;
+    }
+    if (dialog?.open === false) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+  }, [selected]);
+
+  function confirm(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (selected === undefined || mutation.isPending) return;
+    mutation.mutate({
+      approvalId: selected.approval.approvalId,
+      request: {
+        ...(comment.trim().length === 0 ? {} : { comment: comment.trim() }),
+        decision: selected.decision,
+        idempotencyKey: crypto.randomUUID(),
+        targetVersion:
+          selected.approval.targetVersion === "indeterminado" ? 0 : selected.approval.targetVersion,
+        taskVersion: selected.approval.taskVersion,
+      },
+    });
+  }
+
   return (
     <WorkspaceSection eyebrow="Governança" id="approvals-title" title="Aprovações">
       {approvals.length === 0 ? (
@@ -246,10 +303,118 @@ function Approvals({ approvals }: { readonly approvals: DemandWorkspaceResponse[
               <div>
                 <span className="state-pill">{approval.status}</span>
                 <time dateTime={approval.occurredAt}>{formatDate(approval.occurredAt)}</time>
+                {approval.canDecide ? (
+                  <div
+                    aria-label={`Decidir aprovação ${approval.approvalId}`}
+                    className="approval-actions"
+                  >
+                    <button
+                      onClick={() => {
+                        setSelected({ approval, decision: "approve" });
+                      }}
+                      type="button"
+                    >
+                      Aprovar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelected({ approval, decision: "request_change" });
+                      }}
+                      type="button"
+                    >
+                      Pedir alteração
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelected({ approval, decision: "reject" });
+                      }}
+                      type="button"
+                    >
+                      Rejeitar
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </article>
           ))}
         </div>
+      )}
+      {selected === undefined ? null : (
+        <dialog
+          aria-labelledby="approval-confirm-title"
+          className="approval-dialog"
+          onCancel={() => {
+            setSelected(undefined);
+            mutation.reset();
+          }}
+          ref={dialogRef}
+        >
+          <form onSubmit={confirm}>
+            <p className="kicker">Confirmação humana</p>
+            <h3 id="approval-confirm-title">Confirmar decisão</h3>
+            <dl>
+              <div>
+                <dt>O quê</dt>
+                <dd>{selected.approval.type}</dd>
+              </div>
+              <div>
+                <dt>Por quê</dt>
+                <dd>Aprovação humana pendente no estado canônico.</dd>
+              </div>
+              <div>
+                <dt>Impacto</dt>
+                <dd>A decisão pode avançar ou devolver a demanda.</dd>
+              </div>
+              <div>
+                <dt>Evidência</dt>
+                <dd>
+                  {selected.approval.targetType} v{String(selected.approval.targetVersion)}
+                </dd>
+              </div>
+              <div>
+                <dt>Reversibilidade</dt>
+                <dd>A decisão é persistida e auditada; não há auto-merge ou deploy.</dd>
+              </div>
+              <div>
+                <dt>Recomendação</dt>
+                <dd>Confirme somente após revisar o contexto seguro acima.</dd>
+              </div>
+            </dl>
+            <label>
+              Comentário {selected.decision === "request_change" ? "(obrigatório)" : "(opcional)"}
+              <textarea
+                maxLength={1_000}
+                onChange={(event) => {
+                  setComment(event.target.value);
+                }}
+                required={selected.decision === "request_change"}
+                value={comment}
+              />
+            </label>
+            {mutation.isError ? (
+              <p role="alert">
+                {mutation.error instanceof ApprovalDecisionError &&
+                mutation.error.code === "conflict"
+                  ? "A aprovação mudou. Atualize o Workspace antes de decidir."
+                  : "A decisão não foi aplicada."}
+              </p>
+            ) : null}
+            <div className="approval-actions">
+              <button
+                onClick={() => {
+                  setSelected(undefined);
+                  mutation.reset();
+                }}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button disabled={mutation.isPending} type="submit">
+                {mutation.isPending ? "Registrando…" : "Confirmar decisão"}
+              </button>
+            </div>
+          </form>
+        </dialog>
       )}
     </WorkspaceSection>
   );
@@ -430,7 +595,13 @@ function Costs({ cost }: { readonly cost: DemandWorkspaceResponse["cost"] }) {
   );
 }
 
-export function DemandWorkspace({ data }: { readonly data: DemandWorkspaceResponse }) {
+export function DemandWorkspace({
+  approvalDecisionClient,
+  data,
+}: {
+  readonly approvalDecisionClient: ApprovalDecisionClient;
+  readonly data: DemandWorkspaceResponse;
+}) {
   return (
     <>
       <header className="workspace-topbar">
@@ -438,7 +609,7 @@ export function DemandWorkspace({ data }: { readonly data: DemandWorkspaceRespon
         <span>Workspace</span>
         <span className="context-status">
           <span aria-hidden="true" className="status-dot" />
-          Somente leitura
+          Governança autenticada
         </span>
       </header>
       <main className="workspace-page">
@@ -446,7 +617,11 @@ export function DemandWorkspace({ data }: { readonly data: DemandWorkspaceRespon
         <div className="workspace-layout">
           <Overview data={data} />
           <Plan data={data} />
-          <Approvals approvals={data.approvals} />
+          <Approvals
+            approvals={data.approvals}
+            client={approvalDecisionClient}
+            taskId={data.header.taskId}
+          />
           <QualityAssurance qa={data.qa} />
           <Deliverables executions={data.executions} />
           <Replay timeline={data.timeline} />
@@ -454,7 +629,7 @@ export function DemandWorkspace({ data }: { readonly data: DemandWorkspaceRespon
         </div>
         <footer className="mission-footer">
           <span>Leitura validada por @atlas/contracts</span>
-          <span>Sem ações · sem conteúdo bruto · sem chain-of-thought</span>
+          <span>Aprovações humanas governadas · sem conteúdo bruto · sem chain-of-thought</span>
         </footer>
       </main>
     </>

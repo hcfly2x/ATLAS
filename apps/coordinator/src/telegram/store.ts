@@ -9,13 +9,14 @@ import {
 import { z } from "zod";
 
 import type { TaskSnapshot } from "@atlas/core";
-import {
-  canonicalPayloadHash,
-  executableSpecificationPayloadSchema,
-  taskStateSchema,
-} from "@atlas/shared";
+import { taskStateSchema } from "@atlas/shared";
 
 import type { TelegramResponse } from "./types.js";
+import { PrismaApprovalDecisionService } from "../approvals/service.js";
+export {
+  ApprovalTargetHashMismatchError,
+  PostExecutionReviewPendingError,
+} from "../approvals/service.js";
 
 const responseSchema = z.array(
   z.object({
@@ -23,15 +24,6 @@ const responseSchema = z.array(
     text: z.string(),
   }),
 );
-
-const decisionReplaySchema = z.object({
-  approvalId: z.string(),
-  decision: z.enum(["APPROVED", "REJECTED"]),
-  targetHash: z.string(),
-  targetId: z.string(),
-  targetType: z.string(),
-  targetVersion: z.number().int().nullable(),
-});
 
 function parseResponses(value: unknown): readonly TelegramResponse[] {
   return responseSchema.parse(value).map((response) => ({
@@ -69,28 +61,6 @@ export interface ApprovalDecisionResult {
 export interface RecordTelegramUpdateResult {
   readonly idempotentReplay: boolean;
   readonly responses: readonly TelegramResponse[];
-}
-
-export class ApprovalTargetHashMismatchError extends Error {
-  readonly code = "APPROVAL_TARGET_HASH_MISMATCH";
-
-  constructor(
-    readonly approvalId: string,
-    readonly expectedHash: string | null,
-    readonly recordedHash: string,
-  ) {
-    super(`Approval target hash mismatch for ${approvalId}`);
-    this.name = "ApprovalTargetHashMismatchError";
-  }
-}
-
-export class PostExecutionReviewPendingError extends Error {
-  readonly code = "POST_EXECUTION_REVIEW_PENDING";
-
-  constructor(readonly approvalId: string) {
-    super(`Post-execution review is not approved for ${approvalId}`);
-    this.name = "PostExecutionReviewPendingError";
-  }
 }
 
 export interface TelegramStore {
@@ -148,7 +118,11 @@ function approvalView(approval: TelegramApproval): TelegramApproval {
 }
 
 export class PrismaTelegramStore implements TelegramStore {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly approvalDecisions: PrismaApprovalDecisionService;
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.approvalDecisions = new PrismaApprovalDecisionService(prisma);
+  }
 
   async findProcessedUpdate(updateId: bigint): Promise<readonly TelegramResponse[] | undefined> {
     const update = await this.prisma.telegramUpdate.findUnique({ where: { updateId } });
@@ -266,242 +240,16 @@ export class PrismaTelegramStore implements TelegramStore {
     decision: "APPROVED" | "REJECTED";
     userId: bigint;
   }): Promise<ApprovalDecisionResult> {
-    const idempotencyKey = `telegram:callback:${input.callbackId}:approval`;
-    const outcome = await this.prisma.$transaction(async (transaction) => {
-      const existingAudit = await transaction.auditEvent.findUnique({
-        where: { idempotencyKey },
-      });
-      if (existingAudit !== null) {
-        const replay = decisionReplaySchema.parse(existingAudit.payload);
-        const approval = await transaction.approval.findUniqueOrThrow({
-          where: { id: replay.approvalId },
-        });
-        const task = await transaction.task.findUniqueOrThrow({
-          where: { id: approval.taskId },
-        });
-        return {
-          kind: "success" as const,
-          result: {
-            approval: approvalView(approval),
-            decision: replay.decision,
-            idempotentReplay: true,
-            task: snapshot(task),
-          },
-        };
-      }
-
-      const approval = await transaction.approval.findFirstOrThrow({
-        where: {
-          id: input.approvalId,
-          task: { origin: `telegram:${input.userId.toString()}` },
-        },
-        include: { task: true },
-      });
-      if (approval.targetType === "SPECIFICATION") {
-        const specification = await transaction.specification.findUnique({
-          where: { id: approval.targetId },
-        });
-        const parsedPayload =
-          specification === null
-            ? undefined
-            : executableSpecificationPayloadSchema.safeParse(specification.payload);
-        const expectedHash =
-          specification === null || parsedPayload?.success !== true
-            ? null
-            : canonicalPayloadHash(parsedPayload.data);
-        const targetIsCurrent =
-          specification !== null &&
-          specification.taskId === approval.taskId &&
-          approval.task.activeSpecificationId === specification.id &&
-          approval.targetVersion === specification.version &&
-          specification.payloadHash === expectedHash &&
-          approval.targetHash === expectedHash;
-        if (!targetIsCurrent) {
-          await transaction.auditEvent.upsert({
-            where: { idempotencyKey: `${idempotencyKey}:hash-mismatch` },
-            create: {
-              action: "approval.target_hash_mismatch",
-              actor: "USER",
-              correlationId: input.correlationId,
-              idempotencyKey: `${idempotencyKey}:hash-mismatch`,
-              payload: json({
-                approvalId: approval.id,
-                expectedHash,
-                recordedHash: approval.targetHash,
-                targetId: approval.targetId,
-                targetVersion: approval.targetVersion,
-              }),
-              projectId: approval.task.projectId,
-              targetId: approval.targetId,
-              targetType: approval.targetType,
-              taskId: approval.taskId,
-            },
-            update: {},
-          });
-          return {
-            approvalId: approval.id,
-            expectedHash,
-            kind: "hash_mismatch" as const,
-            recordedHash: approval.targetHash,
-          };
-        }
-      } else if (approval.targetType === "EXECUTION_RESULT") {
-        const execution = await transaction.execution.findUnique({
-          where: { id: approval.targetId },
-        });
-        const presented = z
-          .object({ diffHash: z.string(), resultHash: z.string() })
-          .safeParse(approval.presentedPayload);
-        const expectedHash = execution?.resultHash ?? null;
-        const targetIsCurrent =
-          execution !== null &&
-          execution.taskId === approval.taskId &&
-          execution.attempt === approval.targetVersion &&
-          execution.resultHash !== null &&
-          execution.diffHash !== null &&
-          approval.targetHash === execution.resultHash &&
-          presented.success &&
-          presented.data.resultHash === execution.resultHash &&
-          presented.data.diffHash === execution.diffHash;
-        if (!targetIsCurrent) {
-          await transaction.auditEvent.upsert({
-            where: { idempotencyKey: `${idempotencyKey}:hash-mismatch` },
-            create: {
-              action: "approval.target_hash_mismatch",
-              actor: "USER",
-              correlationId: input.correlationId,
-              idempotencyKey: `${idempotencyKey}:hash-mismatch`,
-              payload: json({
-                approvalId: approval.id,
-                expectedHash,
-                recordedHash: approval.targetHash,
-                targetId: approval.targetId,
-                targetVersion: approval.targetVersion,
-              }),
-              projectId: approval.task.projectId,
-              targetId: approval.targetId,
-              targetType: approval.targetType,
-              taskId: approval.taskId,
-            },
-            update: {},
-          });
-          return {
-            approvalId: approval.id,
-            expectedHash,
-            kind: "hash_mismatch" as const,
-            recordedHash: approval.targetHash,
-          };
-        }
-        if (input.decision === "APPROVED") {
-          const review = await transaction.postExecutionReview.findUnique({
-            where: { executionId: execution.id },
-          });
-          if (review?.status !== "APPROVED") {
-            await transaction.auditEvent.upsert({
-              where: { idempotencyKey: `${idempotencyKey}:qa-pending` },
-              create: {
-                action: "approval.post_execution_review_pending",
-                actor: "USER",
-                correlationId: input.correlationId,
-                idempotencyKey: `${idempotencyKey}:qa-pending`,
-                payload: json({ approvalId: approval.id, reviewStatus: review?.status ?? null }),
-                projectId: approval.task.projectId,
-                targetId: approval.targetId,
-                targetType: approval.targetType,
-                taskId: approval.taskId,
-              },
-              update: {},
-            });
-            return { approvalId: approval.id, kind: "qa_pending" as const };
-          }
-        }
-      }
-      const updated = await transaction.approval.updateMany({
-        where: { id: approval.id, status: ApprovalStatus.PENDING },
-        data: {
-          decidedBy: `telegram:${input.userId.toString()}`,
-          respondedAt: new Date(),
-          status: input.decision === "APPROVED" ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
-        },
-      });
-      if (updated.count !== 1) {
-        throw new Error("Approval is no longer pending");
-      }
-      let decidedTask = approval.task;
-      if (
-        approval.targetType === "EXECUTION_RESULT" &&
-        approval.task.state === "WAITING_RESULT_APPROVAL"
-      ) {
-        const nextState = input.decision === "APPROVED" ? "FINALIZING" : "SPECIFYING";
-        decidedTask = await transaction.task.update({
-          where: { id: approval.taskId },
-          data: { state: nextState, version: { increment: 1 } },
-        });
-        await transaction.execution.update({
-          where: { id: approval.targetId },
-          data: {
-            status: input.decision === "APPROVED" ? "FINALIZING" : "FAILED",
-            ...(input.decision === "REJECTED" ? { failureStage: "result_review" } : {}),
-          },
-        });
-        await transaction.auditEvent.create({
-          data: {
-            action: "task.transitioned",
-            actor: "USER",
-            correlationId: input.correlationId,
-            idempotencyKey: `${idempotencyKey}:task-transition`,
-            payload: json({
-              fromState: "WAITING_RESULT_APPROVAL",
-              toState: nextState,
-            }),
-            projectId: approval.task.projectId,
-            targetId: approval.taskId,
-            targetType: "TASK",
-            taskId: approval.taskId,
-          },
-        });
-      }
-      const payload = {
-        approvalId: approval.id,
-        decision: input.decision,
-        targetHash: approval.targetHash,
-        targetId: approval.targetId,
-        targetType: approval.targetType,
-        targetVersion: approval.targetVersion,
-      };
-      await transaction.auditEvent.create({
-        data: {
-          action: "approval.decided",
-          actor: "USER",
-          correlationId: input.correlationId,
-          idempotencyKey,
-          payload,
-          projectId: approval.task.projectId,
-          targetId: approval.targetId,
-          targetType: approval.targetType,
-          taskId: approval.taskId,
-        },
-      });
-      return {
-        kind: "success" as const,
-        result: {
-          approval: approvalView(approval),
-          decision: input.decision,
-          idempotentReplay: false,
-          task: snapshot(decidedTask),
-        },
-      };
+    return this.approvalDecisions.decide({
+      approvalId: input.approvalId,
+      channel: "TELEGRAM",
+      correlationId: input.correlationId,
+      decidedBy: `telegram:${input.userId.toString()}`,
+      decision: input.decision,
+      decisionKind: input.decision === "APPROVED" ? "approve" : "reject",
+      idempotencyKey: `telegram:callback:${input.callbackId}:approval`,
+      requireHumanActor: true,
+      taskOrigin: `telegram:${input.userId.toString()}`,
     });
-    if (outcome.kind === "hash_mismatch") {
-      throw new ApprovalTargetHashMismatchError(
-        outcome.approvalId,
-        outcome.expectedHash,
-        outcome.recordedHash,
-      );
-    }
-    if (outcome.kind === "qa_pending") {
-      throw new PostExecutionReviewPendingError(outcome.approvalId);
-    }
-    return outcome.result;
   }
 }
