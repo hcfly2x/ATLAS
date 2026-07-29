@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — loop de auto-desenvolvimento
+
+- Registrada em `docs/self-development-loop.md` a direção para internalizar o
+  papel hoje externo de arquiteto e revisor sem autorizar implementação.
+- O QA empírico proposto combina modelo e sandbox para instalar com lockfile
+  congelado, executar testes e probes e comparar o diff contra a base.
+- Diversidade de provedor permanece uma direção de avaliação; merge, deploy e
+  revisão humana adicional de alto risco continuam como gates.
+- Nenhum código, dependência, ADR, política, autonomia, `.atlas/**` ou estado
+  foi alterado.
+
 ## Unreleased — alinhamento de mercado
 
 - Registradas em `docs/market-alignment.md` as direções de avaliação para MCP,

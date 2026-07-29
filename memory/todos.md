@@ -136,6 +136,16 @@
   provedor.
 - Nenhum item acima constitui fase antes de ADR e autorização explícita.
 
+## Loop de auto-desenvolvimento — registrado, não autorizado
+
+- Definir ADR e escopo do QA empírico: revisor que executa instalação com
+  lockfile congelado, testes, probes adversariais e diff contra a base.
+- Disponibilizar o provedor Claude para o papel de revisor, preservando
+  diversidade entre autor e revisor.
+- Manter merge e deploy em `always_human` e revisão humana adicional em pull
+  requests de alto risco até evals comprovarem a confiabilidade do revisor.
+- Nenhum item acima constitui fase antes de ADR e autorização explícita.
+
 ## Fase 11 — hardening da deliberação
 
 - Tornar a orquestração do conselho retomável após queda do coordinator: hoje
