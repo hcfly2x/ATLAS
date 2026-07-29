@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — alinhamento de mercado
+
+- Registradas em `docs/market-alignment.md` as direções de avaliação para MCP,
+  conhecimento documental, modelos de grafo, workers adicionais e papéis do
+  escritório virtual.
+- O roadmap prioriza fechar enforcement, observabilidade e evals antes de Tool
+  Gateway, conhecimento documental ou expansão de workers e provedores.
+- O registro não autoriza framework, dependência, ADR, fase ou implementação e
+  não altera código, `.atlas/**`, política, autonomia ou máquina de estados.
+
 ## Unreleased — comandos, Fase 2: shadow dos callers
 
 - `authorizeCommands` e `authorizeRuntimeCommands` continuam sendo a única
