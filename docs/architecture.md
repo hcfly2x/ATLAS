@@ -33,9 +33,11 @@ Cérebro do sistema:
 Há uma única dashboard web operacional no coordinator hospedado. Ela consulta o
 mesmo PostgreSQL das Tasks recebidas pelo Telegram e é somente leitura. A
 exposição pública no Render é desabilitada por default e depende de flag
-explícita e Bearer token de alta entropia; não cria um segundo banco, dashboard
-local concorrente ou rota de escrita. Approval continua no fluxo governado
-existente, fora da Home.
+explícita. O dono autentica com credencial exclusiva do ambiente e recebe uma
+sessão assinada e expirável em cookie HttpOnly. Um gate RBAC no backend cobre
+toda rota `/dashboard` e nega por default rotas sem permissão declarada; não
+cria um segundo banco, dashboard local concorrente ou rota de escrita de
+domínio. Approval continua no fluxo governado existente, fora da Home.
 
 A Trilha A projeta Mission Control, Proatividade e Atlas Intelligence
 determinística diretamente de Task, Execution, Approval, revisões, custos e

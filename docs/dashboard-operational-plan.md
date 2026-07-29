@@ -168,7 +168,7 @@ Trilha somente leitura, de baixo conflito, priorizada para começar cedo:
 
 **Estado:** v1 autorizada e implementada ponta a ponta. O frontend React consome
 somente `GET /dashboard/api/mission-control`, valida a resposta por
-`@atlas/contracts` e preserva autenticação Bearer. O resumo é determinístico e
+`@atlas/contracts` e preserva o gate autenticado. O resumo é determinístico e
 sem LLM; progresso deriva do estado real, ETA sem metodologia aparece como
 indeterminado e os alertas não executam ação. Narrativa por LLM e qualquer
 escrita continuam fases futuras não autorizadas.
@@ -186,22 +186,23 @@ Inclui **Replay operacional** de eventos, decisões, ferramentas, resultados,
 arquivos e aprovações — sem chain-of-thought.
 
 **Estado:** B1 e B2 autorizadas e implementadas. O coordinator expõe somente
-`GET /dashboard/api/demand/:taskId`, protegido pela mesma fronteira loopback +
-Bearer da Dashboard, e `@atlas/contracts` valida a resposta estrita. A projeção
+`GET /dashboard/api/demand/:taskId`, protegido pela mesma fronteira autenticada
+da Dashboard, e `@atlas/contracts` valida a resposta estrita. A projeção
 permite objetivo, estratégia e critérios próprios da demanda; argumentos,
 payloads, conteúdo de memória, prompts, respostas e saídas cruas permanecem
 fora do contrato. A UI React consome esse read-model por GET e apresenta
 cabeçalho, visão geral, plano, execuções limitadas ao executável, aprovações, QA,
 evidências de entrega, custos estimados e Replay de eventos persistidos. O
 Replay não expõe chain-of-thought e nenhuma ação de negócio foi adicionada.
-Escrita e aprovações contextuais continuam exclusivas da Trilha C, ainda não
+Escrita e aprovações contextuais continuam exclusivas da Trilha C2, ainda não
 autorizada.
 
 ### Trilha C — Comando e escrita
 
 Este é o degrau de risco:
 
-- autenticação e RBAC;
+- C1 — autenticação por sessão expirável e RBAC backend deny-by-default;
+- C2 — rotas de escrita e autorização de domínio;
 - rotas de escrita;
 - Command Center, no qual a busca vira comando no estilo
   Spotlight/Command Palette:
@@ -216,6 +217,13 @@ A UI reutiliza o modelo `Approval` imutável, idempotente e versionado e as
 regras de `always_human`. Ela é cliente do mesmo modelo; nunca cria um botão de
 aprovação paralelo. Toda escrita exige auditoria completa. Nada faz auto-merge
 ou deploy.
+
+**Estado:** C1 foi autorizada e implementada como fundação sem escrita.
+Credencial exclusiva do ambiente cria sessão assinada e expirável em cookie
+HttpOnly; toda rota da Dashboard exige sessão e permissão de leitura declarada,
+com deny-by-default no backend. Loopback e a flag de acesso remoto permanecem.
+ADR-025 está Proposto. C2, Command Center, aprovações pela UI e qualquer mutação
+de domínio continuam não autorizados.
 
 ### Trilha D — Projeto como empresa independente
 

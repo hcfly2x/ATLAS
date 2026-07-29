@@ -73,7 +73,7 @@ function DemandHeader({ data }: { readonly data: DemandWorkspaceResponse }) {
   return (
     <header className="workspace-hero">
       <div className="workspace-hero-copy">
-        <Link className="back-link" to={{ hash: globalThis.location.hash, pathname: "/" }}>
+        <Link className="back-link" to="/">
           <span aria-hidden="true">←</span> Mission Control
         </Link>
         <p className="kicker">Workspace da demanda · somente leitura</p>

@@ -50,6 +50,8 @@ import {
   type MemoryService,
 } from "./memory/service.js";
 import { registerDashboardRoutes } from "./dashboard/routes.js";
+import type { DashboardAuthenticator } from "./dashboard/auth.js";
+import type { DashboardAuthAuditEvent } from "./dashboard/routes.js";
 import type { DashboardService } from "./dashboard/service.js";
 import type { PostExecutionQaService } from "./post-execution/service.js";
 
@@ -81,9 +83,10 @@ const leaseSchema = z.object({
 });
 
 export interface CoordinatorAppOptions {
+  readonly dashboardAuth?: DashboardAuthenticator;
+  readonly dashboardAuthAudit?: ((event: DashboardAuthAuditEvent) => void) | undefined;
   readonly dashboardRemoteAccessEnabled?: boolean;
   readonly dashboardService?: DashboardService;
-  readonly dashboardToken?: string;
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
   readonly memoryService?: MemoryService;
@@ -133,10 +136,11 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
   }));
 
   if (options.dashboardService !== undefined) {
-    if (options.dashboardToken === undefined || options.dashboardToken.trim().length === 0) {
-      throw new Error("dashboardToken is required when dashboard routes are enabled");
+    if (options.dashboardAuth === undefined) {
+      throw new Error("dashboardAuth is required when dashboard routes are enabled");
     }
-    registerDashboardRoutes(app, options.dashboardService, options.dashboardToken, {
+    registerDashboardRoutes(app, options.dashboardService, options.dashboardAuth, {
+      authAudit: options.dashboardAuthAudit,
       remoteAccessEnabled: options.dashboardRemoteAccessEnabled,
     });
   }

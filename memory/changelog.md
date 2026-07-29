@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Dashboard Trilha C1 autenticação e RBAC
+
+- A credencial do dono passa a existir somente em
+  `DASHBOARD_OWNER_CREDENTIAL`; ela cria uma sessão assinada e expirável
+  transportada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` no acesso
+  remoto.
+- Um gate backend cobre toda rota `/dashboard`, exige permissão de leitura
+  declarada e nega por default rotas sem declaração. Não autenticado e sessão
+  expirada retornam 401; falta de permissão retorna 403 antes dos dados.
+- Home Mission Control e Workspace/Replay preservam seus read-models, agora sem
+  Bearer no fragmento, bundle ou JavaScript. Logs e auditoria registram somente
+  desfechos sanitizados de autenticação.
+- ADR-025 permanece Proposto. Não há migração, nova entidade, rota de escrita de
+  domínio ou mudança em Task, Approval, máquina de estados, `always_human`,
+  autonomia, enforcement, worker ou `.atlas/**`; C2 continua não autorizada.
+
 ## Unreleased — Dashboard Trilha B2 Workspace e Replay
 
 - A Home Mission Control passa a abrir o Workspace read-only por demanda em

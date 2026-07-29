@@ -1,26 +1,31 @@
 import type { MissionControlResponse } from "@atlas/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "./App.js";
 import type { MissionControlClient } from "./mission-control.js";
+import { DashboardReadError } from "./mission-control.js";
+import type { DashboardSessionClient } from "./session.js";
 import {
   emptyMissionControlFixture,
   indeterminateMissionControlFixture,
   missionControlFixture,
 } from "./test/fixtures.js";
 
-function renderDashboard(client: MissionControlClient) {
+function renderDashboard(client: MissionControlClient, sessionClient?: DashboardSessionClient) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <App initialToken="synthetic-dashboard-token" missionControlClient={client} />
+        <App
+          missionControlClient={client}
+          {...(sessionClient === undefined ? {} : { sessionClient })}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -89,6 +94,37 @@ describe("Mission Control UI", () => {
     expect(
       screen.getByText(/Nenhum progresso, custo ou prioridade foi inferido/),
     ).toBeInTheDocument();
+  });
+
+  it("creates a session once, clears the credential and retries the read without a URL token", async () => {
+    let authenticated = false;
+    const client: MissionControlClient = () =>
+      authenticated
+        ? Promise.resolve(missionControlFixture)
+        : Promise.reject(new DashboardReadError("unauthorized"));
+    const sessionClient = vi.fn<DashboardSessionClient>(({ credential }) => {
+      expect(credential).toBe("synthetic-owner-credential");
+      authenticated = true;
+      return Promise.resolve();
+    });
+    globalThis.history.replaceState(null, "", "/#token=legacy-secret");
+    renderDashboard(client, sessionClient);
+
+    const input = await screen.findByLabelText("Credencial do dono");
+    fireEvent.change(input, { target: { value: "synthetic-owner-credential" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Mission Control" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Entrega terminal precisa de atenção",
+      }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(globalThis.location.hash).toBe("");
+    });
+    expect(sessionClient).toHaveBeenCalledOnce();
+    expect(document.body).not.toHaveTextContent("synthetic-owner-credential");
   });
 
   it("never renders extra sensitive properties from a synthetic response", async () => {

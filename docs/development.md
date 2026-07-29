@@ -219,16 +219,19 @@ manuais fora do repositório. Nenhum endpoint público ou configuração de prod
 
 ## Dashboard local somente-leitura
 
-Defina um token local descartável em `.env.local` e inicie o coordinator:
+Defina uma credencial local de ao menos 32 caracteres em `.env.local` e inicie
+o coordinator:
 
 ```bash
-DASHBOARD_TOKEN=valor-local-descartavel
+DASHBOARD_OWNER_CREDENTIAL=<credencial local com pelo menos 32 caracteres>
+DASHBOARD_SESSION_TTL_SECONDS=900
 pnpm coordinator:local
 ```
 
 Abra [http://localhost:3000/dashboard](http://localhost:3000/dashboard) e informe
-o token. Ele fica no fragmento da URL do navegador e é enviado às APIs apenas no
-header `Authorization`; não entra na query string nem nos logs HTTP.
+a credencial. Ela é enviada uma vez ao endpoint de sessão e substituída por um
+cookie assinado, expirável, `HttpOnly` e `SameSite=Strict`; nem a credencial nem
+o token da sessão entram no JavaScript, na URL ou nos logs HTTP.
 
 O shell e todas as APIs do dashboard recusam conexões fora do loopback. Dados
 são expostos exclusivamente por rotas GET autenticadas. Não existem POST, PUT,
@@ -237,9 +240,10 @@ de Task com Specifications/Approvals/Executions, AuditEvent por projeto, custos
 de LLM/Codex com tetos de US$ 25/US$ 75 e memória do projeto. Ela não cria nem
 edita projetos, agentes, times ou configuração.
 
-O shell inicial contém apenas a tela de desbloqueio; nenhum dado operacional é
-carregado antes da validação do token. Este painel operacional somente-leitura é
-independente da decisão futura do ADR-013 sobre edição de agentes na Fase 10.
+O shell protegido e todos os read-models exigem sessão e permissão RBAC no
+backend. A tela pública de login não contém dado operacional. Este painel
+operacional somente-leitura é independente da decisão futura do ADR-013 sobre
+edição de agentes.
 
 ## Dashboard web única no Render
 
@@ -249,7 +253,8 @@ configure somente no secret store:
 
 ```text
 DASHBOARD_REMOTE_ACCESS_ENABLED=true
-DASHBOARD_TOKEN=<token aleatório com pelo menos 32 caracteres>
+DASHBOARD_OWNER_CREDENTIAL=<credencial aleatória com pelo menos 32 caracteres>
+DASHBOARD_SESSION_TTL_SECONDS=900
 ```
 
 Gere o token localmente, sem registrá-lo no repositório:
@@ -258,10 +263,12 @@ Gere o token localmente, sem registrá-lo no repositório:
 openssl rand -base64 32
 ```
 
-Depois do deploy, abra `https://<servico-render>/dashboard` e informe o token.
-O shell público não contém dados; todas as APIs continuam exigindo Bearer token
-e aceitam somente leitura. Não inicie `pnpm coordinator:local` apenas para usar
-a dashboard quando a instância web remota estiver habilitada.
+Depois do deploy, abra `https://<servico-render>/dashboard` e informe a
+credencial. O cookie remoto exige HTTPS por `Secure`; shell e APIs continuam
+somente leitura e exigem sessão e permissão. Não inicie
+`pnpm coordinator:local` apenas para usar a dashboard quando a instância web
+remota estiver habilitada. Rotacionar a credencial invalida as sessões
+anteriores.
 
 ## Worker local
 

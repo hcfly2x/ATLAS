@@ -13,18 +13,17 @@ export class DemandWorkspaceReadError extends Error {
 export interface DemandWorkspaceClientInput {
   readonly signal: AbortSignal;
   readonly taskId: string;
-  readonly token: string;
 }
 
 export type DemandWorkspaceClient = (
   input: DemandWorkspaceClientInput,
 ) => Promise<DemandWorkspaceResponse>;
 
-export const fetchDemandWorkspace: DemandWorkspaceClient = async ({ signal, taskId, token }) => {
+export const fetchDemandWorkspace: DemandWorkspaceClient = async ({ signal, taskId }) => {
   let response: Response;
   try {
     response = await fetch(`/dashboard/api/demand/${encodeURIComponent(taskId)}`, {
-      headers: { authorization: `Bearer ${token}` },
+      credentials: "same-origin",
       signal,
     });
   } catch {

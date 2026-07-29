@@ -12,24 +12,18 @@ export class DashboardReadError extends Error {
 export interface MissionControlClientInput {
   readonly projectId?: string;
   readonly signal: AbortSignal;
-  readonly token: string;
 }
 
 export type MissionControlClient = (
   input: MissionControlClientInput,
 ) => Promise<MissionControlResponse>;
 
-export function readDashboardToken(hash: string): string {
-  if (!hash.startsWith("#")) return "";
-  return new URLSearchParams(hash.replace(/^#/, "")).get("token") ?? "";
-}
-
-export const fetchMissionControl: MissionControlClient = async ({ projectId, signal, token }) => {
+export const fetchMissionControl: MissionControlClient = async ({ projectId, signal }) => {
   const query = projectId === undefined ? "" : `?projectId=${encodeURIComponent(projectId)}`;
   let response: Response;
   try {
     response = await fetch(`/dashboard/api/mission-control${query}`, {
-      headers: { authorization: `Bearer ${token}` },
+      credentials: "same-origin",
       signal,
     });
   } catch {
