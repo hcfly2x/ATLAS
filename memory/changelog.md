@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — reconciliação documental do enforcement
+
+- O estado documentado passa a refletir os callers reais do worker: paths usam
+  decisão pura em shadow e comandos usam a decisão com paridade em shadow.
+- Nos dois fluxos, o autorizador legado continua sendo a decisão efetiva; os
+  cutovers de paths e comandos permanecem pendentes de amostra real versionada
+  sem `MORE_PERMISSIVE`, fase própria e autorização explícita.
+- Nenhum código, caller, enforcement, política, autonomia, `.atlas/**` ou estado
+  foi alterado.
+
 ## Unreleased — loop de auto-desenvolvimento
 
 - Registrada em `docs/self-development-loop.md` a direção para internalizar o
