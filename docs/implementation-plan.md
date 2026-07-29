@@ -142,11 +142,20 @@ Matriz de permissões completa, self-modification restricted fim a fim, proteç�
 
 Áudio, imagens, PDF, DOCX, anexos vinculados à tarefa.
 
-### Fase 10 — Dashboard
+### Dashboard — plano operacional oficial
 
-Projetos, tarefas, aprovações, custos, logs, memória; criação e edição de agentes
-(nome, papel, habilidades, contexto) e organização em times via interface, como
-alternativa à edição direta de `.atlas/agents.yaml`.
+A antiga “Fase 10 — Dashboard” monolítica está superada. O plano oficial passa
+a ser `docs/dashboard-operational-plan.md`, organizado por workflow nas trilhas:
+
+- A — Atlas Intelligence, Mission Control e Proatividade, somente leitura;
+- B — Workspace da Demanda e Replay operacional, leitura primeiro;
+- C — autenticação/RBAC, Command Center, escrita e Approval contextual;
+- D — projeto como empresa, entregáveis e custo real/Budget;
+- E — observabilidade, saúde, conhecimento, decisões e analytics.
+
+Esta é uma trilha paralela priorizada, mas nenhuma etapa está autorizada para
+execução. Cada fase exige ADR e autorização próprios, sem atropelar enforcement,
+evals ou o loop de auto-desenvolvimento.
 
 ### Fase 11 — Hardening
 

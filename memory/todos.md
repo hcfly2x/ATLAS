@@ -129,6 +129,20 @@
 - Priorizar e atribuir fase ao epic de tarefas agendadas/webhooks somente após o
   epic de infraestrutura.
 
+## Dashboard operacional — plano oficial, execução não autorizada
+
+- Trilha A: Atlas Intelligence, Mission Control e Proatividade sobre sinais
+  existentes, somente leitura.
+- Trilha B: Workspace da Demanda em modo leitura e Replay operacional sem
+  chain-of-thought.
+- Trilha C: autenticação/RBAC, rotas de escrita, Command Center e aprovações
+  contextuais pela UI, reutilizando `Approval` e `always_human`, com auditoria
+  completa.
+- Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
+- Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
+  roadmap, templates e analytics.
+- Nenhum item acima constitui fase antes de ADR e autorização explícita.
+
 ## Alinhamento de mercado — registrado, não autorizado
 
 - Decidir ADR de MCP como interface padrão de ferramenta e ação, mantendo no

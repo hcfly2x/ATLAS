@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — plano operacional oficial da Dashboard
+
+- A Dashboard passa a ser o produto e ambiente operacional principal; Telegram
+  e outros canais permanecem como entrada e notificação.
+- O roadmap substitui a antiga Fase 10 monolítica por um plano orientado ao
+  workflow, com Mission Control, Workspace da Demanda e trilhas A–E.
+- Atlas Intelligence, Proatividade e a Home começam pelo desenho somente
+  leitura; escrita e aprovações pela UI permanecem atrás de autenticação, RBAC,
+  auditoria, `Approval` e `always_human`.
+- O plano é oficial, mas nenhuma trilha, ADR ou implementação foi autorizada.
+  Código, schema, dependências, política, autonomia, `.atlas/**`, enforcement e
+  estados permanecem inalterados.
+
 ## Unreleased — provedor Claude para o revisor pós-execução
 
 - O revisor pós-execução pode selecionar Claude por configuração, enquanto
