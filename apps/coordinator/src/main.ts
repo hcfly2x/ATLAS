@@ -19,6 +19,7 @@ import { ProjectConfigStore } from "./setup/project-config.js";
 import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
+import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashboard/auth.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
@@ -46,13 +47,20 @@ const projectConfigStore = setupWizardEnabled
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
 const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_MS);
-const dashboardToken = process.env.DASHBOARD_TOKEN;
+const dashboardCredential = process.env.DASHBOARD_OWNER_CREDENTIAL;
 const dashboardRemoteAccessEnabled = process.env.DASHBOARD_REMOTE_ACCESS_ENABLED === "true";
-assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardToken);
-const dashboardService =
-  dashboardToken === undefined || dashboardToken.trim().length === 0
+assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardCredential);
+const dashboardAuth =
+  dashboardCredential === undefined || dashboardCredential.trim().length === 0
     ? undefined
-    : new DashboardService(prisma, { deliverySlaMs });
+    : new DashboardAuthenticator({
+        credential: dashboardCredential,
+        sessionTtlSeconds: parseDashboardSessionTtlSeconds(
+          process.env.DASHBOARD_SESSION_TTL_SECONDS,
+        ),
+      });
+const dashboardService =
+  dashboardAuth === undefined ? undefined : new DashboardService(prisma, { deliverySlaMs });
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -176,9 +184,9 @@ const workerAppOptions =
     ? { workerBootstrapToken, workerService }
     : {};
 const app = createCoordinatorApp({
-  ...(dashboardService === undefined || dashboardToken === undefined
+  ...(dashboardService === undefined || dashboardAuth === undefined
     ? {}
-    : { dashboardRemoteAccessEnabled, dashboardService, dashboardToken }),
+    : { dashboardAuth, dashboardRemoteAccessEnabled, dashboardService }),
   internalAuthToken,
   logger: true,
   memoryService,

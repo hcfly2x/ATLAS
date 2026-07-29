@@ -1,6 +1,6 @@
 import type { MissionControlResponse } from "@atlas/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode, type SyntheticEvent } from "react";
+import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
 
 import {
@@ -11,9 +11,13 @@ import {
 import {
   DashboardReadError,
   fetchMissionControl,
-  readDashboardToken,
   type MissionControlClient,
 } from "./mission-control.js";
+import {
+  createDashboardSession,
+  DashboardSessionError,
+  type DashboardSessionClient,
+} from "./session.js";
 import { DemandWorkspace } from "./Workspace.js";
 
 type ProactiveItem = MissionControlResponse["risks"]["items"][number];
@@ -47,7 +51,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 function demandLocation(taskId: string) {
   return {
-    hash: globalThis.location.hash,
     pathname: `/demand/${encodeURIComponent(taskId)}`,
   };
 }
@@ -86,16 +89,34 @@ function AtlasMark() {
 
 function AccessGate({
   error,
-  onUnlock,
+  onAuthenticate,
 }: {
   readonly error?: string;
-  readonly onUnlock: (token: string) => void;
+  readonly onAuthenticate: (credential: string) => Promise<void>;
 }) {
-  const [token, setToken] = useState("");
+  const [credential, setCredential] = useState("");
+  const [localError, setLocalError] = useState<string>();
+  const [pending, setPending] = useState(false);
 
-  function submit(event: SyntheticEvent<HTMLFormElement>) {
+  async function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (token.trim().length > 0) onUnlock(token);
+    if (credential.trim().length === 0 || pending) return;
+    setPending(true);
+    setLocalError(undefined);
+    try {
+      await onAuthenticate(credential);
+      setCredential("");
+    } catch (authenticationError) {
+      setCredential("");
+      setLocalError(
+        authenticationError instanceof DashboardSessionError &&
+          authenticationError.code === "unauthorized"
+          ? "Credencial inválida."
+          : "Não foi possível criar a sessão.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -110,26 +131,34 @@ function AccessGate({
         <p className="kicker">Acesso protegido</p>
         <h1 id="access-title">Mission Control</h1>
         <p className="access-copy">
-          O token fica somente no fragmento deste navegador e segue para o coordinator apenas no
-          header de autorização.
+          A credencial é usada uma vez para criar uma sessão temporária em cookie HttpOnly. Ela não
+          é guardada no navegador.
         </p>
-        <form className="access-form" onSubmit={submit}>
-          <label htmlFor="dashboard-token">Token da Dashboard</label>
+        <form
+          className="access-form"
+          onSubmit={(event) => {
+            void submit(event);
+          }}
+        >
+          <label htmlFor="dashboard-credential">Credencial do dono</label>
           <input
-            autoComplete="off"
-            id="dashboard-token"
+            autoComplete="current-password"
+            disabled={pending}
+            id="dashboard-credential"
             onChange={(event) => {
-              setToken(event.currentTarget.value);
+              setCredential(event.currentTarget.value);
             }}
-            placeholder="Informe o token de acesso"
+            placeholder="Informe sua credencial"
             type="password"
-            value={token}
+            value={credential}
           />
-          <button type="submit">Abrir Mission Control</button>
+          <button disabled={pending} type="submit">
+            {pending ? "Criando sessão…" : "Abrir Mission Control"}
+          </button>
         </form>
-        {error === undefined ? null : (
+        {error === undefined && localError === undefined ? null : (
           <p aria-live="polite" className="form-error" role="alert">
-            {error}
+            {localError ?? error}
           </p>
         )}
         <p className="read-only-note">
@@ -563,18 +592,18 @@ function MissionControlHome({ data }: { readonly data: MissionControlResponse })
 
 export interface AppProps {
   readonly demandWorkspaceClient?: DemandWorkspaceClient;
-  readonly initialToken?: string;
   readonly missionControlClient?: MissionControlClient;
+  readonly sessionClient?: DashboardSessionClient;
 }
 
 function MissionControlRoute({
+  authEpoch,
   client,
-  onUnlock,
-  token,
+  onAuthenticate,
 }: {
+  readonly authEpoch: number;
   readonly client: MissionControlClient;
-  readonly onUnlock: (token: string) => void;
-  readonly token: string;
+  readonly onAuthenticate: (credential: string) => Promise<void>;
 }) {
   const projectId = new URLSearchParams(globalThis.location.search).get("projectId") ?? undefined;
   const query = useQuery({
@@ -582,9 +611,8 @@ function MissionControlRoute({
       client({
         ...(projectId === undefined ? {} : { projectId }),
         signal,
-        token,
       }),
-    queryKey: ["mission-control", projectId ?? "all", token],
+    queryKey: ["mission-control", projectId ?? "all", authEpoch],
     refetchInterval: 30_000,
     retry: false,
   });
@@ -592,7 +620,7 @@ function MissionControlRoute({
   if (query.isPending) return <LoadingHome />;
   if (query.isError) {
     if (query.error instanceof DashboardReadError && query.error.code === "unauthorized") {
-      return <AccessGate error="Token inválido ou sem acesso." onUnlock={onUnlock} />;
+      return <AccessGate error="Sessão ausente ou expirada." onAuthenticate={onAuthenticate} />;
     }
     return <ErrorHome />;
   }
@@ -631,7 +659,7 @@ function WorkspaceError({ notFound = false }: { readonly notFound?: boolean }) {
               ? "Não existe uma demanda visível para este identificador."
               : "A projeção segura não pôde ser validada. Nenhum conteúdo ou progresso foi inferido."}
           </p>
-          <Link className="card-link" to={{ hash: globalThis.location.hash, pathname: "/" }}>
+          <Link className="card-link" to="/">
             Voltar ao Mission Control
           </Link>
         </section>
@@ -641,18 +669,18 @@ function WorkspaceError({ notFound = false }: { readonly notFound?: boolean }) {
 }
 
 function DemandWorkspaceRoute({
+  authEpoch,
   client,
-  onUnlock,
-  token,
+  onAuthenticate,
 }: {
+  readonly authEpoch: number;
   readonly client: DemandWorkspaceClient;
-  readonly onUnlock: (token: string) => void;
-  readonly token: string;
+  readonly onAuthenticate: (credential: string) => Promise<void>;
 }) {
   const { taskId = "" } = useParams();
   const query = useQuery({
-    queryFn: ({ signal }) => client({ signal, taskId, token }),
-    queryKey: ["demand-workspace", taskId, token],
+    queryFn: ({ signal }) => client({ signal, taskId }),
+    queryKey: ["demand-workspace", taskId, authEpoch],
     refetchInterval: 30_000,
     retry: false,
   });
@@ -660,7 +688,7 @@ function DemandWorkspaceRoute({
   if (query.isPending) return <LoadingWorkspace />;
   if (query.isError) {
     if (query.error instanceof DemandWorkspaceReadError && query.error.code === "unauthorized") {
-      return <AccessGate error="Token inválido ou sem acesso." onUnlock={onUnlock} />;
+      return <AccessGate error="Sessão ausente ou expirada." onAuthenticate={onAuthenticate} />;
     }
     return (
       <WorkspaceError
@@ -675,29 +703,46 @@ function DemandWorkspaceRoute({
 
 export function App({
   demandWorkspaceClient = fetchDemandWorkspace,
-  initialToken = readDashboardToken(globalThis.location.hash),
   missionControlClient = fetchMissionControl,
+  sessionClient = createDashboardSession,
 }: AppProps) {
-  const [token, setToken] = useState(initialToken);
+  const [authEpoch, setAuthEpoch] = useState(0);
 
-  function unlock(nextToken: string) {
-    const fragment = new URLSearchParams({ token: nextToken }).toString();
-    globalThis.history.replaceState(null, "", `${globalThis.location.pathname}#${fragment}`);
-    setToken(nextToken);
+  useEffect(() => {
+    const legacyFragment = new URLSearchParams(globalThis.location.hash.replace(/^#/, ""));
+    if (legacyFragment.has("token")) {
+      globalThis.history.replaceState(
+        null,
+        "",
+        `${globalThis.location.pathname}${globalThis.location.search}`,
+      );
+    }
+  }, []);
+
+  async function authenticate(credential: string) {
+    await sessionClient({ credential });
+    setAuthEpoch((current) => current + 1);
   }
 
-  if (token.length === 0) return <AccessGate onUnlock={unlock} />;
   return (
     <Routes>
       <Route
         element={
-          <MissionControlRoute client={missionControlClient} onUnlock={unlock} token={token} />
+          <MissionControlRoute
+            authEpoch={authEpoch}
+            client={missionControlClient}
+            onAuthenticate={authenticate}
+          />
         }
         path="/"
       />
       <Route
         element={
-          <DemandWorkspaceRoute client={demandWorkspaceClient} onUnlock={unlock} token={token} />
+          <DemandWorkspaceRoute
+            authEpoch={authEpoch}
+            client={demandWorkspaceClient}
+            onAuthenticate={authenticate}
+          />
         }
         path="/demand/:taskId"
       />

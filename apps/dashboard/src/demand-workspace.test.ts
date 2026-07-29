@@ -4,10 +4,11 @@ import { DemandWorkspaceReadError, fetchDemandWorkspace } from "./demand-workspa
 import { demandWorkspaceFixture } from "./test/fixtures.js";
 
 describe("demand workspace client", () => {
-  it("uses only GET, bearer auth and the relative task endpoint", async () => {
+  it("uses only GET, the HttpOnly session cookie and the relative task endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       expect(input).toBe(`/dashboard/api/demand/${demandWorkspaceFixture.header.taskId}`);
-      expect(init?.headers).toEqual({ authorization: "Bearer synthetic-token" });
+      expect(init?.credentials).toBe("same-origin");
+      expect(init?.headers).toBeUndefined();
       expect(init?.signal).toBeInstanceOf(AbortSignal);
       expect(init?.method).toBeUndefined();
       return Promise.resolve(
@@ -21,7 +22,6 @@ describe("demand workspace client", () => {
     const result = await fetchDemandWorkspace({
       signal: new AbortController().signal,
       taskId: demandWorkspaceFixture.header.taskId,
-      token: "synthetic-token",
     });
 
     expect(result).toEqual(demandWorkspaceFixture);
@@ -46,7 +46,6 @@ describe("demand workspace client", () => {
       fetchDemandWorkspace({
         signal: new AbortController().signal,
         taskId: demandWorkspaceFixture.header.taskId,
-        token: "synthetic-token",
       }),
     ).rejects.toEqual(new DemandWorkspaceReadError("invalid_contract"));
     fetchMock.mockRestore();
@@ -61,7 +60,6 @@ describe("demand workspace client", () => {
       fetchDemandWorkspace({
         signal: new AbortController().signal,
         taskId: "missing",
-        token: "synthetic-token",
       }),
     ).rejects.toEqual(new DemandWorkspaceReadError("not_found"));
     fetchMock.mockRestore();

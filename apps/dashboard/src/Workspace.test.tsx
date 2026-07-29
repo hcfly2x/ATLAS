@@ -22,7 +22,7 @@ function renderWorkspace(client: DemandWorkspaceClient) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
-        <App demandWorkspaceClient={client} initialToken="synthetic-dashboard-token" />
+        <App demandWorkspaceClient={client} />
       </MemoryRouter>
     </QueryClientProvider>,
   );

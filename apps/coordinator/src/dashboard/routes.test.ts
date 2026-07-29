@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createCoordinatorApp } from "../app.js";
-import { assertRemoteDashboardConfiguration } from "./routes.js";
+import {
+  DASHBOARD_SESSION_COOKIE,
+  DashboardAuthenticator,
+  type DashboardPermission,
+} from "./auth.js";
+import { assertRemoteDashboardConfiguration, type DashboardAuthAuditEvent } from "./routes.js";
 import type { DashboardService } from "./service.js";
 
+const ownerCredential = "synthetic-dashboard-owner-credential-123456";
 const deliveriesMock = vi.fn(() => Promise.resolve([]));
 const demandWorkspaceMock = vi.fn(() => Promise.resolve(null));
 const missionControlMock = vi.fn(() =>
@@ -61,19 +67,40 @@ const dashboard = {
   tasks: vi.fn(() => Promise.resolve([])),
 } as unknown as DashboardService;
 
+function createAuth(
+  options: {
+    now?: () => number;
+    permissions?: ReadonlySet<DashboardPermission>;
+  } = {},
+): DashboardAuthenticator {
+  return new DashboardAuthenticator({
+    credential: ownerCredential,
+    now: options.now,
+    permissionsByRole:
+      options.permissions === undefined ? undefined : { owner: options.permissions },
+    randomNonce: () => "a".repeat(32),
+    sessionTtlSeconds: 60,
+  });
+}
+
+function sessionCookie(auth: DashboardAuthenticator): string {
+  return `${DASHBOARD_SESSION_COOKIE}=${auth.issueSession().token}`;
+}
+
 const apps: ReturnType<typeof createCoordinatorApp>[] = [];
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
+  vi.clearAllMocks();
 });
 
-describe("read-only dashboard", () => {
-  it("requires a high-entropy token before remote access can be enabled", () => {
+describe("dashboard session authentication and RBAC", () => {
+  it("requires a high-entropy owner credential before remote access can be enabled", () => {
     expect(() => {
       assertRemoteDashboardConfiguration(true, undefined);
-    }).toThrow("DASHBOARD_TOKEN must contain at least 32 characters for remote access");
+    }).toThrow("DASHBOARD_OWNER_CREDENTIAL must contain at least 32 characters for remote access");
     expect(() => {
       assertRemoteDashboardConfiguration(true, "too-short");
-    }).toThrow("DASHBOARD_TOKEN must contain at least 32 characters for remote access");
+    }).toThrow("DASHBOARD_OWNER_CREDENTIAL must contain at least 32 characters for remote access");
     expect(() => {
       assertRemoteDashboardConfiguration(true, "a".repeat(32));
     }).not.toThrow();
@@ -82,56 +109,134 @@ describe("read-only dashboard", () => {
     }).not.toThrow();
   });
 
-  it("serves a loopback shell and protects all data with a token", async () => {
+  it("issues an HttpOnly session without returning credentials or session material in the body", async () => {
+    const auditEvents: DashboardAuthAuditEvent[] = [];
+    const auth = createAuth();
     const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardAuthAudit: (event) => auditEvents.push(event),
       dashboardService: dashboard,
-      dashboardToken: "local-dashboard-token",
       logger: false,
     });
     apps.push(app);
 
-    const page = await app.inject({ method: "GET", url: "/dashboard" });
-    const denied = await app.inject({ method: "GET", url: "/dashboard/api/mission-control" });
+    const loginPage = await app.inject({ method: "GET", url: "/dashboard/login" });
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/dashboard/auth/session",
+      payload: { credential: "wrong-synthetic-credential" },
+    });
+    const malformed = await app.inject({
+      method: "POST",
+      url: "/dashboard/auth/session",
+      payload: { credential: ownerCredential, injected: "SECRET_PAYLOAD" },
+    });
     const accepted = await app.inject({
-      method: "GET",
-      url: "/dashboard/api/overview",
-      headers: { authorization: "Bearer local-dashboard-token" },
+      method: "POST",
+      url: "/dashboard/auth/session",
+      payload: { credential: ownerCredential },
     });
 
-    expect(page.statusCode).toBe(200);
-    expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
-    expect(page.body).toContain("somente leitura");
-    expect(denied.statusCode).toBe(401);
-    expect(accepted.statusCode).toBe(200);
-    expect(accepted.body).toContain('"capUsd":75');
-    expect(accepted.body).toContain('"capUsd":25');
+    expect(loginPage.statusCode).toBe(200);
+    expect(loginPage.body).toContain("Credencial do dono");
+    expect(rejected.statusCode).toBe(401);
+    expect(rejected.json()).toEqual({ code: "DASHBOARD_UNAUTHORIZED" });
+    expect(malformed.statusCode).toBe(401);
+    expect(malformed.json()).toEqual({ code: "DASHBOARD_UNAUTHORIZED" });
+    expect(accepted.statusCode).toBe(204);
+    expect(accepted.body).toBe("");
+    expect(accepted.headers["set-cookie"]).toContain(`${DASHBOARD_SESSION_COOKIE}=`);
+    expect(accepted.headers["set-cookie"]).toContain("HttpOnly");
+    expect(accepted.headers["set-cookie"]).toContain("SameSite=Strict");
+    const serialized = JSON.stringify({
+      auditEvents,
+      body: accepted.body,
+      rejected: rejected.body,
+    });
+    expect(serialized).not.toContain(ownerCredential);
+    expect(serialized).not.toContain(DASHBOARD_SESSION_COOKIE);
+  });
+
+  it("protects the shell and every existing read route with an expiring owner session", async () => {
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(app);
+
+    const routes = [
+      "/dashboard",
+      "/dashboard/auth/session",
+      "/dashboard/api/overview",
+      "/dashboard/api/mission-control",
+      "/dashboard/api/tasks",
+      "/dashboard/api/deliveries",
+      "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
+      "/dashboard/api/tasks/20000000-0000-4000-8000-000000000002",
+      "/dashboard/api/audit?projectId=atlas",
+      "/dashboard/api/memory?projectId=atlas",
+    ];
+    for (const url of routes) {
+      const denied = await app.inject({ method: "GET", url });
+      expect(denied.statusCode, url).toBe(401);
+    }
+
+    const page = await app.inject({
+      method: "GET",
+      url: "/dashboard",
+      headers: { cookie },
+    });
+    const overview = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/overview",
+      headers: { cookie },
+    });
     const deliveries = await app.inject({
       method: "GET",
       url: "/dashboard/api/deliveries",
-      headers: { authorization: "Bearer local-dashboard-token" },
+      headers: { cookie },
     });
     const missionControl = await app.inject({
       method: "GET",
       url: "/dashboard/api/mission-control",
-      headers: { authorization: "Bearer local-dashboard-token" },
+      headers: { cookie },
     });
-    expect(deliveries.statusCode).toBe(200);
-    expect(missionControl.statusCode).toBe(200);
-    expect(deliveriesMock).toHaveBeenCalledWith(undefined);
-    expect(missionControlMock).toHaveBeenCalledWith(undefined);
-    expect(missionControl.body).toContain('"generatedBy":"deterministic_rules"');
+    const session = await app.inject({
+      method: "GET",
+      url: "/dashboard/auth/session",
+      headers: { cookie },
+    });
+
+    expect(page.statusCode).toBe(200);
+    expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect(page.headers["referrer-policy"]).toBe("no-referrer");
     expect(page.headers["x-content-type-options"]).toBe("nosniff");
+    expect(page.body).not.toContain("Authorization");
+    expect(page.body).not.toContain("#token=");
+    expect(overview.statusCode).toBe(200);
+    expect(overview.body).toContain('"capUsd":75');
+    expect(deliveries.statusCode).toBe(200);
+    expect(missionControl.statusCode).toBe(200);
+    expect(session.statusCode).toBe(200);
+    expect(session.json()).toMatchObject({ role: "owner" });
+    expect(JSON.stringify(session.json())).not.toContain(cookie);
+    expect(deliveriesMock).toHaveBeenCalledWith(undefined);
+    expect(missionControlMock).toHaveBeenCalledWith(undefined);
   });
 
-  it("serves a token-protected demand workspace and a stable 404", async () => {
+  it("serves the existing demand read-model and stable 404 only after authorization", async () => {
     const existingTaskId = "10000000-0000-4000-8000-000000000001";
     demandWorkspaceMock.mockResolvedValueOnce({
       header: { taskId: existingTaskId },
     } as never);
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
     const app = createCoordinatorApp({
+      dashboardAuth: auth,
       dashboardService: dashboard,
-      dashboardToken: "local-dashboard-token",
       logger: false,
     });
     apps.push(app);
@@ -139,12 +244,12 @@ describe("read-only dashboard", () => {
     const accepted = await app.inject({
       method: "GET",
       url: `/dashboard/api/demand/${existingTaskId}`,
-      headers: { authorization: "Bearer local-dashboard-token" },
+      headers: { cookie },
     });
     const missing = await app.inject({
       method: "GET",
       url: "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
-      headers: { authorization: "Bearer local-dashboard-token" },
+      headers: { cookie },
     });
 
     expect(accepted.statusCode).toBe(200);
@@ -153,10 +258,94 @@ describe("read-only dashboard", () => {
     expect(missing.json()).toEqual({ code: "DEMAND_NOT_FOUND" });
   });
 
-  it("does not expose write methods under /dashboard", async () => {
+  it("denies expired sessions and records only a sanitized authentication outcome", async () => {
+    let now = 1_000;
+    const auditEvents: DashboardAuthAuditEvent[] = [];
+    const auth = createAuth({ now: () => now });
+    const cookie = sessionCookie(auth);
     const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardAuthAudit: (event) => auditEvents.push(event),
       dashboardService: dashboard,
-      dashboardToken: "local-dashboard-token",
+      logger: false,
+    });
+    apps.push(app);
+    now = 61_001;
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/mission-control",
+      headers: { cookie },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ code: "DASHBOARD_SESSION_EXPIRED" });
+    expect(auditEvents).toHaveLength(1);
+    expect(auditEvents[0]).toMatchObject({
+      action: "dashboard.auth.session_expired",
+      outcome: "denied",
+      reason: "expired",
+    });
+    expect(typeof auditEvents[0]?.correlationId).toBe("string");
+    expect(JSON.stringify(auditEvents)).not.toContain(cookie);
+    expect(JSON.stringify(auditEvents)).not.toContain(ownerCredential);
+  });
+
+  it("keeps authentication fail-closed when the sanitized audit sink fails", async () => {
+    const auth = createAuth();
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardAuthAudit: () => {
+        throw new Error("SECRET_AUDIT_SINK_FAILURE");
+      },
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/dashboard/auth/session",
+      payload: { credential: "wrong-synthetic-credential" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).not.toContain("SECRET_AUDIT_SINK_FAILURE");
+  });
+
+  it("denies a missing permission and every undeclared dashboard route by default", async () => {
+    const auth = createAuth({ permissions: new Set(["dashboard:session:read"]) });
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    app.get("/dashboard/api/undeclared", () => ({ unsafe: true }));
+    apps.push(app);
+
+    const missingPermission = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/mission-control",
+      headers: { cookie },
+    });
+    const undeclared = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/undeclared",
+      headers: { cookie },
+    });
+
+    expect(missingPermission.statusCode).toBe(403);
+    expect(undeclared.statusCode).toBe(403);
+    expect(undeclared.body).not.toContain("unsafe");
+  });
+
+  it("does not expose domain write methods under /dashboard", async () => {
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
       logger: false,
     });
     apps.push(app);
@@ -167,68 +356,42 @@ describe("read-only dashboard", () => {
       "/dashboard/api/mission-control",
     ]) {
       for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
-        const response = await app.inject({
-          method,
-          url: path,
-          headers: { authorization: "Bearer local-dashboard-token" },
-        });
-        expect(response.statusCode).toBe(404);
+        const response = await app.inject({ method, url: path, headers: { cookie } });
+        expect(response.statusCode).toBe(403);
       }
     }
   });
 
-  it("rejects the dashboard shell and data outside loopback", async () => {
-    const app = createCoordinatorApp({
+  it("keeps loopback default and marks a remotely enabled session Secure", async () => {
+    const localAuth = createAuth();
+    const localApp = createCoordinatorApp({
+      dashboardAuth: localAuth,
       dashboardService: dashboard,
-      dashboardToken: "local-dashboard-token",
       logger: false,
     });
-    apps.push(app);
-
-    const page = await app.inject({
+    apps.push(localApp);
+    const localDenied = await localApp.inject({
       method: "GET",
-      url: "/dashboard",
+      url: "/dashboard/login",
       remoteAddress: "192.0.2.10",
     });
-    const data = await app.inject({
-      method: "GET",
-      url: "/dashboard/api/mission-control",
-      headers: { authorization: "Bearer local-dashboard-token" },
-      remoteAddress: "192.0.2.10",
-    });
+    expect(localDenied.statusCode).toBe(403);
 
-    expect(page.statusCode).toBe(403);
-    expect(data.statusCode).toBe(403);
-  });
-
-  it("allows the read-only dashboard remotely only when explicitly enabled", async () => {
-    const app = createCoordinatorApp({
+    const remoteAuth = createAuth();
+    const remoteApp = createCoordinatorApp({
+      dashboardAuth: remoteAuth,
       dashboardRemoteAccessEnabled: true,
       dashboardService: dashboard,
-      dashboardToken: "local-dashboard-token",
       logger: false,
     });
-    apps.push(app);
-
-    const page = await app.inject({
-      method: "GET",
-      url: "/dashboard",
+    apps.push(remoteApp);
+    const remoteLogin = await remoteApp.inject({
+      method: "POST",
+      url: "/dashboard/auth/session",
+      payload: { credential: ownerCredential },
       remoteAddress: "192.0.2.10",
     });
-    const denied = await app.inject({
-      method: "GET",
-      url: "/dashboard/api/mission-control",
-      remoteAddress: "192.0.2.10",
-    });
-    const accepted = await app.inject({
-      method: "GET",
-      url: "/dashboard/api/mission-control",
-      headers: { authorization: "Bearer local-dashboard-token" },
-      remoteAddress: "192.0.2.10",
-    });
-
-    expect(page.statusCode).toBe(200);
-    expect(denied.statusCode).toBe(401);
-    expect(accepted.statusCode).toBe(200);
+    expect(remoteLogin.statusCode).toBe(204);
+    expect(remoteLogin.headers["set-cookie"]).toContain("Secure");
   });
 });

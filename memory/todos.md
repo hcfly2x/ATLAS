@@ -140,9 +140,9 @@
 - O read-model backend da Trilha A v1 está implementado: Atlas Intelligence
   determinística, Mission Control e Proatividade sobre sinais existentes,
   somente leitura.
-- Revisar empiricamente a UI da Trilha A: consumo GET autenticado do read-model,
-  validação por `@atlas/contracts`, estados de loading/vazio/erro/indeterminado,
-  ausência de conteúdo sensível e ausência real de ações de escrita.
+- Manter a UI da Trilha A sob regressão de contrato, estados
+  loading/vazio/erro/indeterminado, ausência de conteúdo sensível e ausência
+  real de ações de escrita.
 - Validar em uso real a ordem de prioridade, a utilidade dos alertas e a
   apresentação de sinais `indeterminado` antes de ampliar a inteligência.
 - Narrativa por LLM para o papel de Chief of Staff continua não autorizada.
@@ -151,9 +151,12 @@
 - Trilha B2 está implementada: revisar empiricamente a UI do Workspace, o Replay
   operacional sem chain-of-thought, a navegação por URL, os estados
   loading/vazio/erro/404/indeterminado e o não-vazamento.
-- Trilha C: autenticação/RBAC, rotas de escrita, Command Center e aprovações
-  contextuais pela UI, reutilizando `Approval` e `always_human`, com auditoria
-  completa; permanece não autorizada.
+- Revisar empiricamente a Trilha C1: expiração, deny-by-default rota a rota,
+  loopback/flag, auditoria sanitizada e ausência de credencial/token no
+  bundle, respostas ou logs.
+- Trilha C2: rotas de escrita, Command Center e aprovações contextuais pela UI,
+  reutilizando `Approval` e `always_human`, com auditoria completa; permanece
+  não autorizada.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.

@@ -1,5 +1,14 @@
 # Decisões
 
+- ADR-025 permanece Proposto: o dono autentica a Dashboard com credencial
+  exclusiva do ambiente e recebe sessão assinada e expirável em cookie
+  HttpOnly; não existe token no bundle ou fragmento da URL.
+- Toda rota `/dashboard` exige uma permissão de leitura declarada no backend;
+  ausência de sessão, expiração, falta de permissão, erro ou rota sem declaração
+  falham fechado. Login e criação de sessão são as únicas exceções públicas.
+- C1 não cria persistência nem escrita de domínio. C2, CSRF para escrita,
+  Command Center e Approval pela UI continuam fases não autorizadas.
+
 - A Trilha A estende a dashboard existente com uma única projeção GET de
   Mission Control. Não cria SPA, entidade, cache persistente ou rota de escrita.
 - Atlas Intelligence v1 é determinística e sem LLM. Progresso usa TaskState;
@@ -242,9 +251,9 @@
   sem finalizar, reenviar resultado ou repetir a mesma Assignment. A autoridade
   para a execução ambígua permanece no reconciliador durável do coordinator.
 - O ATLAS terá uma única dashboard web no coordinator do Render, consultando o
-  mesmo banco do fluxo Telegram. A exposição remota é explícita, somente leitura
-  e protegida por HTTPS + Bearer token de alta entropia; dashboard local não é
-  uma segunda fonte operacional.
+  mesmo banco do fluxo Telegram. A exposição remota é explícita, somente
+  leitura e protegida por HTTPS, sessão expirável e RBAC backend; dashboard
+  local não é uma segunda fonte operacional.
 
 ## QA pós-execução
 

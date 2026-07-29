@@ -78,17 +78,29 @@ próprios. Dados reais nunca são copiados para staging, especialmente dados
 
 O dashboard é somente leitura e permanece bloqueado fora do loopback por
 default. Para a interface web única hospedada no Render, a exposição remota é
-uma escolha explícita: `DASHBOARD_REMOTE_ACCESS_ENABLED=true` e um
-`DASHBOARD_TOKEN` com ao menos 32 caracteres, ambos configurados somente no
-secret store do provedor. A conexão pública usa HTTPS do Render; cada API de
-dados exige `Authorization: Bearer <token>` e não existem rotas de escrita sob
-`/dashboard`.
+uma escolha explícita: `DASHBOARD_REMOTE_ACCESS_ENABLED=true` e uma
+`DASHBOARD_OWNER_CREDENTIAL` com ao menos 32 caracteres, ambos configurados
+somente no secret store do provedor. A conexão pública usa HTTPS do Render.
+
+O dono usa a credencial uma vez para criar uma sessão assinada e expirável. O
+token de sessão é transportado somente em cookie `HttpOnly`, `SameSite=Strict`,
+com escopo `/dashboard` e `Secure` no acesso remoto; nunca entra no JavaScript
+ou em resposta JSON. Toda rota `/dashboard`, inclusive o shell e os read-models,
+exige sessão e permissão RBAC declarada. Ausência de autenticação, expiração,
+falta de permissão, erro do gate ou rota sem permissão declarada falham fechado
+com 401/403 antes dos dados. Login e criação de sessão são as únicas exceções
+públicas.
 
 O shell não contém dados e usa `no-store`, CSP com `connect-src 'self'`,
 `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options:
-nosniff` e `Referrer-Policy: no-referrer`. O token permanece no fragmento do
-navegador e é enviado apenas como header às APIs; nunca entra em query string,
-logs ou repositório.
+nosniff` e `Referrer-Policy: no-referrer`. Credencial, cookie e token de sessão
+não entram em query string, bundle, log, auditoria ou repositório. A auditoria
+de autenticação contém somente desfecho, motivo estável e correlação.
+
+Nesta fundação existe somente o papel `owner` e permissões de leitura. O único
+POST sob `/dashboard` cria a sessão de autenticação e não toca dados de domínio;
+não existem POST, PUT, PATCH ou DELETE para Task, Approval, Execution ou outro
+registro operacional. Rotas de escrita continuam não autorizadas.
 
 Mission Control e os endpoints gerais de inspeção retornam somente estados,
 contagens, datas, hashes e IDs correlacionáveis. O Workspace B1 possui uma

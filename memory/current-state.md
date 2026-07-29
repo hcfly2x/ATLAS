@@ -59,9 +59,14 @@ registros existentes; memória fica limitada a tipo/contagem e comandos ao
 executável. A Trilha B2 também está implementada: itens do Mission Control
 abrem o Workspace por URL, e a UI apresenta as seções read-only e um Replay
 passo a passo somente dos eventos sanitizados. Estados loading, vazio,
-indeterminado, erro e 404 são explícitos. O fragmento de autenticação é
-preservado na navegação interna, sem persistência adicional. As Trilhas C–E e
-qualquer escrita continuam não autorizadas.
+indeterminado, erro e 404 são explícitos.
+
+A Trilha C1 está implementada sem escrita: o dono usa credencial exclusiva do
+ambiente para criar sessão assinada e expirável em cookie HttpOnly. Toda rota
+`/dashboard` exige sessão e permissão de leitura declarada no backend; rota sem
+permissão falha fechado. Loopback por default e flag de acesso remoto foram
+preservados. ADR-025 permanece Proposto. C2, Command Center, aprovações pela UI
+e qualquer mutação de domínio continuam não autorizados.
 
 ## Implementado
 
@@ -143,8 +148,9 @@ qualquer escrita continuam não autorizadas.
   renovando, finalizando ou repetindo uma Assignment cuja posse deixou de poder
   comprovar; o reconciliador durável do coordinator trata o estado ambíguo.
 - A dashboard usa um único destino web no coordinator do Render, exige flag
-  explícita para acesso remoto e Bearer token e mantém dados/rotas somente
-  leitura. Ela não autoriza escrita de configuração, agentes ou times.
+  explícita para acesso remoto, sessão expirável e RBAC backend
+  deny-by-default. Dados e rotas de domínio permanecem somente leitura; ela não
+  autoriza escrita de configuração, agentes ou times.
 - A Home Mission Control expõe somente metadados seguros de trabalho: aprovações
   humanas pendentes, etapas reais, bloqueios, conclusões recentes, entrega,
   retrabalho, revisão indisponível e custo contra teto declarado. O resumo não usa LLM,
