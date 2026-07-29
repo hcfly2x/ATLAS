@@ -265,7 +265,9 @@ openssl rand -base64 32
 
 Depois do deploy, abra `https://<servico-render>/dashboard` e informe a
 credencial. O cookie remoto exige HTTPS por `Secure`; shell e APIs continuam
-somente leitura e exigem sessão e permissão. Não inicie
+protegidos por sessão e permissão. O build do serviço deve executar `pnpm build`;
+o grafo Turbo constrói `apps/dashboard/dist` antes do coordinator, que publica
+o SPA em `/dashboard`. Não inicie
 `pnpm coordinator:local` apenas para usar a dashboard quando a instância web
 remota estiver habilitada. Rotacionar a credencial invalida as sessões
 anteriores.

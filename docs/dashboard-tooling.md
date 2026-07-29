@@ -88,6 +88,22 @@ e o tooling estão versionados. A interface read-only da Trilha A foi autorizada
 e implementada em entrega posterior; qualquer escrita ou fase seguinte continua
 sem autorização.
 
+## Build e serving
+
+O coordinator publica o output Vite de `apps/dashboard` em `/dashboard`. A
+dependência workspace `@atlas/dashboard` no coordinator faz `turbo run build`
+construir o frontend antes do coordinator. O comando de build do serviço
+hospedado permanece:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+O runtime continua iniciado por `pnpm --filter @atlas/coordinator start` e
+encontra `apps/dashboard/dist` a partir da raiz do monorepo. O shell e os assets
+não exigem configuração ou segredo no bundle.
+
 ## Itens não adotados agora
 
 Não usar como base da Dashboard:

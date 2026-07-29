@@ -91,16 +91,20 @@ falta de permissão, erro do gate ou rota sem permissão declarada falham fechad
 com 401/403 antes dos dados. Login e criação de sessão são as únicas exceções
 públicas.
 
-O shell não contém dados e usa `no-store`, CSP com `connect-src 'self'`,
-`frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options:
-nosniff` e `Referrer-Policy: no-referrer`. Credencial, cookie e token de sessão
-não entram em query string, bundle, log, auditoria ou repositório. A auditoria
-de autenticação contém somente desfecho, motivo estável e correlação.
+O shell React não contém dados e usa `no-store`. Seus módulos Vite são aceitos
+somente da própria origem por `script-src 'self'`; a CSP também mantém
+`connect-src 'self'`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+`X-Content-Type-Options: nosniff` e `Referrer-Policy: no-referrer`. Assets
+hasheados exigem a mesma sessão e podem usar cache imutável por um ano. O
+catch-all autenticado nunca absorve API ou asset inexistente. Credencial,
+cookie e token de sessão não entram em query string, bundle, log, auditoria ou
+repositório. A auditoria de autenticação contém somente desfecho, motivo
+estável e correlação.
 
-Nesta fundação existe somente o papel `owner` e permissões de leitura. O único
-POST sob `/dashboard` cria a sessão de autenticação e não toca dados de domínio;
-não existem POST, PUT, PATCH ou DELETE para Task, Approval, Execution ou outro
-registro operacional. Rotas de escrita continuam não autorizadas.
+Nesta fundação existe somente o papel `owner`. Além das permissões de leitura,
+a escrita C2a permanece limitada à decisão de Approval `USER` não sensível,
+com RBAC, CSRF, idempotência, versão e resolvedor transacional compartilhado.
+O serving do React não acrescenta qualquer verbo ou mutação.
 
 Mission Control e os endpoints gerais de inspeção retornam somente estados,
 contagens, datas, hashes e IDs correlacionáveis. O Workspace B1 possui uma

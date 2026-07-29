@@ -194,8 +194,8 @@ fora do contrato. A UI React consome esse read-model por GET e apresenta
 cabeçalho, visão geral, plano, execuções limitadas ao executável, aprovações, QA,
 evidências de entrega, custos estimados e Replay de eventos persistidos. O
 Replay não expõe chain-of-thought e nenhuma ação de negócio foi adicionada.
-Escrita e aprovações contextuais continuam exclusivas da Trilha C2, ainda não
-autorizada.
+Escrita e aprovações contextuais permanecem na Trilha C. C2a foi autorizada
+posteriormente para decidir somente Approvals humanas não sensíveis.
 
 ### Trilha C — Comando e escrita
 
@@ -222,8 +222,12 @@ ou deploy.
 Credencial exclusiva do ambiente cria sessão assinada e expirável em cookie
 HttpOnly; toda rota da Dashboard exige sessão e permissão de leitura declarada,
 com deny-by-default no backend. Loopback e a flag de acesso remoto permanecem.
-ADR-025 está Proposto. C2, Command Center, aprovações pela UI e qualquer mutação
-de domínio continuam não autorizados.
+ADR-025 está Proposto. C2a também foi implementada para decisões humanas de
+Approval pelo resolvedor canônico. O app React que contém as Trilhas A, B e C2a
+é agora servido pelo coordinator em `/dashboard`, conforme ADR-029 Proposto,
+com deep links autenticados e assets hasheados. A página inline de Mission
+Control foi aposentada. C2b1 (criar/cancelar) e C2c
+(pausa/retomada/prioridade) continuam fases próprias.
 
 ### Trilha D — Projeto como empresa independente
 
@@ -290,4 +294,10 @@ A C2a implementa decisões de Approvals humanas pendentes pela Dashboard como
 primeira escrita governada, subordinada ao ADR-027 Proposto. O fluxo exige
 contexto e confirmação na UI, RBAC de escrita, CSRF por sessão, idempotência e
 concorrência otimista, reutilizando o resolvedor canônico do Telegram. Criar
-demanda, pausar, priorizar e cancelar permanecem fora desta entrega, para C2b.
+demanda, pausar, priorizar e cancelar permanecem fora desta entrega.
+
+A C2·Serving publica o build React das Trilhas A, B e C2a no coordinator,
+subordinado ao ADR-029 Proposto. Shell, deep links e assets exigem sessão e
+permissão; o catch-all não sombreia APIs ou assets inexistentes. Esta etapa não
+cria escrita nem muda domínio. C2b1 é a próxima fase para criar/cancelar; C2c
+fica reservada a pausa, retomada e prioridade.

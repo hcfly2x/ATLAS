@@ -1,13 +1,16 @@
 # Pendências
 
-## Dashboard — após C2a
+## Dashboard — após C2·Serving
 
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
+- Validar em staging que `/dashboard`, o Workspace por deep link e os assets
+  hasheados são servidos pelo coordinator sob sessão válida, sem fallback para
+  a antiga página inline.
 - Confirmar em staging que sessão expirada, falta de permissão e CSRF
   ausente/inválido não produzem mutação.
-- Manter criação de demanda, pausa, prioridade e cancelamento fora de C2a;
-  qualquer C2b exige fase e autorização próprias.
+- Manter C2b1 limitada a criar/cancelar em fase própria; pausa, retomada e
+  prioridade ficam para C2c com ADR e modelo canônico próprios.
 - Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
 
 ## Entrega durável — acompanhamento após a Fase B
@@ -172,9 +175,9 @@
 - Revisar empiricamente a Trilha C1: expiração, deny-by-default rota a rota,
   loopback/flag, auditoria sanitizada e ausência de credencial/token no
   bundle, respostas ou logs.
-- Trilha C2: rotas de escrita, Command Center e aprovações contextuais pela UI,
-  reutilizando `Approval` e `always_human`, com auditoria completa; permanece
-  não autorizada.
+- Trilha C2a e seu serving estão implementados. C2b1 (criar/cancelar) e C2c
+  (pausa/retomada/prioridade) permanecem fases próprias, reutilizando
+  governança canônica e sem exceção a `always_human`.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.

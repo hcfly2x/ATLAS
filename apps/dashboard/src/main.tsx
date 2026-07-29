@@ -16,7 +16,7 @@ const queryClient = new QueryClient();
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/dashboard">
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
