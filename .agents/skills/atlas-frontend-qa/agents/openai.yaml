@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATLAS Frontend QA"
+  short_description: "Verify behavior, accessibility, and evidence"
+  default_prompt: "Use $atlas-frontend-qa to validate this ATLAS frontend change empirically."

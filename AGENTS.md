@@ -17,6 +17,18 @@ Você está trabalhando no projeto ATLAS. Antes de alterar qualquer arquivo:
 
 `specifications/project-manifest.yaml` é a fonte de verdade da stack. Divergências entre documentos devem ser reportadas, nunca resolvidas silenciosamente.
 
+## Skills da Dashboard
+
+Ao trabalhar no frontend ou nos contratos da Dashboard, use nesta ordem:
+
+1. `atlas-dashboard-guardrails` para validar escopo, read-only e fronteiras de governança.
+2. `atlas-dashboard-contracts` ao criar ou consumir read models públicos.
+3. `atlas-frontend-qa` antes da entrega para executar a validação proporcional.
+
+OpenAI Build Web Apps pode auxiliar somente trabalho frontend já autorizado
+quando o plugin estiver instalado. Sua ausência não autoriza instalação global,
+mudança de stack ou ampliação de escopo.
+
 ## Regras permanentes
 
 - Não implementar funcionalidades fora do escopo atual.

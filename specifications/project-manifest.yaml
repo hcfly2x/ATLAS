@@ -27,6 +27,17 @@ project:
     telegram: telegram_bot_api
     worker_execution: codex_cli_adapter  # ADR-006
     version_control: git_github
+    dashboard_frontend:
+      framework: react
+      build_tool: vite
+      language: typescript_strict
+      styling: tailwind_shadcn
+      router: react_router
+      server_state: tanstack_query
+      tables: tanstack_table
+      contracts: atlas_contracts_zod
+      tests: vitest_rtl_playwright_axe
+      diagnostics: react_doctor
 
   protected_areas:
     - authentication

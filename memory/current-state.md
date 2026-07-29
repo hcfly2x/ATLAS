@@ -48,8 +48,10 @@ criam rota de escrita. Narrativa por LLM e as Trilhas B–E continuam sem
 autorização.
 O guia subordinado `docs/dashboard-tooling.md` registra o núcleo adotável,
 tooling e skills de desenvolvimento. A UI frontend planejada consumirá esse
-read-model sem refazê-lo. A Fase 0 — ADR do stack, scaffolds, contratos, skills
-e tooling — é apenas o próximo passo proposto e continua não autorizada.
+read-model sem refazê-lo. A Fase 0 foi autorizada e implementada: ADR-024
+Proposto, shell técnico de `apps/dashboard`, contrato compartilhado
+`@atlas/contracts`, três skills versionadas e tooling do Codex. Nenhuma feature
+da UI, rota de escrita ou fase posterior foi autorizada.
 
 ## Implementado
 

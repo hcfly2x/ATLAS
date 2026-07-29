@@ -1,0 +1,8 @@
+# Tooling de desenvolvimento limitado ao workspace. O servidor só é iniciado
+# quando uma tarefa autorizada da Dashboard precisa do catálogo shadcn.
+[mcp_servers.shadcn]
+command = "pnpm"
+args = ["dlx", "shadcn@4.16.0", "mcp"]
+default_tools_approval_mode = "writes"
+startup_timeout_sec = 20
+tool_timeout_sec = 60

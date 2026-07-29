@@ -1,0 +1,5 @@
+.turbo/
+dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
