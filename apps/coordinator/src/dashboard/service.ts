@@ -6,6 +6,12 @@ import {
   TaskState,
   type PrismaClient,
 } from "@prisma/client";
+import {
+  executableSpecificationPayloadSchema,
+  normalizedDemandSchema,
+  runtimeCommandSchema,
+  workerResultSchema,
+} from "@atlas/shared";
 
 const TASK_STATES = [
   "NEW",
@@ -46,6 +52,14 @@ const RECENT_TERMINAL_STATES = [TaskState.COMPLETED] as const;
 const RECENT_WINDOW_DAYS = 7;
 const RECENT_WINDOW_MS = RECENT_WINDOW_DAYS * 86_400_000;
 const INDETERMINATE = "indeterminado" as const;
+const QA_RECONCILIATION_REASONS = new Set([
+  "qa_empirical_failed",
+  "qa_empirical_signal_missing",
+  "qa_empirical_unavailable",
+  "qa_reviewer_rejected",
+  "qa_reviewer_signal_missing",
+  "qa_signals_approved",
+]);
 
 type DashboardSeverity = "critical" | "high" | "medium" | "info";
 type DashboardSignalStatus = "available" | "indeterminate";
@@ -152,6 +166,41 @@ function sortProactiveItems(items: readonly ProactiveItem[]): ProactiveItem[] {
       left.occurredAt.getTime() - right.occurredAt.getTime() ||
       left.id.localeCompare(right.id),
   );
+}
+
+function originChannel(origin: string): string {
+  const separator = origin.indexOf(":");
+  const channel = (separator === -1 ? origin : origin.slice(0, separator)).trim().toLowerCase();
+  return channel.length === 0 ? INDETERMINATE : channel;
+}
+
+function safeExecutables(commands: unknown): string[] | typeof INDETERMINATE {
+  if (!Array.isArray(commands)) return INDETERMINATE;
+  const parsed = commands.map((command) => {
+    const parsed = runtimeCommandSchema.safeParse(command);
+    return parsed.success ? parsed.data.executable : null;
+  });
+  return parsed.some((executable) => executable === null)
+    ? INDETERMINATE
+    : parsed.filter((executable): executable is string => executable !== null);
+}
+
+function sumEstimatedCosts(
+  llmCalls: readonly { readonly estimatedCostUsd: unknown }[],
+  codexUsages: readonly { readonly estimatedCostUsd: unknown }[],
+): number | typeof INDETERMINATE {
+  const rows = [...llmCalls, ...codexUsages];
+  if (rows.length === 0) return INDETERMINATE;
+  const values = rows.map((row) => Number(row.estimatedCostUsd));
+  return values.every((value) => Number.isFinite(value) && value >= 0)
+    ? values.reduce((total, value) => total + value, 0)
+    : INDETERMINATE;
+}
+
+function safeReconciliationReason(value: string | null | undefined): string {
+  return value !== null && value !== undefined && QA_RECONCILIATION_REASONS.has(value)
+    ? value
+    : INDETERMINATE;
 }
 
 export class DashboardService {
@@ -785,6 +834,216 @@ export class DashboardService {
       },
     });
     return task === null ? null : jsonSafe(task);
+  }
+
+  async demandWorkspace(taskId: string) {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        approvals: {
+          orderBy: [{ requestedAt: "asc" }, { id: "asc" }],
+          select: {
+            actor: true,
+            id: true,
+            requestedAt: true,
+            respondedAt: true,
+            status: true,
+            targetVersion: true,
+            type: true,
+          },
+        },
+        auditEvents: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            action: true,
+            correlationId: true,
+            createdAt: true,
+            id: true,
+          },
+        },
+        codexUsages: {
+          select: { estimatedCostUsd: true },
+        },
+        createdAt: true,
+        executions: {
+          orderBy: [{ attempt: "asc" }, { id: "asc" }],
+          select: {
+            attempt: true,
+            commands: true,
+            createdAt: true,
+            empiricalReview: {
+              select: {
+                verdict: true,
+              },
+            },
+            id: true,
+            postExecutionReview: {
+              select: {
+                empiricalVerdict: true,
+                reconciliationReason: true,
+                reviewerDecision: true,
+              },
+            },
+            resultPayload: true,
+            specification: {
+              select: { version: true },
+            },
+            status: true,
+            updatedAt: true,
+          },
+        },
+        id: true,
+        llmCalls: {
+          select: { estimatedCostUsd: true },
+        },
+        memoryItems: {
+          select: { type: true },
+        },
+        normalizedDemand: true,
+        origin: true,
+        project: {
+          select: {
+            autonomyLevel: true,
+            id: true,
+            name: true,
+            risk: true,
+          },
+        },
+        specifications: {
+          orderBy: [{ version: "desc" }, { id: "desc" }],
+          select: {
+            deliveryMode: true,
+            id: true,
+            payload: true,
+            version: true,
+          },
+          take: 1,
+        },
+        state: true,
+        updatedAt: true,
+      },
+    });
+    if (task === null) return null;
+
+    const specification = task.specifications[0];
+    const parsedSpecification =
+      specification === undefined
+        ? null
+        : executableSpecificationPayloadSchema.safeParse(specification.payload);
+    const specificationPayload =
+      parsedSpecification?.success === true ? parsedSpecification.data : null;
+    const parsedDemand = normalizedDemandSchema.safeParse(task.normalizedDemand);
+    const demand = parsedDemand.success ? parsedDemand.data : null;
+    const latestExecution = task.executions.at(-1);
+    const memoryCounts = task.memoryItems.reduce(
+      (counts, item) => {
+        counts[item.type] += 1;
+        return counts;
+      },
+      { DECISION: 0, NOTE: 0, SUMMARY: 0 },
+    );
+
+    return {
+      approvals: task.approvals.map((approval) => ({
+        actor: approval.actor,
+        approvalId: approval.id,
+        occurredAt: approval.respondedAt ?? approval.requestedAt,
+        status: approval.status,
+        targetVersion: approval.targetVersion ?? INDETERMINATE,
+        type: approval.type,
+      })),
+      cost: {
+        currency: "USD" as const,
+        estimatedUsd: sumEstimatedCosts(task.llmCalls, task.codexUsages),
+        methodology: "persisted_estimates" as const,
+      },
+      demand: {
+        objective: demand?.objective ?? INDETERMINATE,
+      },
+      executions: task.executions.map((execution) => {
+        const parsedResult = workerResultSchema.safeParse(execution.resultPayload);
+        const result = parsedResult.success ? parsedResult.data : null;
+        const startedAt = result === null ? null : new Date(result.started_at);
+        const finishedAt = result === null ? null : new Date(result.finished_at);
+        const durationMs =
+          startedAt !== null &&
+          finishedAt !== null &&
+          Number.isFinite(startedAt.getTime()) &&
+          Number.isFinite(finishedAt.getTime()) &&
+          finishedAt >= startedAt
+            ? finishedAt.getTime() - startedAt.getTime()
+            : INDETERMINATE;
+        return {
+          attempt: execution.attempt,
+          diffSummary:
+            result === null
+              ? INDETERMINATE
+              : {
+                  deletions: result.diff_summary.deletions,
+                  filesChanged: result.diff_summary.files_changed,
+                  insertions: result.diff_summary.insertions,
+                },
+          durationMs,
+          executables:
+            result === null
+              ? safeExecutables(execution.commands)
+              : result.commands.map((command) => command.executable),
+          executionId: execution.id,
+          protectedPathMatchCount:
+            result === null ? INDETERMINATE : result.protected_path_matches.length,
+          resultStatus: result?.status ?? INDETERMINATE,
+          specificationVersion: execution.specification.version,
+          status: execution.status,
+        };
+      }),
+      generatedAt: this.now(),
+      header: {
+        autonomyLevel: task.project.autonomyLevel,
+        createdAt: task.createdAt,
+        deliveryMode:
+          specification === undefined
+            ? INDETERMINATE
+            : specification.deliveryMode === "ANSWER_ONLY"
+              ? ("answer_only" as const)
+              : ("repository_change" as const),
+        executionState: latestExecution?.status ?? INDETERMINATE,
+        originChannel: originChannel(task.origin),
+        project: {
+          id: task.project.id,
+          name: task.project.name,
+        },
+        risk: task.project.risk.trim().length === 0 ? INDETERMINATE : task.project.risk,
+        taskId: task.id,
+        taskState: task.state,
+        updatedAt: task.updatedAt,
+      },
+      memory: {
+        byType: memoryCounts,
+        total: task.memoryItems.length,
+      },
+      plan: {
+        acceptanceCriteria: specificationPayload?.acceptance_criteria ?? INDETERMINATE,
+        implementationStrategy: specificationPayload?.implementation_strategy ?? INDETERMINATE,
+        specificationVersion: specification?.version ?? INDETERMINATE,
+      },
+      qa: task.executions.map((execution) => ({
+        empiricalVerdict:
+          execution.postExecutionReview?.empiricalVerdict ??
+          execution.empiricalReview?.verdict ??
+          INDETERMINATE,
+        executionId: execution.id,
+        reconciliationReason: safeReconciliationReason(
+          execution.postExecutionReview?.reconciliationReason,
+        ),
+        reviewerDecision: execution.postExecutionReview?.reviewerDecision ?? INDETERMINATE,
+      })),
+      timeline: task.auditEvents.map((event) => ({
+        action: event.action,
+        correlationId: event.correlationId,
+        eventId: event.id,
+        occurredAt: event.createdAt,
+      })),
+    };
   }
 
   async deliveries(projectId?: string) {

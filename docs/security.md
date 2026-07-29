@@ -90,11 +90,19 @@ nosniff` e `Referrer-Policy: no-referrer`. O token permanece no fragmento do
 navegador e é enviado apenas como header às APIs; nunca entra em query string,
 logs ou repositório.
 
-Mission Control e os endpoints de inspeção retornam somente estados, contagens,
-datas, hashes e IDs correlacionáveis. Mensagem original, demanda normalizada,
-payload de Specification/Approval/Execution/review, conteúdo de memória,
-payload de AuditEvent, comandos, worktree e destino/texto de entrega não fazem
-parte das projeções web.
+Mission Control e os endpoints gerais de inspeção retornam somente estados,
+contagens, datas, hashes e IDs correlacionáveis. O Workspace B1 possui uma
+exceção estreita e explícita: pode projetar o objetivo normalizado e, da
+Specification validada, `implementation_strategy` e `acceptance_criteria`, pois
+são conteúdo próprio da demanda. Da execução, projeta somente o nome do
+executável e estatísticas numéricas do resultado validado.
+
+Mesmo no Workspace, mensagem original, prompts, respostas de modelo, payloads
+brutos de Specification/Approval/Execution/review/AuditEvent, argumentos de
+comando, saída crua de ferramenta, descrição livre do diff, conteúdo de memória,
+worktree, segredos, tokens, URLs sensíveis e destino/texto de entrega não fazem
+parte da projeção web. Memória aparece somente por tipo e contagem. Campos
+ausentes ou inválidos são `indeterminado`, sem reconstrução ou inferência.
 
 ## Entrega terminal
 

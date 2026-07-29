@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Dashboard Trilha B1 read-model do Workspace
+
+- O coordinator passa a expor `GET /dashboard/api/demand/:taskId` sob a mesma
+  autenticação e exposição da Dashboard, sem rota de escrita.
+- `@atlas/contracts` define uma resposta estrita para cabeçalho, plano,
+  execuções, aprovações, QA, timeline, memória por contagem e custo estimado.
+- Objetivo, estratégia e critérios próprios da demanda são projetados; comandos
+  ficam limitados ao executável e payloads, argumentos, prompts, respostas,
+  saídas cruas, conteúdo de memória e destinos permanecem excluídos.
+- Demanda inexistente produz 404 estável e sinais ausentes aparecem como
+  `indeterminado`.
+- Worker, core, enforcement, schema, `.atlas/**`, TaskState, autonomia e
+  `always_human` permanecem inalterados. A UI e o Replay ficam para a Trilha B2.
+
 ## Unreleased — Dashboard Trilha A UI
 
 - `apps/dashboard` passa a consumir somente

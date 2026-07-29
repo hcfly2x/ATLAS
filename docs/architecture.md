@@ -45,6 +45,15 @@ permanece indeterminado e custo anormal significa somente ultrapassar o teto
 declarado do projeto. A Home não usa LLM, não persiste cache e não expõe
 conteúdo bruto.
 
+A Trilha B1 acrescenta `GET /dashboard/api/demand/:taskId` como read-model
+sanitizado de uma única demanda. A projeção agrega cabeçalho, plano, execuções,
+aprovações, QA, timeline, contagens de memória e custo estimado já persistido.
+Objetivo, estratégia e critérios são conteúdo próprio da demanda autorizado
+para exibição; comandos são reduzidos ao executável e as demais fontes são
+reduzidas a códigos, contagens e metadados explicitamente permitidos. O endpoint
+não executa escrita nem substitui Task, Execution, Approval ou AuditEvent como
+fontes de verdade.
+
 ### Agent Runtime
 
 Expõe uma interface própria, independente do provedor, para executar agentes com

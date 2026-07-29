@@ -5,6 +5,7 @@ import { assertRemoteDashboardConfiguration } from "./routes.js";
 import type { DashboardService } from "./service.js";
 
 const deliveriesMock = vi.fn(() => Promise.resolve([]));
+const demandWorkspaceMock = vi.fn(() => Promise.resolve(null));
 const missionControlMock = vi.fn(() =>
   Promise.resolve({
     blocked: { count: 0, items: [], status: "available" },
@@ -33,6 +34,7 @@ const missionControlMock = vi.fn(() =>
 );
 const dashboard = {
   audit: vi.fn(() => Promise.resolve([])),
+  demandWorkspace: demandWorkspaceMock,
   deliveries: deliveriesMock,
   memory: vi.fn(() => Promise.resolve([])),
   missionControl: missionControlMock,
@@ -122,6 +124,35 @@ describe("read-only dashboard", () => {
     expect(page.headers["x-content-type-options"]).toBe("nosniff");
   });
 
+  it("serves a token-protected demand workspace and a stable 404", async () => {
+    const existingTaskId = "10000000-0000-4000-8000-000000000001";
+    demandWorkspaceMock.mockResolvedValueOnce({
+      header: { taskId: existingTaskId },
+    } as never);
+    const app = createCoordinatorApp({
+      dashboardService: dashboard,
+      dashboardToken: "local-dashboard-token",
+      logger: false,
+    });
+    apps.push(app);
+
+    const accepted = await app.inject({
+      method: "GET",
+      url: `/dashboard/api/demand/${existingTaskId}`,
+      headers: { authorization: "Bearer local-dashboard-token" },
+    });
+    const missing = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
+      headers: { authorization: "Bearer local-dashboard-token" },
+    });
+
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toEqual({ header: { taskId: existingTaskId } });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ code: "DEMAND_NOT_FOUND" });
+  });
+
   it("does not expose write methods under /dashboard", async () => {
     const app = createCoordinatorApp({
       dashboardService: dashboard,
@@ -130,7 +161,11 @@ describe("read-only dashboard", () => {
     });
     apps.push(app);
 
-    for (const path of ["/dashboard/api/deliveries", "/dashboard/api/mission-control"]) {
+    for (const path of [
+      "/dashboard/api/deliveries",
+      "/dashboard/api/demand/10000000-0000-4000-8000-000000000001",
+      "/dashboard/api/mission-control",
+    ]) {
       for (const method of ["POST", "PUT", "PATCH", "DELETE"] as const) {
         const response = await app.inject({
           method,
