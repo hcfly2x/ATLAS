@@ -32,6 +32,11 @@ import {
 } from "../approvals/service.js";
 import { DashboardApprovalService } from "../dashboard/approval-service.js";
 import {
+  DashboardTaskCommandError,
+  DashboardTaskCommandService,
+} from "../dashboard/task-command-service.js";
+import { TaskIntakeService } from "../tasks/intake.js";
+import {
   CodexMonthlyBudgetExceededError,
   WorkerConflictError,
   WorkerLeaseError,
@@ -244,6 +249,123 @@ describe("Prisma core persistence", () => {
         data: { action: "forbidden-update" },
       }),
     ).rejects.toThrow(/append-only/);
+  });
+
+  it("persists dashboard create and cancel idempotently without raw command content in audit", async () => {
+    const projectId = `dashboard-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Dashboard Commands",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "low",
+        status: ProjectStatus.ACTIVE,
+      },
+    });
+    const supervised: string[] = [];
+    const intake = new TaskIntakeService({
+      onTaskCreated: (taskId) => supervised.push(taskId),
+      taskStore: store,
+    });
+    const service = new DashboardTaskCommandService(intake, store);
+    await expect(
+      service.createDemand(
+        {
+          idempotencyKey: randomUUID(),
+          objective: "must not create",
+          projectId: `missing-${randomUUID()}`,
+        },
+        "dashboard-missing-project",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_PROJECT_NOT_ELIGIBLE"));
+    const createKey = randomUUID();
+    const createRequest = {
+      idempotencyKey: createKey,
+      objective: "SECRET_OBJECTIVE owned by the dashboard user",
+      projectId,
+    };
+
+    const created = await service.createDemand(createRequest, "dashboard-create");
+    const replay = await service.createDemand(createRequest, "dashboard-create-replay");
+    expect(created.idempotentReplay).toBe(false);
+    expect(replay).toEqual({ ...created, idempotentReplay: true });
+    expect(supervised).toEqual([created.task.id]);
+    await expect(
+      service.createDemand(
+        { ...createRequest, objective: "different request" },
+        "dashboard-create-conflict",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+
+    const createdAudit = await prisma.auditEvent.findUniqueOrThrow({
+      where: { idempotencyKey: `dashboard:demand:${createKey}:created` },
+    });
+    expect(createdAudit.actor).toBe("USER");
+    expect(JSON.stringify(createdAudit.payload)).not.toContain("SECRET_OBJECTIVE");
+
+    const cancelKey = randomUUID();
+    const cancelRequest = {
+      idempotencyKey: cancelKey,
+      reason: "SECRET_REASON that must not be persisted",
+      taskVersion: 0,
+    };
+    const cancelled = await service.cancelTask(created.task.id, cancelRequest, "dashboard-cancel");
+    const cancelReplay = await service.cancelTask(
+      created.task.id,
+      cancelRequest,
+      "dashboard-cancel-replay",
+    );
+    expect(cancelled).toMatchObject({
+      idempotentReplay: false,
+      mode: "immediate",
+      task: { state: "CANCELLED", version: 1 },
+    });
+    expect(cancelReplay).toEqual({ ...cancelled, idempotentReplay: true });
+    await expect(
+      service.cancelTask(
+        created.task.id,
+        { ...cancelRequest, reason: "different reason" },
+        "dashboard-cancel-conflict",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+    const cancelAudit = await prisma.auditEvent.findUniqueOrThrow({
+      where: { idempotencyKey: `dashboard:cancel:${cancelKey}` },
+    });
+    expect(cancelAudit.actor).toBe("USER");
+    expect(JSON.stringify(cancelAudit.payload)).not.toContain("SECRET_REASON");
+
+    const running = await service.createDemand(
+      {
+        idempotencyKey: randomUUID(),
+        objective: "running fixture",
+        projectId,
+      },
+      "dashboard-running",
+    );
+    await prisma.task.update({
+      where: { id: running.task.id },
+      data: { state: "RUNNING", version: 5 },
+    });
+    await expect(
+      service.cancelTask(
+        running.task.id,
+        { idempotencyKey: randomUUID(), taskVersion: 5 },
+        "dashboard-cooperative-cancel",
+      ),
+    ).resolves.toMatchObject({
+      mode: "cooperative",
+      task: { state: "CANCEL_REQUESTED", version: 6 },
+    });
   });
 
   it("enforces immutable Specification versions and Execution linkage", async () => {

@@ -7,6 +7,8 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import {
+  TaskIdempotencyConflictError,
+  TaskProjectNotEligibleError,
   TaskVersionConflictError,
   type CommitTransitionInput,
   type CreateTaskInput,
@@ -28,6 +30,13 @@ const snapshotSchema = z.object({
 
 const transitionAuditPayloadSchema = z.object({
   fromState: taskStateSchema,
+  reasonCode: z.string().optional(),
+  requestHash: z.string().optional(),
+  task: snapshotSchema,
+});
+
+const taskCreatedAuditPayloadSchema = z.object({
+  requestHash: z.string().optional(),
   task: snapshotSchema,
 });
 
@@ -83,6 +92,15 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
       const audit = await this.prisma.auditEvent.findUniqueOrThrow({
         where: { idempotencyKey: `${input.idempotencyKey}:created` },
       });
+      const payload = taskCreatedAuditPayloadSchema.parse(audit.payload);
+      if (
+        existing.origin !== input.origin ||
+        existing.originalMessage !== input.originalMessage ||
+        existing.projectId !== input.projectId ||
+        (input.requestHash !== undefined && payload.requestHash !== input.requestHash)
+      ) {
+        throw new TaskIdempotencyConflictError();
+      }
       return {
         auditEventId: audit.id,
         idempotentReplay: true,
@@ -92,6 +110,15 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
 
     try {
       return await this.prisma.$transaction(async (transaction) => {
+        if (input.requireActiveProject === true) {
+          const project = await transaction.project.findFirst({
+            where: { id: input.projectId, status: "ACTIVE" },
+            select: { id: true },
+          });
+          if (project === null) {
+            throw new TaskProjectNotEligibleError();
+          }
+        }
         const task = await transaction.task.create({
           data: {
             idempotencyKey: input.idempotencyKey,
@@ -104,10 +131,13 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
         const audit = await transaction.auditEvent.create({
           data: {
             action: "task.created",
-            actor: PrismaAuditActor.SYSTEM,
+            actor: actorMap[input.actor ?? "system"],
             correlationId: input.correlationId,
             idempotencyKey: `${input.idempotencyKey}:created`,
-            payload: json({ task: snapshot }),
+            payload: json({
+              ...(input.requestHash === undefined ? {} : { requestHash: input.requestHash }),
+              task: snapshot,
+            }),
             projectId: input.projectId,
             targetId: task.id,
             targetType: "task",
@@ -128,6 +158,15 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
         const audit = await this.prisma.auditEvent.findUniqueOrThrow({
           where: { idempotencyKey: `${input.idempotencyKey}:created` },
         });
+        const payload = taskCreatedAuditPayloadSchema.parse(audit.payload);
+        if (
+          task.origin !== input.origin ||
+          task.originalMessage !== input.originalMessage ||
+          task.projectId !== input.projectId ||
+          (input.requestHash !== undefined && payload.requestHash !== input.requestHash)
+        ) {
+          throw new TaskIdempotencyConflictError();
+        }
         return {
           auditEventId: audit.id,
           idempotentReplay: true,
@@ -138,7 +177,10 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
     }
   }
 
-  async findReplay(idempotencyKey: string): Promise<TaskTransitionResult | undefined> {
+  async findReplay(
+    idempotencyKey: string,
+    requestHash?: string,
+  ): Promise<TaskTransitionResult | undefined> {
     const event = await this.prisma.auditEvent.findUnique({
       where: { idempotencyKey },
     });
@@ -146,6 +188,9 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
       return undefined;
     }
     const payload = transitionAuditPayloadSchema.parse(event.payload);
+    if (requestHash !== undefined && payload.requestHash !== requestHash) {
+      throw new TaskIdempotencyConflictError();
+    }
     return {
       auditEventId: event.id,
       fromState: payload.fromState,
@@ -179,6 +224,9 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
         });
         if (replay?.action === "task.transition.accepted") {
           const payload = transitionAuditPayloadSchema.parse(replay.payload);
+          if (input.requestHash !== undefined && payload.requestHash !== input.requestHash) {
+            throw new TaskIdempotencyConflictError();
+          }
           return {
             auditEventId: replay.id,
             fromState: payload.fromState,
@@ -203,7 +251,12 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
           actor: actorMap[input.actor],
           correlationId: input.correlationId,
           idempotencyKey: input.idempotencyKey,
-          payload: json({ fromState: input.fromState, task }),
+          payload: json({
+            fromState: input.fromState,
+            ...(input.reasonCode === undefined ? {} : { reasonCode: input.reasonCode }),
+            ...(input.requestHash === undefined ? {} : { requestHash: input.requestHash }),
+            task,
+          }),
           projectId: input.projectId,
           targetId: input.taskId,
           targetType: "task",

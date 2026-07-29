@@ -29,6 +29,11 @@ Approvals `SYSTEM` não são decididas pela rota. Aprovar alvo
 tracking, segredo de produção, migração destrutiva e demais ações
 `always_human` não ganham exceção.
 
+Na interface, `request_change` aparece somente para Approval de resultado
+(`RESULT`/`EXECUTION_RESULT`). Em `PRE_EXECUTION`, a Dashboard oferece apenas
+aprovar ou rejeitar. Essa restrição é da UI: o resolvedor e o contrato canônicos
+permanecem inalterados.
+
 ## Consequências
 
 - Esta é a primeira superfície de escrita da Dashboard.
@@ -38,4 +43,5 @@ tracking, segredo de produção, migração destrutiva e demais ações
 - Reenvio idêntico produz replay; reuso da chave com outra decisão é conflito.
 - Auditoria contém ator, canal, decisão, alvo, versões e comentário sanitizado,
   sem credencial, token, prompt, payload, `messageText` ou argumentos.
-- Criar demanda, pausar, priorizar e cancelar continuam reservados à C2b.
+- Criar e cancelar seguem o ADR-028. Pausar, retomar e priorizar continuam
+  reservados à C2c.

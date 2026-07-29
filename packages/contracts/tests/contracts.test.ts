@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   approvalDecisionRequestSchema,
   approvalDecisionResponseSchema,
+  cancelDashboardTaskRequestSchema,
+  createDashboardDemandRequestSchema,
   dashboardSessionResponseSchema,
   demandWorkspaceResponseSchema,
   missionControlResponseSchema,
@@ -53,6 +55,7 @@ const demandWorkspaceFixture = {
     risk: "moderate",
     taskId: "10000000-0000-4000-8000-000000000001",
     taskState: "NEW",
+    taskVersion: 0,
     updatedAt: "2026-07-29T09:01:00.000Z",
   },
   memory: {
@@ -128,5 +131,31 @@ describe("@atlas/contracts dashboard schemas", () => {
         },
       }),
     ).toBeDefined();
+  });
+
+  it("validates create and cancel commands strictly", () => {
+    const create = {
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      objective: "Planejar a melhoria",
+      projectId: "atlas",
+    };
+    expect(createDashboardDemandRequestSchema.parse(create)).toEqual(create);
+    expect(() =>
+      createDashboardDemandRequestSchema.parse({ ...create, objective: "   " }),
+    ).toThrow();
+    expect(() =>
+      createDashboardDemandRequestSchema.parse({ ...create, payload: "SECRET_PAYLOAD" }),
+    ).toThrow();
+
+    const cancel = {
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      reason: "Não é mais necessário",
+      taskVersion: 7,
+    };
+    expect(cancelDashboardTaskRequestSchema.parse(cancel)).toEqual(cancel);
+    expect(() => cancelDashboardTaskRequestSchema.parse({ ...cancel, taskVersion: -1 })).toThrow();
+    expect(() =>
+      cancelDashboardTaskRequestSchema.parse({ ...cancel, messageText: "SECRET" }),
+    ).toThrow();
   });
 });

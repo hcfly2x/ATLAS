@@ -1,12 +1,23 @@
 # Decisões
 
+- ADR-028 permanece Proposto: a Dashboard cria demandas pelo intake compartilhado
+  com Telegram e cancela Tasks exclusivamente pela máquina de estados canônica.
+- Criação nova aciona o supervisor uma vez; replay não aciona. Projeto não ativo,
+  versão divergente e idempotência divergente falham fechado.
+- Cancelamento pré-execução e de `FAILED` é imediato; trabalho ativo usa
+  `CANCEL_REQUESTED`. Não há cancelamento forçado, estado novo ou mudança no
+  worker, lease e fencing.
+- A auditoria `USER` persiste hash e códigos seguros, não objetivo ou motivo.
+  C2c continua fase própria.
+
 - ADR-029 permanece Proposto: o coordinator serve o build React/Vite em
   `/dashboard`, com shell e deep links autenticados, assets hasheados e
   catch-all que não sombreia APIs.
 - O shell usa `no-store`; assets usam cache imutável; a CSP do SPA aceita
   scripts apenas da própria origem. A página inline de Mission Control foi
   aposentada, preservando somente o login pré-autenticação.
-- O serving não cria escrita ou domínio. C2b1 e C2c permanecem fases próprias.
+- O serving não cria escrita ou domínio. C2b1 foi implementada depois sob o
+  ADR-028; C2c permanece fase própria.
 
 - ADR-027 permanece Proposto: a primeira escrita da Dashboard decide somente
   Approval `USER` pendente por um resolvedor transacional compartilhado com o
@@ -15,7 +26,7 @@
   idempotência e versões do alvo e da Task. Divergência ou erro falham fechado.
 - `SYSTEM` e aprovação de `SENSITIVE_ACTION` não são decididos pela rota.
   `always_human`, merge, deploy, autonomia, enforcement e estados canônicos não
-  mudam. Criar demanda, pausar, priorizar e cancelar permanecem em C2b.
+  mudam. `request_change` pré-execução fica oculto somente na UI.
 
 - ADR-026 permanece Proposto: retrabalho pós-execução é limitado por rejeições
   consecutivas com o mesmo `reconciliationReason`; motivo diferente ou review

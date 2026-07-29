@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ApprovalDecisionClient } from "./approval-decision.js";
 import { App } from "./App.js";
 import { DemandWorkspaceReadError, type DemandWorkspaceClient } from "./demand-workspace.js";
+import type { CancelDashboardTaskClient } from "./task-commands.js";
 import {
   demandWorkspaceFixture,
   emptyDemandWorkspaceFixture,
@@ -19,6 +20,7 @@ const route = `/demand/${demandWorkspaceFixture.header.taskId}`;
 function renderWorkspace(
   client: DemandWorkspaceClient,
   approvalDecisionClient?: ApprovalDecisionClient,
+  cancelTaskClient?: CancelDashboardTaskClient,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -28,6 +30,7 @@ function renderWorkspace(
       <MemoryRouter initialEntries={[route]}>
         <App
           {...(approvalDecisionClient === undefined ? {} : { approvalDecisionClient })}
+          {...(cancelTaskClient === undefined ? {} : { cancelTaskClient })}
           demandWorkspaceClient={client}
         />
       </MemoryRouter>
@@ -46,7 +49,7 @@ describe("Demand Workspace UI", () => {
     expect(screen.getByText("Carregando a projeção segura da demanda…")).toBeInTheDocument();
   });
 
-  it("renders all read-only workflow sections from the validated contract", async () => {
+  it("renders the workflow sections and the governed cancellation control", async () => {
     renderWorkspace(resolvedClient(demandWorkspaceFixture));
 
     expect(
@@ -68,7 +71,8 @@ describe("Demand Workspace UI", () => {
     }
     expect(screen.getByText("pnpm, git")).toBeInTheDocument();
     expect(screen.getByText(/5 arquivo\(s\)/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /aprovar|cancelar|pausar|editar/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancelar demanda" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pausar|editar/i })).toBeNull();
   });
 
   it("renders explicit empty states without inventing records", async () => {
@@ -150,6 +154,61 @@ describe("Demand Workspace UI", () => {
       expect(submitted?.approvalId).toBe("11111111-1111-4111-8111-111111111111");
       expect(submitted?.request.comment).toBe("Ajuste os critérios.");
       expect(submitted?.request.decision).toBe("request_change");
+    });
+  });
+
+  it("hides request_change for pre-execution approvals without changing approve or reject", async () => {
+    const baseApproval = demandWorkspaceFixture.approvals[0];
+    if (baseApproval === undefined) throw new Error("approval fixture missing");
+    renderWorkspace(
+      resolvedClient({
+        ...demandWorkspaceFixture,
+        approvals: [
+          {
+            ...baseApproval,
+            approvalId: "11111111-1111-4111-8111-111111111112",
+            canDecide: true,
+            status: "PENDING",
+            type: "PRE_EXECUTION",
+          },
+        ],
+      }),
+    );
+
+    expect(await screen.findByRole("button", { name: "Aprovar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rejeitar" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pedir alteração" })).toBeNull();
+  });
+
+  it("confirms cancellation with the current task version through the governed client", async () => {
+    const cancelTaskClient = vi.fn<CancelDashboardTaskClient>().mockResolvedValue({
+      idempotentReplay: false,
+      mode: "cooperative",
+      task: {
+        id: demandWorkspaceFixture.header.taskId,
+        projectId: "atlas",
+        state: "CANCEL_REQUESTED",
+        version: 8,
+      },
+    });
+    renderWorkspace(resolvedClient(demandWorkspaceFixture), undefined, cancelTaskClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar demanda" }));
+    expect(screen.getByText(/cancelamento será cooperativo/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Motivo (opcional)"), {
+      target: { value: "Não é mais necessário." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+
+    await waitFor(() => {
+      expect(cancelTaskClient).toHaveBeenCalledOnce();
+      expect(cancelTaskClient.mock.calls[0]?.[0]).toMatchObject({
+        request: {
+          reason: "Não é mais necessário.",
+          taskVersion: demandWorkspaceFixture.header.taskVersion,
+        },
+        taskId: demandWorkspaceFixture.header.taskId,
+      });
     });
   });
 

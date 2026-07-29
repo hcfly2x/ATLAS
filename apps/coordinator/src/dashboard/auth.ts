@@ -9,12 +9,15 @@ export const dashboardPermissions = [
   "dashboard:audit:read",
   "dashboard:deliveries:read",
   "dashboard:demand:read",
+  "dashboard:demand:create",
   "dashboard:memory:read",
   "dashboard:mission-control:read",
   "dashboard:overview:read",
+  "dashboard:projects:read",
   "dashboard:session:read",
   "dashboard:shell:read",
   "dashboard:tasks:read",
+  "dashboard:task:cancel",
 ] as const;
 
 export type DashboardPermission = (typeof dashboardPermissions)[number];

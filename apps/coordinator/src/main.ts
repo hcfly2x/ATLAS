@@ -21,7 +21,9 @@ import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
 import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashboard/auth.js";
 import { DashboardApprovalService } from "./dashboard/approval-service.js";
+import { DashboardTaskCommandService } from "./dashboard/task-command-service.js";
 import { PrismaApprovalDecisionService } from "./approvals/service.js";
+import { TaskIntakeService } from "./tasks/intake.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
 import { PrismaTelegramResultStore, TelegramResultPublisher } from "./telegram/result-publisher.js";
 import { PrismaTelegramReworkStore, TelegramReworkPublisher } from "./telegram/rework-publisher.js";
@@ -64,10 +66,6 @@ const dashboardAuth =
       });
 const dashboardService =
   dashboardAuth === undefined ? undefined : new DashboardService(prisma, { deliverySlaMs });
-const dashboardApprovalService =
-  dashboardAuth === undefined
-    ? undefined
-    : new DashboardApprovalService(new PrismaApprovalDecisionService(prisma));
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");
@@ -144,31 +142,42 @@ function logAutomaticSupervisionError(
   );
 }
 
+const taskIntake = new TaskIntakeService({
+  onTaskCreated: (taskId, correlationId) => {
+    if (supervisorService === undefined) {
+      logAutomaticSupervisionError(
+        "warn",
+        { correlationId, taskId },
+        "task created without supervisor runtime",
+      );
+      return;
+    }
+    void supervisorService.processTask(taskId, correlationId).catch((error: unknown) => {
+      logAutomaticSupervisionError(
+        "error",
+        {
+          correlationId,
+          error: error instanceof Error ? error.message : "unknown error",
+          taskId,
+        },
+        "automatic task supervision failed",
+      );
+    });
+  },
+  taskStore,
+});
+const dashboardApprovalService =
+  dashboardAuth === undefined
+    ? undefined
+    : new DashboardApprovalService(new PrismaApprovalDecisionService(prisma));
+const dashboardTaskCommandService =
+  dashboardAuth === undefined ? undefined : new DashboardTaskCommandService(taskIntake, taskStore);
+
 const telegramGateway = telegramEnabled
   ? new TelegramGateway({
       allowedUserId: BigInt(telegramAllowedUserId),
-      onTaskCreated: (taskId, correlationId) => {
-        if (supervisorService === undefined) {
-          logAutomaticSupervisionError(
-            "warn",
-            { correlationId, taskId },
-            "task created without supervisor runtime",
-          );
-          return;
-        }
-        void supervisorService.processTask(taskId, correlationId).catch((error: unknown) => {
-          logAutomaticSupervisionError(
-            "error",
-            {
-              correlationId,
-              error: error instanceof Error ? error.message : "unknown error",
-              taskId,
-            },
-            "automatic task supervision failed",
-          );
-        });
-      },
       store: new PrismaTelegramStore(prisma),
+      taskIntake,
       taskStore,
     })
   : undefined;
@@ -196,6 +205,7 @@ const app = createCoordinatorApp({
     ? {}
     : {
         ...(dashboardApprovalService === undefined ? {} : { dashboardApprovalService }),
+        ...(dashboardTaskCommandService === undefined ? {} : { dashboardTaskCommandService }),
         dashboardAuth,
         dashboardRemoteAccessEnabled,
         dashboardService,

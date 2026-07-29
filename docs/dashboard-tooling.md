@@ -131,9 +131,9 @@ Sem ADR próprio, também não usar:
 
 ## Guardrails de produto e segurança
 
-- O frontend permanece somente leitura até a Trilha C.
-- Escrita só entra depois de autenticação, RBAC, auditoria e autorização
-  próprios, reutilizando `Approval`, `always_human` e a máquina de estados.
+- Escrita entra somente por fases autorizadas da Trilha C, depois de
+  autenticação, RBAC e auditoria próprios, reutilizando `Approval`,
+  `always_human`, intake e máquina de estados canônicos.
 - A UI usa os mesmos controles existentes de autenticação e exposição.
 - Não expor prompt, resposta, payload, `messageText`, destino, segredo ou
   conteúdo cru.
