@@ -82,7 +82,15 @@ function json(value: unknown): Prisma.InputJsonValue {
 }
 
 export class PrismaTaskCoreStore implements TaskCoreStore {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient | Prisma.TransactionClient) {}
+
+  private transaction<T>(
+    operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return "$transaction" in this.prisma
+      ? this.prisma.$transaction(operation)
+      : operation(this.prisma);
+  }
 
   async createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
     const existing = await this.prisma.task.findUnique({
@@ -109,7 +117,7 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
     }
 
     try {
-      return await this.prisma.$transaction(async (transaction) => {
+      return await this.transaction(async (transaction) => {
         if (input.requireActiveProject === true) {
           const project = await transaction.project.findFirst({
             where: { id: input.projectId, status: "ACTIVE" },
@@ -205,7 +213,7 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
   }
 
   async commitTransition(input: CommitTransitionInput): Promise<TaskTransitionResult> {
-    return this.prisma.$transaction(async (transaction) => {
+    return this.transaction(async (transaction) => {
       const updated = await transaction.task.updateMany({
         where: {
           id: input.taskId,
@@ -286,8 +294,18 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
           correlationId: input.correlationId,
           idempotencyKey,
           payload: json({
+            ...(input.actualVersion === undefined ? {} : { actualVersion: input.actualVersion }),
+            expectedVersion: input.expectedVersion,
             fromState: input.fromState,
             reason: input.reason,
+            ...(input.reasonCode === undefined ? {} : { reasonCode: input.reasonCode }),
+            ...(input.requestHash === undefined ? {} : { requestHash: input.requestHash }),
+            resultCode:
+              input.reason === "version_conflict"
+                ? "TASK_VERSION_CONFLICT"
+                : input.reason === "invalid_transition"
+                  ? "TASK_TRANSITION_INVALID"
+                  : "TASK_FAILURE_STAGE_REQUIRED",
             toState: input.toState,
           }),
           projectId: input.projectId,

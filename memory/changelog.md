@@ -10,12 +10,19 @@
   `CANCEL_REQUESTED`.
 - As rotas exigem sessão, RBAC específico e CSRF. Auditoria usa ator `USER` e
   omite objetivo, motivo, payload e segredo.
+- A correção pós-review adiciona recibo idempotente mínimo e transacional para
+  aceites e rejeições. Chaves ficam vinculadas mesmo quando Task ou Project não
+  existem; replay idêntico reproduz o código seguro e payload divergente nunca
+  alcança uma nova mutação.
+- Conflito de cancelamento força refetch do Workspace e abre nova tentativa
+  lógica; o modal confirma Task, projeto, estado e modalidade. A suíte cobre os
+  14 estados da matriz.
 - A Home recebe o formulário Criar demanda; o Workspace recebe cancelamento
   contextual e `taskVersion`. `request_change` aparece somente para resultado,
   sem alterar o resolvedor canônico.
-- ADR-028 permanece Proposto. Não há migração, estado novo ou mudança em worker,
-  lease/fencing, enforcement, autonomia, `always_human`, políticas ou
-  `.atlas/**`; C2c continua separada.
+- ADR-028 permanece Proposto. Há somente uma migração aditiva de recibos; não há
+  estado novo ou mudança em worker, lease/fencing, enforcement, autonomia,
+  `always_human`, políticas ou `.atlas/**`; C2c continua separada.
 
 ## Unreleased — Dashboard C2·Serving
 

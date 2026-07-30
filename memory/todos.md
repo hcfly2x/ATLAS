@@ -9,8 +9,11 @@
   a antiga página inline.
 - Confirmar em staging que sessão expirada, falta de permissão e CSRF
   ausente/inválido não produzem mutação.
-- Revisar empiricamente criação e cancelamento: replay idêntico, conflito
-  divergente, projeto ativo, versões concorrentes e auditoria sem conteúdo cru.
+- Revalidar empiricamente a correção de criação e cancelamento: recibo atômico,
+  replay de rejeição, conflito divergente após rejeição, Task/Project ausente,
+  versões concorrentes e auditoria sem conteúdo cru.
+- Definir retenção operacional dos recibos de comandos da Dashboard em fase
+  própria; nenhuma limpeza automática é autorizada nesta entrega.
 - Validar em staging que criação nova aciona o supervisor uma vez e que
   cancelamento ativo passa por `CANCEL_REQUESTED` até o worker confirmar
   `CANCELLED`.

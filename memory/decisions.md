@@ -9,6 +9,10 @@
   worker, lease e fencing.
 - A auditoria `USER` persiste hash e códigos seguros, não objetivo ou motivo.
   C2c continua fase própria.
+- A idempotência dos comandos da Dashboard usa recibo mínimo e transacional:
+  aceite e rejeição consomem a chave; replay idêntico reproduz o resultado
+  seguro e divergência nunca alcança uma mutação. A entidade não é uma segunda
+  máquina de estados e não exige Task ou Project existente.
 
 - ADR-029 permanece Proposto: o coordinator serve o build React/Vite em
   `/dashboard`, com shell e deep links autenticados, assets hasheados e

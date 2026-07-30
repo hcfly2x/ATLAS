@@ -302,6 +302,7 @@ permissão; o catch-all não sombreia APIs ou assets inexistentes.
 
 A C2b1 foi autorizada e implementada: criação e cancelamento reutilizam o intake
 e a máquina de estados canônicos, com sessão, RBAC, CSRF, idempotência e
-auditoria. Cancelamento ativo é cooperativo. A UI não oferece
+auditoria. Um recibo transacional mínimo vincula a chave também aos resultados
+rejeitados, sem conteúdo bruto. Cancelamento ativo é cooperativo. A UI não oferece
 `request_change` para Approval pré-execução. C2c fica reservada a pausa,
 retomada e prioridade.

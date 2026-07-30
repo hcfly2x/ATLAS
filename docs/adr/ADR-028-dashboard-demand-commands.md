@@ -36,11 +36,24 @@ idêntico reproduz o efeito; reuso divergente é conflito. A auditoria persiste 
 hash, ator, correlação, transição e códigos seguros, nunca objetivo, motivo,
 payload, prompt, resposta, credencial, token ou argumentos crus.
 
+Uma revisão empírica mostrou que `AuditEvent` sozinho não consegue vincular uma
+chave quando a Task ou o Project ainda não existem, pois suas relações exigem
+um Project persistido. Por isso, criar e cancelar usam um recibo mínimo de
+comando, independente desses alvos. O recibo guarda chave, hash, ator,
+correlação, tipo, referências opcionais, versão esperada, status e código
+seguro. Recibo, mutação canônica e resultado são confirmados na mesma transação.
+Uma rejeição também consome a chave: pedido idêntico reproduz o mesmo código e
+pedido divergente falha fechado. Nenhum texto do objetivo ou motivo é guardado.
+
 ## Consequências
 
 - A Dashboard passa a operar criação e cancelamento sem criar fonte de verdade
   paralela ao Telegram ou à máquina de estados.
-- Não há entidade, migração ou estado canônico novo.
+- Há uma entidade e migração aditivas somente para recibos idempotentes da
+  Dashboard; ela não referencia obrigatoriamente Task ou Project e não cria
+  segunda máquina de estados.
+- Falha antes do commit atômico não consome a chave nem produz mutação; após o
+  commit, aceite ou rejeição são reproduzíveis.
 - O cabeçalho do Workspace expõe `taskVersion` para concorrência otimista.
 - O cancelamento cooperativo não interrompe lease, fencing ou execução à força.
 - Pausa, retomada e prioridade permanecem reservadas à C2c.

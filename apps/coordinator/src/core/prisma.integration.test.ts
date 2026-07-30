@@ -35,6 +35,7 @@ import {
   DashboardTaskCommandError,
   DashboardTaskCommandService,
 } from "../dashboard/task-command-service.js";
+import { PrismaDashboardCommandReceiptStore } from "../dashboard/command-receipt-store.js";
 import { TaskIntakeService } from "../tasks/intake.js";
 import {
   CodexMonthlyBudgetExceededError,
@@ -45,6 +46,7 @@ import {
 
 const prisma = new PrismaClient();
 const store = new PrismaTaskCoreStore(prisma);
+const dashboardCommandReceipts = new PrismaDashboardCommandReceiptStore(prisma);
 const machine = new TaskStateMachine(store);
 const telegramStore = new PrismaTelegramStore(prisma);
 const dashboardApprovalService = new DashboardApprovalService(
@@ -277,17 +279,37 @@ describe("Prisma core persistence", () => {
       onTaskCreated: (taskId) => supervised.push(taskId),
       taskStore: store,
     });
-    const service = new DashboardTaskCommandService(intake, store);
+    const service = new DashboardTaskCommandService(intake, dashboardCommandReceipts);
+    const missingProjectKey = randomUUID();
     await expect(
       service.createDemand(
         {
-          idempotencyKey: randomUUID(),
+          idempotencyKey: missingProjectKey,
           objective: "must not create",
           projectId: `missing-${randomUUID()}`,
         },
         "dashboard-missing-project",
       ),
     ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_PROJECT_NOT_ELIGIBLE"));
+    await expect(
+      service.createDemand(
+        {
+          idempotencyKey: missingProjectKey,
+          objective: "different request must remain blocked",
+          projectId,
+        },
+        "dashboard-missing-project-conflict",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+    const missingProjectReceipt = await prisma.dashboardCommandReceipt.findUniqueOrThrow({
+      where: { idempotencyKey: `dashboard:command:${missingProjectKey}` },
+    });
+    expect(missingProjectReceipt).toMatchObject({
+      commandType: "CREATE_DEMAND",
+      resultCode: "DASHBOARD_PROJECT_NOT_ELIGIBLE",
+      status: "REJECTED",
+    });
+    expect(JSON.stringify(missingProjectReceipt)).not.toContain("must not create");
     const createKey = randomUUID();
     const createRequest = {
       idempotencyKey: createKey,
@@ -366,6 +388,121 @@ describe("Prisma core persistence", () => {
       mode: "cooperative",
       task: { state: "CANCEL_REQUESTED", version: 6 },
     });
+
+    const rejectedRunning = await service.createDemand(
+      {
+        idempotencyKey: randomUUID(),
+        objective: "rejected cancellation fixture",
+        projectId,
+      },
+      "dashboard-rejected-running",
+    );
+    await prisma.task.update({
+      where: { id: rejectedRunning.task.id },
+      data: { state: "RUNNING", version: 7 },
+    });
+    const rejectedCancelKey = randomUUID();
+    const staleCancelRequest = {
+      idempotencyKey: rejectedCancelKey,
+      reason: "SECRET_FIRST_REJECTED_REASON",
+      taskVersion: 6,
+    };
+    await expect(
+      service.cancelTask(rejectedRunning.task.id, staleCancelRequest, "dashboard-stale-cancel"),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_VERSION_CONFLICT"));
+    await expect(
+      service.cancelTask(
+        rejectedRunning.task.id,
+        {
+          idempotencyKey: rejectedCancelKey,
+          reason: "different payload",
+          taskVersion: 7,
+        },
+        "dashboard-stale-cancel-divergent",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+    await expect(
+      service.cancelTask(
+        rejectedRunning.task.id,
+        staleCancelRequest,
+        "dashboard-stale-cancel-replay",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_VERSION_CONFLICT"));
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: rejectedRunning.task.id } }),
+    ).resolves.toMatchObject({ state: "RUNNING", version: 7 });
+    const rejectedCancelReceipt = await prisma.dashboardCommandReceipt.findUniqueOrThrow({
+      where: { idempotencyKey: `dashboard:command:${rejectedCancelKey}` },
+    });
+    expect(rejectedCancelReceipt).toMatchObject({
+      commandType: "CANCEL_TASK",
+      expectedVersion: 6,
+      resultCode: "TASK_VERSION_CONFLICT",
+      status: "REJECTED",
+      targetTaskId: rejectedRunning.task.id,
+    });
+    expect(JSON.stringify(rejectedCancelReceipt)).not.toContain("SECRET_FIRST_REJECTED_REASON");
+    const rejectedCancelAudit = await prisma.auditEvent.findUniqueOrThrow({
+      where: { idempotencyKey: `rejected:dashboard:cancel:${rejectedCancelKey}` },
+    });
+    expect(rejectedCancelAudit.payload).toMatchObject({
+      actualVersion: 7,
+      expectedVersion: 6,
+      reasonCode: "owner_cancelled_with_reason",
+      requestHash: rejectedCancelReceipt.requestHash,
+      resultCode: "TASK_VERSION_CONFLICT",
+    });
+    expect(JSON.stringify(rejectedCancelAudit.payload)).not.toContain(
+      "SECRET_FIRST_REJECTED_REASON",
+    );
+
+    const missingTaskKey = randomUUID();
+    const missingTaskId = randomUUID();
+    const missingTaskRequest = {
+      idempotencyKey: missingTaskKey,
+      taskVersion: 0,
+    };
+    await expect(
+      service.cancelTask(missingTaskId, missingTaskRequest, "dashboard-missing-task"),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_NOT_FOUND"));
+    await expect(
+      service.cancelTask(missingTaskId, missingTaskRequest, "dashboard-missing-task-replay"),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_NOT_FOUND"));
+    await expect(
+      service.cancelTask(
+        rejectedRunning.task.id,
+        { idempotencyKey: missingTaskKey, taskVersion: 7 },
+        "dashboard-missing-task-key-divergent",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+
+    const terminal = await service.createDemand(
+      {
+        idempotencyKey: randomUUID(),
+        objective: "terminal cancellation fixture",
+        projectId,
+      },
+      "dashboard-terminal",
+    );
+    await prisma.task.update({
+      where: { id: terminal.task.id },
+      data: { state: "COMPLETED", version: 3 },
+    });
+    const terminalKey = randomUUID();
+    await expect(
+      service.cancelTask(
+        terminal.task.id,
+        { idempotencyKey: terminalKey, taskVersion: 3 },
+        "dashboard-terminal-cancel",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_CANCEL_CONFLICT"));
+    await expect(
+      service.cancelTask(
+        rejectedRunning.task.id,
+        { idempotencyKey: terminalKey, taskVersion: 7 },
+        "dashboard-terminal-key-other-task",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
   });
 
   it("enforces immutable Specification versions and Execution linkage", async () => {

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ApprovalDecisionClient } from "./approval-decision.js";
 import { App } from "./App.js";
 import { DemandWorkspaceReadError, type DemandWorkspaceClient } from "./demand-workspace.js";
-import type { CancelDashboardTaskClient } from "./task-commands.js";
+import { DashboardCommandError, type CancelDashboardTaskClient } from "./task-commands.js";
 import {
   demandWorkspaceFixture,
   emptyDemandWorkspaceFixture,
@@ -25,7 +25,7 @@ function renderWorkspace(
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
         <App
@@ -36,6 +36,7 @@ function renderWorkspace(
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...rendered, queryClient };
 }
 
 function resolvedClient(data: DemandWorkspaceResponse): DemandWorkspaceClient {
@@ -195,6 +196,13 @@ describe("Demand Workspace UI", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Cancelar demanda" }));
     expect(screen.getByText(/cancelamento será cooperativo/i)).toBeInTheDocument();
+    expect(screen.getAllByText(demandWorkspaceFixture.header.taskId)).not.toHaveLength(0);
+    expect(
+      screen.getByText(
+        `${demandWorkspaceFixture.header.project.name} (${demandWorkspaceFixture.header.project.id})`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(demandWorkspaceFixture.header.taskState)).not.toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Motivo (opcional)"), {
       target: { value: "Não é mais necessário." },
     });
@@ -210,6 +218,33 @@ describe("Demand Workspace UI", () => {
         taskId: demandWorkspaceFixture.header.taskId,
       });
     });
+  });
+
+  it("refetches the Workspace after conflict and starts a new logical attempt", async () => {
+    const workspaceClient = vi
+      .fn<DemandWorkspaceClient>()
+      .mockResolvedValue(demandWorkspaceFixture);
+    const cancelTaskClient = vi
+      .fn<CancelDashboardTaskClient>()
+      .mockRejectedValue(new DashboardCommandError("conflict"));
+    renderWorkspace(workspaceClient, undefined, cancelTaskClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar demanda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    await screen.findByText(
+      "A demanda mudou. O Workspace foi atualizado antes de tentar novamente.",
+    );
+    await waitFor(() => {
+      expect(workspaceClient.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    await waitFor(() => {
+      expect(cancelTaskClient).toHaveBeenCalledTimes(2);
+    });
+    expect(cancelTaskClient.mock.calls[0]?.[0].request.idempotencyKey).not.toBe(
+      cancelTaskClient.mock.calls[1]?.[0].request.idempotencyKey,
+    );
   });
 
   it("has no accessibility violations in the populated Workspace", async () => {

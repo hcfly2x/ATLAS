@@ -83,8 +83,10 @@ pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a
 máquina de estados: estados pré-execução e `FAILED` terminam em `CANCELLED`;
 estados ativos passam por `CANCEL_REQUESTED` e o worker continua responsável
 pelo encerramento cooperativo. As rotas exigem sessão, RBAC, CSRF, idempotência
-vinculada a hash e versão otimista. C2c (pausa/retomada/prioridade) permanece
-separada.
+vinculada a hash e versão otimista. Um recibo mínimo, aditivo e transacional
+vincula a chave tanto ao aceite quanto à rejeição, inclusive sem Task ou Project
+existente, sem guardar objetivo ou motivo bruto. Conflitos atualizam o Workspace
+antes de uma nova tentativa. C2c (pausa/retomada/prioridade) permanece separada.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a

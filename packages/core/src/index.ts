@@ -47,11 +47,15 @@ export interface CreateTaskResult {
 }
 
 export interface RejectedTransition {
+  readonly actualVersion?: number;
   readonly actor: AuditActor;
   readonly correlationId: string;
+  readonly expectedVersion: number;
   readonly fromState: TaskState;
   readonly idempotencyKey: string;
   readonly projectId: string;
+  readonly reasonCode?: string;
+  readonly requestHash?: string;
   readonly reason: "failure_stage_required" | "invalid_transition" | "version_conflict";
   readonly taskId: string;
   readonly toState: TaskState;
@@ -164,6 +168,7 @@ export class TaskStateMachine {
     if (task.version !== command.expectedVersion) {
       await this.store.recordRejectedTransition({
         ...command,
+        actualVersion: task.version,
         fromState: task.state,
         projectId: task.projectId,
         reason: "version_conflict",

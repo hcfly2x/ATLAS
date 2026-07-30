@@ -133,6 +133,17 @@ enum DeliveryOutboxStatus {
   DELIVERY_FAILED
 }
 
+enum DashboardCommandReceiptStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum DashboardCommandType {
+  CREATE_DEMAND
+  CANCEL_TASK
+}
+
 model Project {
   id                    String                 @id
   name                  String
@@ -459,6 +470,25 @@ model AuditEvent {
   @@index([projectId, createdAt])
   @@index([taskId, createdAt])
   @@map("audit_events")
+}
+
+model DashboardCommandReceipt {
+  idempotencyKey   String                        @id @map("idempotency_key")
+  commandType      DashboardCommandType          @map("command_type")
+  requestHash      String                        @map("request_hash")
+  actor            AuditActor
+  correlationId    String                        @map("correlation_id")
+  requestedProject String?                       @map("requested_project")
+  targetTaskId     String?                       @map("target_task_id")
+  expectedVersion  Int?                          @map("expected_version")
+  status           DashboardCommandReceiptStatus @default(PENDING)
+  resultCode       String?                       @map("result_code")
+  resultPayload    Json?                         @map("result_payload")
+  createdAt        DateTime                      @default(now()) @map("created_at")
+  updatedAt        DateTime                      @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("dashboard_command_receipts")
 }
 
 model MemoryItem {

@@ -177,7 +177,15 @@ test("navigates to the Workspace and confirms cooperative cancellation", async (
   await expect(page.getByRole("button", { name: "Cancelar demanda" })).toBeVisible();
   await expect(page.getByRole("button", { name: /pausar|editar/i })).toHaveCount(0);
   await page.getByRole("button", { name: "Cancelar demanda" }).click();
-  await expect(page.getByRole("dialog").getByText(/cancelamento será cooperativo/i)).toBeVisible();
+  const cancelDialog = page.getByRole("dialog");
+  await expect(cancelDialog.getByText("cooperativo", { exact: true })).toBeVisible();
+  await expect(cancelDialog.getByText(demandWorkspaceFixture.header.taskId)).toBeVisible();
+  await expect(
+    cancelDialog.getByText(
+      `${demandWorkspaceFixture.header.project.name} (${demandWorkspaceFixture.header.project.id})`,
+    ),
+  ).toBeVisible();
+  await expect(cancelDialog.getByText(demandWorkspaceFixture.header.taskState)).toBeVisible();
   await page.getByRole("button", { name: "Confirmar cancelamento" }).click();
 
   await page.addScriptTag({ path: axePath });

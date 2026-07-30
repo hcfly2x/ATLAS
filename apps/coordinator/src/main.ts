@@ -22,6 +22,7 @@ import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
 import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashboard/auth.js";
 import { DashboardApprovalService } from "./dashboard/approval-service.js";
 import { DashboardTaskCommandService } from "./dashboard/task-command-service.js";
+import { PrismaDashboardCommandReceiptStore } from "./dashboard/command-receipt-store.js";
 import { PrismaApprovalDecisionService } from "./approvals/service.js";
 import { TaskIntakeService } from "./tasks/intake.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
@@ -171,7 +172,9 @@ const dashboardApprovalService =
     ? undefined
     : new DashboardApprovalService(new PrismaApprovalDecisionService(prisma));
 const dashboardTaskCommandService =
-  dashboardAuth === undefined ? undefined : new DashboardTaskCommandService(taskIntake, taskStore);
+  dashboardAuth === undefined
+    ? undefined
+    : new DashboardTaskCommandService(taskIntake, new PrismaDashboardCommandReceiptStore(prisma));
 
 const telegramGateway = telegramEnabled
   ? new TelegramGateway({

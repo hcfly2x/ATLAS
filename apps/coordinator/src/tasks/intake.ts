@@ -11,8 +11,12 @@ export class TaskIntakeService {
   async create(input: CreateTaskInput): Promise<CreateTaskResult> {
     const result = await this.options.taskStore.createTask(input);
     if (!result.idempotentReplay) {
-      this.options.onTaskCreated?.(result.task.id, input.correlationId);
+      this.notifyTaskCreated(result.task.id, input.correlationId);
     }
     return result;
+  }
+
+  notifyTaskCreated(taskId: string, correlationId: string): void {
+    this.options.onTaskCreated?.(taskId, correlationId);
   }
 }

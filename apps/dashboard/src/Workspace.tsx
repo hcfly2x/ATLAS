@@ -165,6 +165,15 @@ function CancelTask({
   const disabled = disabledStates.has(data.header.taskState);
   const mutation = useMutation({
     mutationFn: client,
+    onError: async (error) => {
+      if (error instanceof DashboardCommandError && error.code === "conflict") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
+          queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+        ]);
+        idempotencyKey.current = crypto.randomUUID();
+      }
+    },
     onSuccess: async () => {
       setOpen(false);
       await Promise.all([
@@ -232,10 +241,26 @@ function CancelTask({
         <form onSubmit={submit}>
           <p className="kicker">Confirmação humana</p>
           <h3 id="cancel-confirm-title">Confirmar cancelamento</h3>
-          <p>
-            Estado atual: <strong>{data.header.taskState}</strong>. O cancelamento será{" "}
-            <strong>{mode}</strong>.
-          </p>
+          <dl className="detail-list">
+            <div>
+              <dt>Task</dt>
+              <dd>{data.header.taskId}</dd>
+            </div>
+            <div>
+              <dt>Projeto</dt>
+              <dd>
+                {data.header.project.name} ({data.header.project.id})
+              </dd>
+            </div>
+            <div>
+              <dt>Estado atual</dt>
+              <dd>{data.header.taskState}</dd>
+            </div>
+            <div>
+              <dt>Modalidade</dt>
+              <dd>{mode}</dd>
+            </div>
+          </dl>
           <label>
             Motivo (opcional)
             <textarea
@@ -253,7 +278,7 @@ function CancelTask({
           {mutation.isError ? (
             <p role="alert">
               {mutation.error instanceof DashboardCommandError && mutation.error.code === "conflict"
-                ? "A demanda mudou. Atualize o Workspace antes de cancelar."
+                ? "A demanda mudou. O Workspace foi atualizado antes de tentar novamente."
                 : "O cancelamento não foi aplicado."}
             </p>
           ) : null}
