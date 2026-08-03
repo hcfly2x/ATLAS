@@ -2,10 +2,14 @@
 
 ## Dashboard — após C2b1
 
-- Revisar integralmente o ADR-030 e o esboço aditivo da C2c antes de autorizar
-  qualquer migration ou comportamento.
-- Se o desenho for aprovado, caracterizar a topologia e endurecer os dois
-  caminhos de claim com CAS transacional antes de expor pausa de `QUEUED`.
+- Revisar empiricamente a rede C2c-1: matriz completa, ausência de `PAUSED`,
+  forma exata dos dois claims, FIFO, concorrência de claim/Approval e recibos
+  aceitos, rejeitados e `PENDING` em PostgreSQL real.
+- Manter a assimetria caracterizada sem correção nesta entrega: Execution
+  pré-criada atualiza Task por ID; Task nua usa CAS de `state+version`.
+- Autorizar separadamente o passo 2 (schema/core) antes de adicionar `PAUSED`,
+  `pausedFromState`, `priority`, migration ou arestas. O hardening dos dois
+  claims permanece exclusivamente no passo 3.
 - Implementar C2c somente em entregas separadas: schema/core, scheduler,
   comandos e por último read-model/UI; cada etapa exige revisão completa.
 - Provar em PostgreSQL a corrida `pause × claim`, a corrida `pause × Approval`,

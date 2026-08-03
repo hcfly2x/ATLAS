@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { taskStateSchema, type TaskState } from "@atlas/shared";
+
 import type {
   CommitTransitionInput,
   RejectedTransition,
@@ -61,13 +63,61 @@ const baseTask: TaskSnapshot = {
   version: 0,
 };
 
+const canonicalTransitions = {
+  NEW: ["NORMALIZING", "CANCELLED"],
+  NORMALIZING: ["ROUTING", "FAILED", "CANCELLED"],
+  ROUTING: ["SPECIFYING", "FAILED", "CANCELLED"],
+  SPECIFYING: ["WAITING_APPROVAL", "QUEUED", "FAILED", "CANCELLED"],
+  WAITING_APPROVAL: ["QUEUED", "CANCELLED"],
+  QUEUED: ["RUNNING", "FAILED", "CANCELLED"],
+  RUNNING: ["TESTING", "FAILED", "CANCEL_REQUESTED"],
+  TESTING: ["WAITING_RESULT_APPROVAL", "FINALIZING", "FAILED", "CANCEL_REQUESTED"],
+  WAITING_RESULT_APPROVAL: ["FINALIZING", "SPECIFYING", "CANCEL_REQUESTED"],
+  FINALIZING: ["COMPLETED", "FAILED", "CANCEL_REQUESTED"],
+  CANCEL_REQUESTED: ["CANCELLED", "FAILED"],
+  FAILED: ["QUEUED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+} as const satisfies Record<TaskState, readonly TaskState[]>;
+
 describe("TaskStateMachine", () => {
-  it("implements the canonical transition graph", () => {
-    expect(canTransition("NEW", "NORMALIZING")).toBe(true);
-    expect(canTransition("WAITING_RESULT_APPROVAL", "SPECIFYING")).toBe(true);
-    expect(canTransition("TESTING", "FINALIZING")).toBe(true);
-    expect(canTransition("FINALIZING", "COMPLETED")).toBe(true);
-    expect(canTransition("COMPLETED", "NEW")).toBe(false);
+  it("characterizes every accepted and rejected edge in the canonical graph", async () => {
+    for (const fromState of taskStateSchema.options) {
+      for (const toState of taskStateSchema.options) {
+        const accepted = canonicalTransitions[fromState].some((candidate) => candidate === toState);
+        expect(canTransition(fromState, toState), `${fromState} -> ${toState}`).toBe(accepted);
+        const task = { ...baseTask, state: fromState };
+        const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
+        const transition = new TaskStateMachine(store).transition({
+          actor: "system",
+          correlationId: `matrix-${fromState}-${toState}`,
+          expectedVersion: 0,
+          ...(toState === "FAILED" ? { failureStage: "characterization" } : {}),
+          idempotencyKey: `matrix-${fromState}-${toState}`,
+          taskId: task.id,
+          toState,
+        });
+        if (accepted) {
+          await expect(transition, `${fromState} -> ${toState}`).resolves.toMatchObject({
+            fromState,
+            task: { state: toState, version: 1 },
+          });
+          expect(store.rejected).toEqual([]);
+        } else {
+          await expect(transition, `${fromState} -> ${toState}`).rejects.toBeInstanceOf(
+            InvalidTaskTransitionError,
+          );
+          expect(store.rejected).toEqual([
+            expect.objectContaining({ fromState, reason: "invalid_transition", toState }),
+          ]);
+        }
+      }
+    }
+  });
+
+  it("characterizes the current state vocabulary without PAUSED", () => {
+    expect([...taskStateSchema.options].sort()).toEqual(Object.keys(canonicalTransitions).sort());
+    expect(taskStateSchema.safeParse("PAUSED").success).toBe(false);
   });
 
   it("changes state and records an idempotent result", async () => {
@@ -104,7 +154,13 @@ describe("TaskStateMachine", () => {
         toState: "COMPLETED",
       }),
     ).rejects.toBeInstanceOf(InvalidTaskTransitionError);
-    expect(store.rejected).toHaveLength(1);
+    expect(store.rejected).toEqual([
+      expect.objectContaining({
+        fromState: "NEW",
+        reason: "invalid_transition",
+        toState: "COMPLETED",
+      }),
+    ]);
   });
 
   it("rejects stale versions and audits the conflict", async () => {
@@ -123,7 +179,13 @@ describe("TaskStateMachine", () => {
         toState: "NORMALIZING",
       }),
     ).rejects.toBeInstanceOf(TaskVersionConflictError);
-    expect(store.rejected).toHaveLength(1);
+    expect(store.rejected).toEqual([
+      expect.objectContaining({
+        actualVersion: 2,
+        expectedVersion: 1,
+        reason: "version_conflict",
+      }),
+    ]);
   });
 
   it("requires failureStage for terminal failures", async () => {
