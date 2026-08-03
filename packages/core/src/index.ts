@@ -1,10 +1,12 @@
-import type { AuditActor, TaskState } from "@atlas/shared";
+import type { AuditActor, TaskPauseOrigin, TaskPriority, TaskState } from "@atlas/shared";
 
 export * from "./enforcement.js";
 
 export interface TaskSnapshot {
   readonly id: string;
   readonly projectId: string;
+  readonly pausedFromState?: TaskPauseOrigin;
+  readonly priority?: TaskPriority;
   readonly state: TaskState;
   readonly version: number;
   readonly failureStage?: string;
@@ -63,6 +65,7 @@ export interface RejectedTransition {
 
 export interface CommitTransitionInput extends TransitionTaskCommand {
   readonly fromState: TaskState;
+  readonly pausedFromState?: TaskPauseOrigin | null;
   readonly projectId: string;
 }
 
@@ -135,8 +138,8 @@ const transitions = {
   NORMALIZING: ["ROUTING", "FAILED", "CANCELLED"],
   ROUTING: ["SPECIFYING", "FAILED", "CANCELLED"],
   SPECIFYING: ["WAITING_APPROVAL", "QUEUED", "FAILED", "CANCELLED"],
-  WAITING_APPROVAL: ["QUEUED", "CANCELLED"],
-  QUEUED: ["RUNNING", "FAILED", "CANCELLED"],
+  WAITING_APPROVAL: ["QUEUED", "CANCELLED", "PAUSED"],
+  QUEUED: ["RUNNING", "FAILED", "CANCELLED", "PAUSED"],
   RUNNING: ["TESTING", "FAILED", "CANCEL_REQUESTED"],
   TESTING: ["WAITING_RESULT_APPROVAL", "FINALIZING", "FAILED", "CANCEL_REQUESTED"],
   WAITING_RESULT_APPROVAL: ["FINALIZING", "SPECIFYING", "CANCEL_REQUESTED"],
@@ -145,6 +148,7 @@ const transitions = {
   FAILED: ["QUEUED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
+  PAUSED: ["WAITING_APPROVAL", "QUEUED", "CANCELLED"],
 } as const satisfies Record<TaskState, readonly TaskState[]>;
 
 export function canTransition(fromState: TaskState, toState: TaskState): boolean {
@@ -186,6 +190,20 @@ export class TaskStateMachine {
       throw new InvalidTaskTransitionError(task.state, command.toState);
     }
 
+    if (
+      task.state === "PAUSED" &&
+      command.toState !== "CANCELLED" &&
+      task.pausedFromState !== command.toState
+    ) {
+      await this.store.recordRejectedTransition({
+        ...command,
+        fromState: task.state,
+        projectId: task.projectId,
+        reason: "invalid_transition",
+      });
+      throw new InvalidTaskTransitionError(task.state, command.toState);
+    }
+
     if (command.toState === "FAILED" && command.failureStage === undefined) {
       await this.store.recordRejectedTransition({
         ...command,
@@ -199,6 +217,13 @@ export class TaskStateMachine {
     return this.store.commitTransition({
       ...command,
       fromState: task.state,
+      ...(command.toState === "PAUSED"
+        ? task.state === "WAITING_APPROVAL" || task.state === "QUEUED"
+          ? { pausedFromState: task.state }
+          : {}
+        : task.state === "PAUSED"
+          ? { pausedFromState: null }
+          : {}),
       projectId: task.projectId,
     });
   }

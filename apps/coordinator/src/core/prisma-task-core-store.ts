@@ -18,10 +18,19 @@ import {
   type TaskSnapshot,
   type TaskTransitionResult,
 } from "@atlas/core";
-import { auditActorSchema, taskStateSchema, type AuditActor, type TaskState } from "@atlas/shared";
+import {
+  auditActorSchema,
+  taskPauseOriginSchema,
+  taskPrioritySchema,
+  taskStateSchema,
+  type AuditActor,
+  type TaskState,
+} from "@atlas/shared";
 
 const snapshotSchema = z.object({
   id: z.string(),
+  pausedFromState: taskPauseOriginSchema.optional(),
+  priority: taskPrioritySchema.optional(),
   projectId: z.string(),
   state: taskStateSchema,
   version: z.number().int().nonnegative(),
@@ -49,6 +58,8 @@ const actorMap: Record<AuditActor, PrismaAuditActor> = {
 
 function toSnapshot(task: {
   id: string;
+  pausedFromState: "WAITING_APPROVAL" | "QUEUED" | null;
+  priority: number;
   projectId: string;
   state: PrismaTaskState;
   version: number;
@@ -56,6 +67,10 @@ function toSnapshot(task: {
 }): TaskSnapshot {
   return {
     id: task.id,
+    ...(task.pausedFromState === null
+      ? {}
+      : { pausedFromState: taskPauseOriginSchema.parse(task.pausedFromState) }),
+    priority: taskPrioritySchema.parse(task.priority),
     projectId: task.projectId,
     state: taskStateSchema.parse(task.state),
     version: task.version,
@@ -66,6 +81,8 @@ function toSnapshot(task: {
 function parsedSnapshot(task: z.infer<typeof snapshotSchema>): TaskSnapshot {
   return {
     id: task.id,
+    ...(task.pausedFromState === undefined ? {} : { pausedFromState: task.pausedFromState }),
+    ...(task.priority === undefined ? {} : { priority: task.priority }),
     projectId: task.projectId,
     state: task.state,
     version: task.version,
@@ -222,6 +239,9 @@ export class PrismaTaskCoreStore implements TaskCoreStore {
         },
         data: {
           failureStage: input.failureStage ?? null,
+          ...(input.pausedFromState === undefined
+            ? {}
+            : { pausedFromState: input.pausedFromState }),
           state: toPrismaState(input.toState),
           version: { increment: 1 },
         },

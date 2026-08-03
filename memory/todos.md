@@ -2,19 +2,20 @@
 
 ## Dashboard — após C2b1
 
-- Revisar empiricamente a rede C2c-1: matriz completa, ausência de `PAUSED`,
-  forma exata dos dois claims, FIFO, concorrência de claim/Approval e recibos
-  aceitos, rejeitados e `PENDING` em PostgreSQL real.
-- Manter a assimetria caracterizada sem correção nesta entrega: Execution
-  pré-criada atualiza Task por ID; Task nua usa CAS de `state+version`.
-- Autorizar separadamente o passo 2 (schema/core) antes de adicionar `PAUSED`,
-  `pausedFromState`, `priority`, migration ou arestas. O hardening dos dois
-  claims permanece exclusivamente no passo 3.
-- Implementar C2c somente em entregas separadas: schema/core, scheduler,
-  comandos e por último read-model/UI; cada etapa exige revisão completa.
-- Provar em PostgreSQL a corrida `pause × claim`, a corrida `pause × Approval`,
-  a restauração por `pausedFromState`, aging sem starvation e replay de
-  rejeições pelo recibo C2b1.
+- Revisar empiricamente o C2c-2: separação das migrations PostgreSQL,
+  constraints/defaults/índice, cinco arestas aditivas, origem de pausa derivada
+  da Task e retomada fail-closed exclusivamente ao estado gravado.
+- Confirmar no diff que WorkerService, scheduler, Approval, recibo, rotas e UI
+  permanecem intactos e que os dois claims continuam filtrando somente
+  `QUEUED`; `PAUSED` ainda não possui produtor de aplicação.
+- Manter o passo 3 não autorizado: unificar/hardenizar os dois claims com CAS e
+  somente então aplicar prioridade/aging ao scheduler, preservando lease e
+  fencing.
+- Manter os passos 4 e 5 não autorizados: comandos governados pelo recibo antes
+  de read-model/UI; cada etapa exige revisão completa e autorização própria.
+- No passo 3 futuro, provar em PostgreSQL a corrida `pause × claim` e aging sem
+  starvation. No passo 4, provar `pause × Approval`, restauração por
+  `pausedFromState` e replay de rejeições pelo recibo C2b1.
 
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
@@ -200,9 +201,10 @@
 - Revisar empiricamente a Trilha C1: expiração, deny-by-default rota a rota,
   loopback/flag, auditoria sanitizada e ausência de credencial/token no
   bundle, respostas ou logs.
-- Trilha C2a, seu serving e C2b1 (criar/cancelar) estão implementados. C2c
-  (pausa/retomada/prioridade) permanece fase própria, reutilizando governança
-  canônica e sem exceção a `always_human`.
+- Trilha C2a, seu serving e C2b1 (criar/cancelar) estão implementados. O C2c-2
+  torna schema/core aditivos e inertes; scheduler, comandos e UI permanecem
+  fases próprias, reutilizando governança canônica e sem exceção a
+  `always_human`.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.
