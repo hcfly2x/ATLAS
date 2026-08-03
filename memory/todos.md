@@ -2,6 +2,16 @@
 
 ## Dashboard — após C2b1
 
+- Revisar integralmente o ADR-030 e o esboço aditivo da C2c antes de autorizar
+  qualquer migration ou comportamento.
+- Se o desenho for aprovado, caracterizar a topologia e endurecer os dois
+  caminhos de claim com CAS transacional antes de expor pausa de `QUEUED`.
+- Implementar C2c somente em entregas separadas: schema/core, scheduler,
+  comandos e por último read-model/UI; cada etapa exige revisão completa.
+- Provar em PostgreSQL a corrida `pause × claim`, a corrida `pause × Approval`,
+  a restauração por `pausedFromState`, aging sem starvation e replay de
+  rejeições pelo recibo C2b1.
+
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
 - Validar em staging que `/dashboard`, o Workspace por deep link e os assets
@@ -20,8 +30,8 @@
 - Definir em fase própria a entrega terminal de `answer_only` originada na
   Dashboard. Até existir um destino governado, o guard atual continua
   fail-closed e não trata `dashboard:owner` como destino Telegram.
-- Manter pausa, retomada e prioridade para C2c com ADR e modelo canônico
-  próprios.
+- Manter pausa, retomada e prioridade sem implementação até o ADR-030 ser
+  revisado e uma fase de comportamento receber autorização explícita.
 - Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
 
 ## Entrega durável — acompanhamento após a Fase B

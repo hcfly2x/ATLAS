@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — Dashboard C2c spike de design
+
+- ADR-030 propõe `PAUSED` somente para `WAITING_APPROVAL|QUEUED`, retorno
+  determinístico ao estado gravado e prioridade operacional com aging.
+- O plano de migração esboça apenas enum/colunas/índice aditivos e extensão do
+  recibo C2b1, sem aplicar SQL ou alterar comportamento.
+- O desenho identifica como gate o CAS transacional nos dois caminhos atuais de
+  claim. Rotas, UI, TaskState, scheduler, worker, lease/fencing, Approval,
+  `always_human`, autonomia e enforcement permanecem inalterados nesta entrega.
+
 ## Unreleased — Dashboard C2b1 criar e cancelar demandas
 
 - `POST /dashboard/api/demands` cria Task com contrato estrito, origem

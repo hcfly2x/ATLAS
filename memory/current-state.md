@@ -89,6 +89,13 @@ existente, sem guardar objetivo ou motivo bruto. Conflitos atualizam o Workspace
 e o Mission Control antes de uma nova tentativa; a criação também renova a lista
 de projetos. C2c (pausa/retomada/prioridade) permanece separada.
 
+O spike documental da C2c está proposto para revisão no ADR-030 e em
+`docs/dashboard-c2c-migration-plan.md`. O desenho limita a pausa inicial a
+`WAITING_APPROVAL|QUEUED`, restaura deterministicamente o estado anterior,
+reusa o recibo C2b1 e trata prioridade com aging. Nenhum estado, campo, rota,
+migração ou comportamento foi implementado; a implementação exige autorização
+posterior e começa pelo hardening CAS dos dois caminhos de claim.
+
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
 `SPECIFYING` somente abaixo do limite configurado. No limiar, a Task permanece
