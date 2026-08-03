@@ -9,7 +9,11 @@ import { App } from "./App.js";
 import type { MissionControlClient } from "./mission-control.js";
 import { DashboardReadError } from "./mission-control.js";
 import type { DashboardSessionClient } from "./session.js";
-import type { CreateDashboardDemandClient, DashboardProjectsClient } from "./task-commands.js";
+import {
+  DashboardCommandError,
+  type CreateDashboardDemandClient,
+  type DashboardProjectsClient,
+} from "./task-commands.js";
 import {
   emptyMissionControlFixture,
   indeterminateMissionControlFixture,
@@ -116,6 +120,38 @@ describe("Mission Control UI", () => {
       });
       expect(createDemandClient.mock.calls[0]?.[0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
     });
+  });
+
+  it("refreshes dashboard context and starts a new create attempt after conflict", async () => {
+    const missionControlClient = vi
+      .fn<MissionControlClient>()
+      .mockResolvedValue(missionControlFixture);
+    const createDemandClient = vi
+      .fn<CreateDashboardDemandClient>()
+      .mockRejectedValue(new DashboardCommandError("conflict"));
+    renderDashboard(missionControlClient, undefined, createDemandClient);
+
+    await screen.findByRole("option", { name: "ATLAS" });
+    fireEvent.change(screen.getByLabelText("Projeto"), { target: { value: "atlas" } });
+    fireEvent.change(screen.getByLabelText("Objetivo"), {
+      target: { value: "Criar uma demanda segura" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar demanda" }));
+
+    await screen.findByText(
+      "Esta tentativa já foi usada com dados diferentes. Inicie uma nova demanda.",
+    );
+    await waitFor(() => {
+      expect(missionControlClient).toHaveBeenCalledTimes(2);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Criar demanda" }));
+    await waitFor(() => {
+      expect(createDemandClient).toHaveBeenCalledTimes(2);
+    });
+    expect(createDemandClient.mock.calls[0]?.[0].idempotencyKey).not.toBe(
+      createDemandClient.mock.calls[1]?.[0].idempotencyKey,
+    );
   });
 
   it("keeps unavailable blocks independent and visibly indeterminate", async () => {

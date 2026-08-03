@@ -536,6 +536,16 @@ function CreateDemand({
   });
   const mutation = useMutation({
     mutationFn: client,
+    onError: async (error) => {
+      if (error instanceof DashboardCommandError && error.code === "conflict") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["demand-workspace"] }),
+          queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+          queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] }),
+        ]);
+        idempotencyKey.current = crypto.randomUUID();
+      }
+    },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["mission-control"] });
       await navigate(demandLocation(result.task.id));

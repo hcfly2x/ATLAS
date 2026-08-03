@@ -310,6 +310,60 @@ describe("Prisma core persistence", () => {
       status: "REJECTED",
     });
     expect(JSON.stringify(missingProjectReceipt)).not.toContain("must not create");
+    const inactiveProjectId = `dashboard-inactive-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: inactiveProjectId,
+        name: "Inactive Dashboard Commands",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "low",
+        status: ProjectStatus.DRAFT,
+      },
+    });
+    const inactiveProjectKey = randomUUID();
+    const inactiveProjectRequest = {
+      idempotencyKey: inactiveProjectKey,
+      objective: "SECRET_INACTIVE_PROJECT_OBJECTIVE",
+      projectId: inactiveProjectId,
+    };
+    await expect(
+      service.createDemand(inactiveProjectRequest, "dashboard-inactive-project"),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_PROJECT_NOT_ELIGIBLE"));
+    await expect(
+      service.createDemand(inactiveProjectRequest, "dashboard-inactive-project-replay"),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_PROJECT_NOT_ELIGIBLE"));
+    await prisma.project.update({
+      where: { id: inactiveProjectId },
+      data: { status: ProjectStatus.ACTIVE },
+    });
+    await expect(
+      service.createDemand(
+        { ...inactiveProjectRequest, objective: "different request after activation" },
+        "dashboard-inactive-project-conflict",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+    const inactiveProjectReceipt = await prisma.dashboardCommandReceipt.findUniqueOrThrow({
+      where: { idempotencyKey: `dashboard:command:${inactiveProjectKey}` },
+    });
+    expect(inactiveProjectReceipt).toMatchObject({
+      commandType: "CREATE_DEMAND",
+      resultCode: "DASHBOARD_PROJECT_NOT_ELIGIBLE",
+      status: "REJECTED",
+    });
+    expect(JSON.stringify(inactiveProjectReceipt)).not.toContain(
+      "SECRET_INACTIVE_PROJECT_OBJECTIVE",
+    );
+    await expect(prisma.task.count({ where: { projectId: inactiveProjectId } })).resolves.toBe(0);
     const createKey = randomUUID();
     const createRequest = {
       idempotencyKey: createKey,

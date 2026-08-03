@@ -14,9 +14,10 @@
   aceites e rejeições. Chaves ficam vinculadas mesmo quando Task ou Project não
   existem; replay idêntico reproduz o código seguro e payload divergente nunca
   alcança uma nova mutação.
-- Conflito de cancelamento força refetch do Workspace e abre nova tentativa
-  lógica; o modal confirma Task, projeto, estado e modalidade. A suíte cobre os
-  14 estados da matriz.
+- Conflitos de criação ou cancelamento forçam refetch do contexto visível e
+  abrem uma nova tentativa lógica; o modal confirma Task, projeto, estado e
+  modalidade. A suíte cobre os 14 estados da matriz e a rejeição durável de
+  projeto inativo.
 - A Home recebe o formulário Criar demanda; o Workspace recebe cancelamento
   contextual e `taskVersion`. `request_change` aparece somente para resultado,
   sem alterar o resolvedor canônico.
