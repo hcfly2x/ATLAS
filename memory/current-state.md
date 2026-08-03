@@ -96,6 +96,15 @@ reusa o recibo C2b1 e trata prioridade com aging. Nenhum estado, campo, rota,
 migração ou comportamento foi implementado; a implementação exige autorização
 posterior e começa pelo hardening CAS dos dois caminhos de claim.
 
+O passo C2c-1 acrescenta somente uma rede de testes de caracterização. A matriz
+congela os 14 estados e todas as arestas atuais, afirmando a ausência de
+`PAUSED`; testes unitários registram a assimetria entre `task.update` por ID no
+claim de Execution pré-criada e o CAS `state+version` no claim de Task nua.
+PostgreSQL real cobre FIFO, lease/fencing inicial, exatamente um vencedor em
+claims e decisões de Approval concorrentes e os desfechos duráveis do recibo
+C2b1. Nenhum comportamento, schema, migration, rota ou UI mudou. Schema/core
+continuam sendo o passo 2 e exigem autorização própria.
+
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
 `SPECIFYING` somente abaixo do limite configurado. No limiar, a Task permanece

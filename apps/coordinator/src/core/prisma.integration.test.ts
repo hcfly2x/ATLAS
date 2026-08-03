@@ -4,7 +4,11 @@ import { PrismaClient, ProjectStatus } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AgentRequest, AgentResponse, AgentRuntime } from "@atlas/agent-runtime";
-import { InvalidTaskTransitionError, TaskStateMachine } from "@atlas/core";
+import {
+  InvalidTaskTransitionError,
+  TaskIdempotencyConflictError,
+  TaskStateMachine,
+} from "@atlas/core";
 import {
   canonicalPayloadHash,
   complexityClassificationSchema,
@@ -35,7 +39,10 @@ import {
   DashboardTaskCommandError,
   DashboardTaskCommandService,
 } from "../dashboard/task-command-service.js";
-import { PrismaDashboardCommandReceiptStore } from "../dashboard/command-receipt-store.js";
+import {
+  DashboardCommandOutcomeUnknownError,
+  PrismaDashboardCommandReceiptStore,
+} from "../dashboard/command-receipt-store.js";
 import { TaskIntakeService } from "../tasks/intake.js";
 import {
   CodexMonthlyBudgetExceededError,
@@ -1609,5 +1616,373 @@ describe("Prisma core persistence", () => {
     expect(await prisma.execution.findUniqueOrThrow({ where: { id: executionId } })).toMatchObject({
       status: "FINALIZING",
     });
+  });
+});
+
+async function createClaimProject(label: string): Promise<string> {
+  const projectId = `${label}-${randomUUID()}`;
+  await prisma.project.create({
+    data: {
+      allowedCommands: [],
+      autonomyLevel: 2,
+      dataClassification: "internal_test",
+      id: projectId,
+      name: "C2c claim characterization",
+      policy: "least_privilege",
+      protectedPathsProfile: "project_default",
+      repository: "/tmp/atlas-c2c-characterization",
+      requiredTools: { codex_cli: null, git: null, gnu_tools: [], node: null },
+      retention: { audit_events_expire: false, files_days: 1, logs_days: 1 },
+      risk: "low",
+      status: "ACTIVE",
+    },
+  });
+  return projectId;
+}
+
+async function createQueuedClaimTask(input: {
+  createdAt: Date;
+  executionCreatedAt?: Date;
+  fencingToken?: bigint;
+  projectId: string;
+}) {
+  const taskId = randomUUID();
+  await prisma.task.create({
+    data: {
+      createdAt: input.createdAt,
+      id: taskId,
+      idempotencyKey: `c2c-task-${taskId}`,
+      origin: "integration-test",
+      originalMessage: "characterize current claim behavior",
+      projectId: input.projectId,
+      state: "QUEUED",
+    },
+  });
+  const payload = specificationPayload(taskId, input.projectId);
+  const specification = await prisma.specification.create({
+    data: {
+      payload,
+      payloadHash: canonicalPayloadHash(payload),
+      taskId,
+      version: 1,
+    },
+  });
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { activeSpecificationId: specification.id },
+  });
+  const execution =
+    input.executionCreatedAt === undefined
+      ? null
+      : await prisma.execution.create({
+          data: {
+            attempt: 1,
+            createdAt: input.executionCreatedAt,
+            fencingToken: input.fencingToken ?? 0n,
+            idempotencyKey: `c2c-execution-${taskId}`,
+            specificationId: specification.id,
+            status: "QUEUED",
+            taskId,
+          },
+        });
+  return { execution, specification, taskId };
+}
+
+function c2cWorkerService(projectId: string): WorkerService {
+  return new WorkerService({
+    codexMonthlyBudgetUsd: 75,
+    leaseDurationMs: 60_000,
+    prisma,
+    protectedGlobsByProject: new Map([[projectId, ["**/.env*"]]]),
+  });
+}
+
+async function registerClaimWorker(service: WorkerService, projectId: string, label: string) {
+  const token = `c2c-worker-${label}-${randomUUID()}`;
+  await service.register({
+    capabilities: {
+      architecture: "arm64",
+      codex_version: "codex 1.0.0",
+      git_version: "git version 2.0.0",
+      node_version: "v22.13.0",
+      platform: "darwin",
+      tools: {},
+    },
+    concurrencyLimit: 1,
+    name: `c2c-${label}`,
+    projectScopes: [projectId],
+    token,
+  });
+  return service.authenticate(token);
+}
+
+describe("C2c step 1 PostgreSQL characterization", () => {
+  it("claims the oldest pre-created Execution and preserves its fencing token", async () => {
+    const projectId = await createClaimProject("c2c-precreated-fifo");
+    const service = c2cWorkerService(projectId);
+    const newer = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T10:00:00.000Z"),
+      executionCreatedAt: new Date("2026-08-03T10:02:00.000Z"),
+      fencingToken: 4n,
+      projectId,
+    });
+    const older = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T10:01:00.000Z"),
+      executionCreatedAt: new Date("2026-08-03T10:00:00.000Z"),
+      fencingToken: 3n,
+      projectId,
+    });
+    const worker = await registerClaimWorker(service, projectId, "precreated-fifo");
+
+    const assignment = await service.claim(
+      worker,
+      `c2c-precreated-fifo-${randomUUID()}`,
+      new Date("2026-08-03T12:00:00.000Z"),
+    );
+
+    expect(assignment).toMatchObject({
+      execution_id: older.execution?.id,
+      fencing_token: "3",
+      lease_expires_at: "2026-08-03T12:01:00.000Z",
+      task_id: older.taskId,
+    });
+    expect(assignment?.lease_id).toMatch(/^[0-9a-f-]{36}$/);
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: older.taskId } }),
+    ).resolves.toMatchObject({ state: "RUNNING", version: 1 });
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: newer.taskId } }),
+    ).resolves.toMatchObject({ state: "QUEUED", version: 0 });
+  });
+
+  it("claims the oldest bare Task and creates fencing token 1 with an initial lease", async () => {
+    const projectId = await createClaimProject("c2c-bare-fifo");
+    const service = c2cWorkerService(projectId);
+    const newer = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:00:00.000Z"),
+      projectId,
+    });
+    const older = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T10:00:00.000Z"),
+      projectId,
+    });
+    const worker = await registerClaimWorker(service, projectId, "bare-fifo");
+
+    const assignment = await service.claim(
+      worker,
+      `c2c-bare-fifo-${randomUUID()}`,
+      new Date("2026-08-03T12:00:00.000Z"),
+    );
+
+    expect(assignment).toMatchObject({
+      fencing_token: "1",
+      lease_expires_at: "2026-08-03T12:01:00.000Z",
+      task_id: older.taskId,
+    });
+    expect(assignment?.lease_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await prisma.execution.findMany({ where: { taskId: older.taskId } })).toEqual([
+      expect.objectContaining({ attempt: 1, fencingToken: 1n, status: "RUNNING" }),
+    ]);
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: newer.taskId } }),
+    ).resolves.toMatchObject({ state: "QUEUED", version: 0 });
+  });
+
+  it.each(["pre-created Execution", "bare Task"])(
+    "allows exactly one concurrent claim winner for the same %s",
+    async (path) => {
+      const projectId = await createClaimProject(
+        `c2c-concurrent-${path.startsWith("pre") ? "pre" : "bare"}`,
+      );
+      const service = c2cWorkerService(projectId);
+      const fixture = await createQueuedClaimTask({
+        createdAt: new Date("2026-08-03T10:00:00.000Z"),
+        ...(path.startsWith("pre")
+          ? { executionCreatedAt: new Date("2026-08-03T10:00:00.000Z"), fencingToken: 2n }
+          : {}),
+        projectId,
+      });
+      const [firstWorker, secondWorker] = await Promise.all([
+        registerClaimWorker(service, projectId, `${path}-a`),
+        registerClaimWorker(service, projectId, `${path}-b`),
+      ]);
+
+      const outcomes = await Promise.allSettled([
+        service.claim(firstWorker, `c2c-concurrent-a-${randomUUID()}`),
+        service.claim(secondWorker, `c2c-concurrent-b-${randomUUID()}`),
+      ]);
+      const winners = outcomes.flatMap((outcome) =>
+        outcome.status === "fulfilled" && outcome.value !== null ? [outcome.value] : [],
+      );
+
+      expect(winners).toHaveLength(1);
+      expect(winners[0]?.task_id).toBe(fixture.taskId);
+      await expect(
+        prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } }),
+      ).resolves.toMatchObject({ state: "RUNNING", version: 1 });
+      await expect(
+        prisma.execution.count({ where: { taskId: fixture.taskId, status: "RUNNING" } }),
+      ).resolves.toBe(1);
+      await expect(prisma.codexUsage.count({ where: { taskId: fixture.taskId } })).resolves.toBe(1);
+    },
+  );
+
+  it("allows exactly one concurrent Approval decision and transitions Task atomically", async () => {
+    const projectId = await createClaimProject("c2c-approval-race");
+    const taskId = randomUUID();
+    await prisma.task.create({
+      data: {
+        id: taskId,
+        idempotencyKey: `c2c-approval-task-${taskId}`,
+        origin: "integration-test",
+        originalMessage: "characterize approval concurrency",
+        projectId,
+        state: "WAITING_APPROVAL",
+      },
+    });
+    const payload = specificationPayload(taskId, projectId);
+    const payloadHash = canonicalPayloadHash(payload);
+    const specification = await prisma.specification.create({
+      data: { payload, payloadHash, taskId, version: 1 },
+    });
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: { activeSpecificationId: specification.id },
+    });
+    const approval = await prisma.approval.create({
+      data: {
+        actor: "USER",
+        channel: "TELEGRAM",
+        idempotencyKey: `c2c-approval-${randomUUID()}`,
+        presentedPayload: payload,
+        requestedBy: "characterization",
+        targetHash: payloadHash,
+        targetId: specification.id,
+        targetType: "SPECIFICATION",
+        targetVersion: 1,
+        taskId,
+        type: "PRE_EXECUTION",
+      },
+    });
+    const decisionService = new PrismaApprovalDecisionService(prisma);
+    const baseDecision = {
+      approvalId: approval.id,
+      channel: "DASHBOARD" as const,
+      decidedBy: "owner",
+      decision: "APPROVED" as const,
+      decisionKind: "approve" as const,
+      expectedTargetVersion: 1,
+      expectedTaskVersion: task.version,
+      requireHumanActor: true,
+    };
+
+    const outcomes = await Promise.allSettled([
+      decisionService.decide({
+        ...baseDecision,
+        correlationId: "c2c-approval-race-a",
+        idempotencyKey: `c2c-approval-race-a-${randomUUID()}`,
+      }),
+      decisionService.decide({
+        ...baseDecision,
+        correlationId: "c2c-approval-race-b",
+        idempotencyKey: `c2c-approval-race-b-${randomUUID()}`,
+      }),
+    ]);
+
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    await expect(
+      prisma.approval.findUniqueOrThrow({ where: { id: approval.id } }),
+    ).resolves.toMatchObject({ status: "APPROVED" });
+    await expect(prisma.task.findUniqueOrThrow({ where: { id: taskId } })).resolves.toMatchObject({
+      state: "QUEUED",
+      version: task.version + 1,
+    });
+    await expect(
+      prisma.auditEvent.count({ where: { action: "approval.decided", taskId } }),
+    ).resolves.toBe(1);
+  });
+
+  it("binds accepted and rejected receipts and never reexecutes PENDING", async () => {
+    const receipts = new PrismaDashboardCommandReceiptStore(prisma);
+    const acceptedKey = `c2c-receipt-accepted-${randomUUID()}`;
+    const acceptedInput = {
+      actor: "user" as const,
+      command: "create_demand" as const,
+      correlationId: "c2c-receipt-accepted",
+      idempotencyKey: acceptedKey,
+      requestHash: canonicalPayloadHash({ action: "accepted" }),
+      requestedProject: "synthetic-project",
+    };
+    let acceptedCalls = 0;
+    const accepted = await receipts.execute(acceptedInput, () => {
+      acceptedCalls += 1;
+      return Promise.resolve({
+        resultCode: "DEMAND_CREATED",
+        resultPayload: { taskId: "synthetic-task" },
+        status: "accepted" as const,
+      });
+    });
+    const acceptedReplay = await receipts.execute(acceptedInput, () => {
+      acceptedCalls += 1;
+      throw new Error("accepted replay must not execute");
+    });
+    expect(accepted).toMatchObject({ idempotentReplay: false, status: "accepted" });
+    expect(acceptedReplay).toEqual({ ...accepted, idempotentReplay: true });
+    expect(acceptedCalls).toBe(1);
+    await expect(
+      receipts.execute(
+        { ...acceptedInput, requestHash: canonicalPayloadHash({ action: "changed" }) },
+        () => Promise.resolve({ resultCode: "UNREACHABLE", status: "rejected" as const }),
+      ),
+    ).rejects.toBeInstanceOf(TaskIdempotencyConflictError);
+
+    const rejectedInput = {
+      ...acceptedInput,
+      correlationId: "c2c-receipt-rejected",
+      idempotencyKey: `c2c-receipt-rejected-${randomUUID()}`,
+      requestHash: canonicalPayloadHash({ action: "rejected" }),
+    };
+    let rejectedCalls = 0;
+    const rejected = await receipts.execute(rejectedInput, () => {
+      rejectedCalls += 1;
+      return Promise.resolve({ resultCode: "TASK_VERSION_CONFLICT", status: "rejected" as const });
+    });
+    const rejectedReplay = await receipts.execute(rejectedInput, () => {
+      rejectedCalls += 1;
+      throw new Error("rejected replay must not execute");
+    });
+    expect(rejected).toEqual({
+      idempotentReplay: false,
+      resultCode: "TASK_VERSION_CONFLICT",
+      status: "rejected",
+    });
+    expect(rejectedReplay).toEqual({ ...rejected, idempotentReplay: true });
+    expect(rejectedCalls).toBe(1);
+
+    const pendingInput = {
+      ...acceptedInput,
+      correlationId: "c2c-receipt-pending",
+      idempotencyKey: `c2c-receipt-pending-${randomUUID()}`,
+      requestHash: canonicalPayloadHash({ action: "pending" }),
+    };
+    await prisma.dashboardCommandReceipt.create({
+      data: {
+        actor: "USER",
+        commandType: "CREATE_DEMAND",
+        correlationId: pendingInput.correlationId,
+        idempotencyKey: pendingInput.idempotencyKey,
+        requestHash: pendingInput.requestHash,
+        requestedProject: pendingInput.requestedProject,
+      },
+    });
+    let pendingCalls = 0;
+    await expect(
+      receipts.execute(pendingInput, () => {
+        pendingCalls += 1;
+        return Promise.resolve({ resultCode: "UNREACHABLE", status: "rejected" as const });
+      }),
+    ).rejects.toBeInstanceOf(DashboardCommandOutcomeUnknownError);
+    expect(pendingCalls).toBe(0);
   });
 });
