@@ -10,12 +10,21 @@ import type { MissionControlClient } from "./mission-control.js";
 import { DashboardReadError } from "./mission-control.js";
 import type { DashboardSessionClient } from "./session.js";
 import {
+  DashboardCommandError,
+  type CreateDashboardDemandClient,
+  type DashboardProjectsClient,
+} from "./task-commands.js";
+import {
   emptyMissionControlFixture,
   indeterminateMissionControlFixture,
   missionControlFixture,
 } from "./test/fixtures.js";
 
-function renderDashboard(client: MissionControlClient, sessionClient?: DashboardSessionClient) {
+function renderDashboard(
+  client: MissionControlClient,
+  sessionClient?: DashboardSessionClient,
+  createDemandClient?: CreateDashboardDemandClient,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -23,7 +32,14 @@ function renderDashboard(client: MissionControlClient, sessionClient?: Dashboard
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <App
+          createDemandClient={createDemandClient ?? (() => new Promise(() => undefined))}
           missionControlClient={client}
+          projectsClient={
+            (() =>
+              Promise.resolve({
+                projects: [{ id: "atlas", name: "ATLAS" }],
+              })) satisfies DashboardProjectsClient
+          }
           {...(sessionClient === undefined ? {} : { sessionClient })}
         />
       </MemoryRouter>
@@ -74,6 +90,68 @@ describe("Mission Control UI", () => {
     expect(
       screen.getByText("Nenhum risco foi derivado dos sinais disponíveis."),
     ).toBeInTheDocument();
+  });
+
+  it("creates a demand with one stable logical idempotency key", async () => {
+    const createDemandClient = vi.fn<CreateDashboardDemandClient>().mockResolvedValue({
+      idempotentReplay: false,
+      task: {
+        id: "10000000-0000-4000-8000-000000000099",
+        projectId: "atlas",
+        state: "NEW",
+        version: 0,
+      },
+    });
+    renderDashboard(resolvedClient(missionControlFixture), undefined, createDemandClient);
+
+    await screen.findByRole("heading", { name: "Criar demanda" });
+    await screen.findByRole("option", { name: "ATLAS" });
+    fireEvent.change(screen.getByLabelText("Projeto"), { target: { value: "atlas" } });
+    fireEvent.change(screen.getByLabelText("Objetivo"), {
+      target: { value: "  Criar uma demanda segura  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar demanda" }));
+
+    await waitFor(() => {
+      expect(createDemandClient).toHaveBeenCalledOnce();
+      expect(createDemandClient.mock.calls[0]?.[0]).toMatchObject({
+        objective: "Criar uma demanda segura",
+        projectId: "atlas",
+      });
+      expect(createDemandClient.mock.calls[0]?.[0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  it("refreshes dashboard context and starts a new create attempt after conflict", async () => {
+    const missionControlClient = vi
+      .fn<MissionControlClient>()
+      .mockResolvedValue(missionControlFixture);
+    const createDemandClient = vi
+      .fn<CreateDashboardDemandClient>()
+      .mockRejectedValue(new DashboardCommandError("conflict"));
+    renderDashboard(missionControlClient, undefined, createDemandClient);
+
+    await screen.findByRole("option", { name: "ATLAS" });
+    fireEvent.change(screen.getByLabelText("Projeto"), { target: { value: "atlas" } });
+    fireEvent.change(screen.getByLabelText("Objetivo"), {
+      target: { value: "Criar uma demanda segura" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Criar demanda" }));
+
+    await screen.findByText(
+      "Esta tentativa já foi usada com dados diferentes. Inicie uma nova demanda.",
+    );
+    await waitFor(() => {
+      expect(missionControlClient).toHaveBeenCalledTimes(2);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Criar demanda" }));
+    await waitFor(() => {
+      expect(createDemandClient).toHaveBeenCalledTimes(2);
+    });
+    expect(createDemandClient.mock.calls[0]?.[0].idempotencyKey).not.toBe(
+      createDemandClient.mock.calls[1]?.[0].idempotencyKey,
+    );
   });
 
   it("keeps unavailable blocks independent and visibly indeterminate", async () => {

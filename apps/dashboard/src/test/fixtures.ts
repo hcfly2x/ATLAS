@@ -232,6 +232,7 @@ export const demandWorkspaceFixture: DemandWorkspaceResponse = {
     risk: "LOW",
     taskId,
     taskState: "WAITING_RESULT_APPROVAL",
+    taskVersion: 7,
     updatedAt: occurredAt,
   },
   memory: {

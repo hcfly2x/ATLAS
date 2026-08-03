@@ -1,6 +1,6 @@
 # Pendências
 
-## Dashboard — após C2·Serving
+## Dashboard — após C2b1
 
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
@@ -9,8 +9,19 @@
   a antiga página inline.
 - Confirmar em staging que sessão expirada, falta de permissão e CSRF
   ausente/inválido não produzem mutação.
-- Manter C2b1 limitada a criar/cancelar em fase própria; pausa, retomada e
-  prioridade ficam para C2c com ADR e modelo canônico próprios.
+- Revalidar empiricamente a correção de criação e cancelamento: recibo atômico,
+  replay de rejeição, conflito divergente após rejeição, Task/Project ausente,
+  versões concorrentes e auditoria sem conteúdo cru.
+- Definir retenção operacional dos recibos de comandos da Dashboard em fase
+  própria; nenhuma limpeza automática é autorizada nesta entrega.
+- Validar em staging que criação nova aciona o supervisor uma vez e que
+  cancelamento ativo passa por `CANCEL_REQUESTED` até o worker confirmar
+  `CANCELLED`.
+- Definir em fase própria a entrega terminal de `answer_only` originada na
+  Dashboard. Até existir um destino governado, o guard atual continua
+  fail-closed e não trata `dashboard:owner` como destino Telegram.
+- Manter pausa, retomada e prioridade para C2c com ADR e modelo canônico
+  próprios.
 - Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
 
 ## Entrega durável — acompanhamento após a Fase B
@@ -175,9 +186,9 @@
 - Revisar empiricamente a Trilha C1: expiração, deny-by-default rota a rota,
   loopback/flag, auditoria sanitizada e ausência de credencial/token no
   bundle, respostas ou logs.
-- Trilha C2a e seu serving estão implementados. C2b1 (criar/cancelar) e C2c
-  (pausa/retomada/prioridade) permanecem fases próprias, reutilizando
-  governança canônica e sem exceção a `always_human`.
+- Trilha C2a, seu serving e C2b1 (criar/cancelar) estão implementados. C2c
+  (pausa/retomada/prioridade) permanece fase própria, reutilizando governança
+  canônica e sem exceção a `always_human`.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,
   roadmap, templates e analytics.

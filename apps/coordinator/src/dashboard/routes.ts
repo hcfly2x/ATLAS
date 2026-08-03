@@ -4,7 +4,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 
-import { approvalDecisionRequestSchema } from "@atlas/contracts";
+import {
+  approvalDecisionRequestSchema,
+  cancelDashboardTaskRequestSchema,
+  createDashboardDemandRequestSchema,
+} from "@atlas/contracts";
 
 import {
   ApprovalDecisionIdempotencyConflictError,
@@ -20,6 +24,10 @@ import type { DashboardAuthenticator, DashboardPermission } from "./auth.js";
 import type { DashboardApprovalService } from "./approval-service.js";
 import { dashboardLoginPage } from "./page.js";
 import type { DashboardService } from "./service.js";
+import {
+  DashboardTaskCommandError,
+  type DashboardTaskCommandService,
+} from "./task-command-service.js";
 
 const loopback = new Set(["127.0.0.1", "::1"]);
 
@@ -42,6 +50,7 @@ export interface DashboardRouteOptions {
   readonly authAudit?: ((event: DashboardAuthAuditEvent) => void) | undefined;
   readonly dashboardDistPath?: string | undefined;
   readonly remoteAccessEnabled?: boolean | undefined;
+  readonly taskCommandService?: DashboardTaskCommandService | undefined;
 }
 
 export function assertRemoteDashboardConfiguration(
@@ -202,7 +211,64 @@ export function registerDashboardRoutes(
         .send();
     },
   );
+  app.post(
+    "/dashboard/api/demands",
+    {
+      config: {
+        dashboardPermission: "dashboard:demand:create",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.taskCommandService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_TASK_COMMANDS_UNAVAILABLE" });
+      }
+      const input = createDashboardDemandRequestSchema.parse(request.body);
+      try {
+        const result = await options.taskCommandService.createDemand(input, request.id);
+        return await reply.code(result.idempotentReplay ? 200 : 201).send(result);
+      } catch (error: unknown) {
+        if (error instanceof DashboardTaskCommandError) {
+          return reply
+            .code(error.code === "DASHBOARD_PROJECT_NOT_ELIGIBLE" ? 404 : 409)
+            .send({ code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/dashboard/api/tasks/:taskId/cancel",
+    {
+      config: {
+        dashboardPermission: "dashboard:task:cancel",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.taskCommandService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_TASK_COMMANDS_UNAVAILABLE" });
+      }
+      const taskId = taskSchema.parse(request.params).taskId;
+      const input = cancelDashboardTaskRequestSchema.parse(request.body);
+      try {
+        return await options.taskCommandService.cancelTask(taskId, input, request.id);
+      } catch (error: unknown) {
+        if (error instanceof DashboardTaskCommandError) {
+          return reply.code(error.code === "TASK_NOT_FOUND" ? 404 : 409).send({ code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
 
+  app.get(
+    "/dashboard/api/projects",
+    {
+      config: {
+        dashboardPermission: "dashboard:projects:read",
+      } satisfies DashboardRouteConfig,
+    },
+    async () => service.projects(),
+  );
   app.get(
     "/dashboard/auth/session",
     {

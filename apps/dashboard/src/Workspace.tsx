@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from
 import { Link } from "react-router-dom";
 
 import { ApprovalDecisionError, type ApprovalDecisionClient } from "./approval-decision.js";
+import { DashboardCommandError, type CancelDashboardTaskClient } from "./task-commands.js";
 
 type WorkspaceValue = string;
 
@@ -79,7 +80,7 @@ function DemandHeader({ data }: { readonly data: DemandWorkspaceResponse }) {
         <Link className="back-link" to="/">
           <span aria-hidden="true">←</span> Mission Control
         </Link>
-        <p className="kicker">Workspace da demanda · somente leitura</p>
+        <p className="kicker">Workspace da demanda · operação governada</p>
         <h1>{data.demand.objective}</h1>
         <p className="workspace-reference">
           {header.project.name} · <span className="mono">{header.taskId}</span>
@@ -134,6 +135,170 @@ function DemandHeader({ data }: { readonly data: DemandWorkspaceResponse }) {
         </div>
       </dl>
     </header>
+  );
+}
+
+function CancelTask({
+  client,
+  data,
+}: {
+  readonly client: CancelDashboardTaskClient;
+  readonly data: DemandWorkspaceResponse;
+}) {
+  const queryClient = useQueryClient();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const idempotencyKey = useRef<string | null>(null);
+  idempotencyKey.current ??= crypto.randomUUID();
+  const immediateStates = new Set([
+    "NEW",
+    "NORMALIZING",
+    "ROUTING",
+    "SPECIFYING",
+    "WAITING_APPROVAL",
+    "QUEUED",
+    "FAILED",
+  ]);
+  const disabledStates = new Set(["CANCEL_REQUESTED", "COMPLETED", "CANCELLED"]);
+  const mode = immediateStates.has(data.header.taskState) ? "imediato" : "cooperativo";
+  const disabled = disabledStates.has(data.header.taskState);
+  const mutation = useMutation({
+    mutationFn: client,
+    onError: async (error) => {
+      if (error instanceof DashboardCommandError && error.code === "conflict") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
+          queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+        ]);
+        idempotencyKey.current = crypto.randomUUID();
+      }
+    },
+    onSuccess: async () => {
+      setOpen(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
+        queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+      ]);
+    },
+  });
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (open) {
+      if (dialog?.open === false) {
+        if (typeof dialog.showModal === "function") dialog.showModal();
+        else dialog.setAttribute("open", "");
+      }
+    } else if (dialog?.open === true) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+  }, [open]);
+
+  function submit(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const requestIdempotencyKey = idempotencyKey.current;
+    if (mutation.isPending || requestIdempotencyKey === null) return;
+    mutation.mutate({
+      request: {
+        idempotencyKey: requestIdempotencyKey,
+        ...(reason.trim().length === 0 ? {} : { reason: reason.trim() }),
+        taskVersion: data.header.taskVersion,
+      },
+      taskId: data.header.taskId,
+    });
+  }
+
+  return (
+    <section aria-labelledby="cancel-task-title" className="workspace-command">
+      <div>
+        <p className="kicker">Controle da demanda</p>
+        <h2 id="cancel-task-title">Cancelamento</h2>
+        <p>
+          {disabled
+            ? `Nenhuma ação disponível no estado ${data.header.taskState}.`
+            : `No estado atual, o cancelamento será ${mode}.`}
+        </p>
+      </div>
+      <button
+        disabled={disabled}
+        onClick={() => {
+          setOpen(true);
+        }}
+        type="button"
+      >
+        Cancelar demanda
+      </button>
+      <dialog
+        aria-labelledby="cancel-confirm-title"
+        className="approval-dialog"
+        onCancel={() => {
+          setOpen(false);
+          mutation.reset();
+        }}
+        ref={dialogRef}
+      >
+        <form onSubmit={submit}>
+          <p className="kicker">Confirmação humana</p>
+          <h3 id="cancel-confirm-title">Confirmar cancelamento</h3>
+          <dl className="detail-list">
+            <div>
+              <dt>Task</dt>
+              <dd>{data.header.taskId}</dd>
+            </div>
+            <div>
+              <dt>Projeto</dt>
+              <dd>
+                {data.header.project.name} ({data.header.project.id})
+              </dd>
+            </div>
+            <div>
+              <dt>Estado atual</dt>
+              <dd>{data.header.taskState}</dd>
+            </div>
+            <div>
+              <dt>Modalidade</dt>
+              <dd>{mode}</dd>
+            </div>
+          </dl>
+          <label>
+            Motivo (opcional)
+            <textarea
+              maxLength={1_000}
+              onChange={(event) => {
+                setReason(event.currentTarget.value);
+                if (mutation.isError) {
+                  idempotencyKey.current = crypto.randomUUID();
+                  mutation.reset();
+                }
+              }}
+              value={reason}
+            />
+          </label>
+          {mutation.isError ? (
+            <p role="alert">
+              {mutation.error instanceof DashboardCommandError && mutation.error.code === "conflict"
+                ? "A demanda mudou. O Workspace foi atualizado antes de tentar novamente."
+                : "O cancelamento não foi aplicado."}
+            </p>
+          ) : null}
+          <div className="approval-actions">
+            <button
+              onClick={() => {
+                setOpen(false);
+                mutation.reset();
+              }}
+              type="button"
+            >
+              Voltar
+            </button>
+            <button disabled={mutation.isPending} type="submit">
+              {mutation.isPending ? "Registrando…" : "Confirmar cancelamento"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </section>
   );
 }
 
@@ -316,14 +481,16 @@ function Approvals({
                     >
                       Aprovar
                     </button>
-                    <button
-                      onClick={() => {
-                        setSelected({ approval, decision: "request_change" });
-                      }}
-                      type="button"
-                    >
-                      Pedir alteração
-                    </button>
+                    {approval.type === "RESULT" && approval.targetType === "EXECUTION_RESULT" ? (
+                      <button
+                        onClick={() => {
+                          setSelected({ approval, decision: "request_change" });
+                        }}
+                        type="button"
+                      >
+                        Pedir alteração
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => {
                         setSelected({ approval, decision: "reject" });
@@ -597,9 +764,11 @@ function Costs({ cost }: { readonly cost: DemandWorkspaceResponse["cost"] }) {
 
 export function DemandWorkspace({
   approvalDecisionClient,
+  cancelTaskClient,
   data,
 }: {
   readonly approvalDecisionClient: ApprovalDecisionClient;
+  readonly cancelTaskClient: CancelDashboardTaskClient;
   readonly data: DemandWorkspaceResponse;
 }) {
   return (
@@ -614,6 +783,7 @@ export function DemandWorkspace({
       </header>
       <main className="workspace-page">
         <DemandHeader data={data} />
+        <CancelTask client={cancelTaskClient} data={data} />
         <div className="workspace-layout">
           <Overview data={data} />
           <Plan data={data} />
@@ -628,8 +798,8 @@ export function DemandWorkspace({
           <Costs cost={data.cost} />
         </div>
         <footer className="mission-footer">
-          <span>Leitura validada por @atlas/contracts</span>
-          <span>Aprovações humanas governadas · sem conteúdo bruto · sem chain-of-thought</span>
+          <span>Operações validadas por @atlas/contracts</span>
+          <span>Escritas governadas · sem conteúdo bruto · sem chain-of-thought</span>
         </footer>
       </main>
     </>

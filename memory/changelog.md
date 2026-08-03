@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — Dashboard C2b1 criar e cancelar demandas
+
+- `POST /dashboard/api/demands` cria Task com contrato estrito, origem
+  `dashboard:owner`, projeto ativo, idempotência vinculada a hash e o mesmo
+  intake/supervisão do Telegram.
+- `POST /dashboard/api/tasks/:taskId/cancel` usa somente a máquina de estados:
+  pré-execução e `FAILED` vão a `CANCELLED`; estados ativos vão a
+  `CANCEL_REQUESTED`.
+- As rotas exigem sessão, RBAC específico e CSRF. Auditoria usa ator `USER` e
+  omite objetivo, motivo, payload e segredo.
+- A correção pós-review adiciona recibo idempotente mínimo e transacional para
+  aceites e rejeições. Chaves ficam vinculadas mesmo quando Task ou Project não
+  existem; replay idêntico reproduz o código seguro e payload divergente nunca
+  alcança uma nova mutação.
+- Conflitos de criação ou cancelamento forçam refetch do contexto visível e
+  abrem uma nova tentativa lógica; o modal confirma Task, projeto, estado e
+  modalidade. A suíte cobre os 14 estados da matriz e a rejeição durável de
+  projeto inativo.
+- A Home recebe o formulário Criar demanda; o Workspace recebe cancelamento
+  contextual e `taskVersion`. `request_change` aparece somente para resultado,
+  sem alterar o resolvedor canônico.
+- ADR-028 permanece Proposto. Há somente uma migração aditiva de recibos; não há
+  estado novo ou mudança em worker, lease/fencing, enforcement, autonomia,
+  `always_human`, políticas ou `.atlas/**`; C2c continua separada.
+
 ## Unreleased — Dashboard C2·Serving
 
 - O coordinator passa a servir o build Vite de `apps/dashboard` em

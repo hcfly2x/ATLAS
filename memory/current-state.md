@@ -69,14 +69,25 @@ preservados. ADR-025 permanece Proposto. A Trilha C2a acrescenta a primeira
 escrita governada: o dono pode decidir somente Approvals `USER` pendentes pela
 Dashboard, com RBAC de escrita, CSRF por sessão, idempotência e versões
 otimistas, usando o mesmo resolvedor transacional do Telegram. ADR-027 permanece
-Proposto. Criar demanda, pausar, priorizar e cancelar continuam para C2b.
+Proposto. Na UI, `request_change` fica restrito a Approval de resultado.
 
 A C2·Serving está implementada: o coordinator publica o build React das Trilhas
 A, B e C2a em `/dashboard`, com base Vite correta, deep links autenticados,
 assets hasheados sob cache imutável e shell sem cache. O catch-all não sombreia
 APIs ou assets inexistentes, e a página inline de Mission Control foi
-aposentada. ADR-029 permanece Proposto. Esta entrega não acrescenta escrita;
-C2b1 (criar/cancelar) e C2c (pausa/retomada/prioridade) continuam separadas.
+aposentada. ADR-029 permanece Proposto.
+
+A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
+usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados
+pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a
+máquina de estados: estados pré-execução e `FAILED` terminam em `CANCELLED`;
+estados ativos passam por `CANCEL_REQUESTED` e o worker continua responsável
+pelo encerramento cooperativo. As rotas exigem sessão, RBAC, CSRF, idempotência
+vinculada a hash e versão otimista. Um recibo mínimo, aditivo e transacional
+vincula a chave tanto ao aceite quanto à rejeição, inclusive sem Task ou Project
+existente, sem guardar objetivo ou motivo bruto. Conflitos atualizam o Workspace
+e o Mission Control antes de uma nova tentativa; a criação também renova a lista
+de projetos. C2c (pausa/retomada/prioridade) permanece separada.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a

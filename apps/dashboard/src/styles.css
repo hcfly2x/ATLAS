@@ -46,15 +46,66 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
 a:focus-visible {
   outline: 3px solid rgb(125 226 174 / 42%);
   outline-offset: 3px;
+}
+
+.create-demand-section,
+.workspace-command {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.create-demand-section form {
+  display: grid;
+  gap: 1rem;
+}
+
+.create-demand-section label,
+.workspace-command label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.create-demand-section select,
+.create-demand-section textarea,
+.workspace-command textarea {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.create-demand-section textarea,
+.workspace-command textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.workspace-command {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
 }
 
 a {

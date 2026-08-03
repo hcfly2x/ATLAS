@@ -195,6 +195,7 @@ export const demandWorkspaceResponseSchema = z
         risk: workspaceValueSchema,
         taskId: z.string(),
         taskState: z.string(),
+        taskVersion: z.number().int().nonnegative(),
         updatedAt: z.string().datetime(),
       })
       .strict(),
@@ -252,6 +253,59 @@ export const demandWorkspaceResponseSchema = z
 
 export type DemandWorkspaceResponse = z.infer<typeof demandWorkspaceResponseSchema>;
 
+const dashboardTaskSnapshotSchema = z
+  .object({
+    id: z.string().uuid(),
+    projectId: z.string().min(1),
+    state: z.string().min(1),
+    version: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const dashboardProjectsResponseSchema = z
+  .object({
+    projects: z.array(
+      z
+        .object({
+          id: z.string().min(1).max(128),
+          name: z.string().min(1),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export const createDashboardDemandRequestSchema = z
+  .object({
+    idempotencyKey: z.string().uuid(),
+    objective: z.string().trim().min(1).max(10_000),
+    projectId: z.string().min(1).max(128),
+  })
+  .strict();
+
+export const createDashboardDemandResponseSchema = z
+  .object({
+    idempotentReplay: z.boolean(),
+    task: dashboardTaskSnapshotSchema,
+  })
+  .strict();
+
+export const cancelDashboardTaskRequestSchema = z
+  .object({
+    idempotencyKey: z.string().uuid(),
+    reason: z.string().trim().max(1_000).optional(),
+    taskVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const cancelDashboardTaskResponseSchema = z
+  .object({
+    idempotentReplay: z.boolean(),
+    mode: z.enum(["immediate", "cooperative"]),
+    task: dashboardTaskSnapshotSchema,
+  })
+  .strict();
+
 export const dashboardSessionResponseSchema = z
   .object({
     csrfToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
@@ -296,5 +350,10 @@ export const approvalDecisionResponseSchema = z
   .strict();
 
 export type DashboardSessionResponse = z.infer<typeof dashboardSessionResponseSchema>;
+export type DashboardProjectsResponse = z.infer<typeof dashboardProjectsResponseSchema>;
+export type CreateDashboardDemandRequest = z.infer<typeof createDashboardDemandRequestSchema>;
+export type CreateDashboardDemandResponse = z.infer<typeof createDashboardDemandResponseSchema>;
+export type CancelDashboardTaskRequest = z.infer<typeof cancelDashboardTaskRequestSchema>;
+export type CancelDashboardTaskResponse = z.infer<typeof cancelDashboardTaskResponseSchema>;
 export type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>;
 export type ApprovalDecisionResponse = z.infer<typeof approvalDecisionResponseSchema>;

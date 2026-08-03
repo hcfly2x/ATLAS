@@ -54,6 +54,7 @@ import type { DashboardAuthenticator } from "./dashboard/auth.js";
 import type { DashboardAuthAuditEvent } from "./dashboard/routes.js";
 import type { DashboardService } from "./dashboard/service.js";
 import type { DashboardApprovalService } from "./dashboard/approval-service.js";
+import type { DashboardTaskCommandService } from "./dashboard/task-command-service.js";
 import type { PostExecutionQaService } from "./post-execution/service.js";
 
 const createTaskSchema = z.object({
@@ -89,6 +90,7 @@ export interface CoordinatorAppOptions {
   readonly dashboardApprovalService?: DashboardApprovalService;
   readonly dashboardRemoteAccessEnabled?: boolean;
   readonly dashboardService?: DashboardService;
+  readonly dashboardTaskCommandService?: DashboardTaskCommandService;
   readonly internalAuthToken?: string;
   readonly logger?: boolean;
   readonly memoryService?: MemoryService;
@@ -149,6 +151,7 @@ export function createCoordinatorApp(options: CoordinatorAppOptions = {}): Fasti
       {
         authAudit: options.dashboardAuthAudit,
         remoteAccessEnabled: options.dashboardRemoteAccessEnabled,
+        taskCommandService: options.dashboardTaskCommandService,
       },
     );
   }

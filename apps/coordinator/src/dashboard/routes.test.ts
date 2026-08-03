@@ -8,6 +8,7 @@ import {
 } from "./auth.js";
 import { assertRemoteDashboardConfiguration, type DashboardAuthAuditEvent } from "./routes.js";
 import type { DashboardService } from "./service.js";
+import type { DashboardTaskCommandService } from "./task-command-service.js";
 
 const ownerCredential = "synthetic-dashboard-owner-credential-123456";
 const deliveriesMock = vi.fn(() => Promise.resolve([]));
@@ -63,6 +64,7 @@ const dashboard = {
       states: [{ count: 1, state: "NEW" }],
     }),
   ),
+  projects: vi.fn(() => Promise.resolve({ projects: [{ id: "atlas", name: "ATLAS" }] })),
   task: vi.fn(() => Promise.resolve(null)),
   tasks: vi.fn(() => Promise.resolve([])),
 } as unknown as DashboardService;
@@ -172,6 +174,7 @@ describe("dashboard session authentication and RBAC", () => {
       "/dashboard/auth/session",
       "/dashboard/api/overview",
       "/dashboard/api/mission-control",
+      "/dashboard/api/projects",
       "/dashboard/api/tasks",
       "/dashboard/api/deliveries",
       "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
@@ -406,6 +409,97 @@ describe("dashboard session authentication and RBAC", () => {
       url,
     });
     expect(forbidden.statusCode).toBe(403);
+  });
+
+  it("protects create and cancel with permission, CSRF and strict payloads", async () => {
+    const createDemand = vi.fn().mockResolvedValue({
+      idempotentReplay: false,
+      task: {
+        id: "10000000-0000-4000-8000-000000000001",
+        projectId: "atlas",
+        state: "NEW",
+        version: 0,
+      },
+    });
+    const cancelTask = vi.fn().mockResolvedValue({
+      idempotentReplay: false,
+      mode: "cooperative",
+      task: {
+        id: "10000000-0000-4000-8000-000000000001",
+        projectId: "atlas",
+        state: "CANCEL_REQUESTED",
+        version: 8,
+      },
+    });
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      dashboardTaskCommandService: {
+        cancelTask,
+        createDemand,
+      } as unknown as DashboardTaskCommandService,
+      logger: false,
+    });
+    apps.push(app);
+    const csrf = auth.csrfToken(cookie) ?? "";
+    const createPayload = {
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      objective: "Criar uma demanda",
+      projectId: "atlas",
+    };
+
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          payload: createPayload,
+          url: "/dashboard/api/demands",
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie },
+          method: "POST",
+          payload: createPayload,
+          url: "/dashboard/api/demands",
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie, "x-atlas-csrf-token": csrf },
+          method: "POST",
+          payload: { ...createPayload, payload: "SECRET_PAYLOAD" },
+          url: "/dashboard/api/demands",
+        })
+      ).statusCode,
+    ).toBe(400);
+    const created = await app.inject({
+      headers: { cookie, "x-atlas-csrf-token": csrf },
+      method: "POST",
+      payload: createPayload,
+      url: "/dashboard/api/demands",
+    });
+    expect(created.statusCode).toBe(201);
+    expect(createDemand).toHaveBeenCalledOnce();
+
+    const cancelled = await app.inject({
+      headers: { cookie, "x-atlas-csrf-token": csrf },
+      method: "POST",
+      payload: {
+        idempotencyKey: "22222222-2222-4222-8222-222222222222",
+        taskVersion: 7,
+      },
+      url: "/dashboard/api/tasks/10000000-0000-4000-8000-000000000001/cancel",
+    });
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelTask).toHaveBeenCalledOnce();
+    expect(`${created.body}${cancelled.body}`).not.toContain("SECRET_PAYLOAD");
   });
 
   it("does not expose domain write methods under /dashboard", async () => {

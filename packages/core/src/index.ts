@@ -16,6 +16,8 @@ export interface TransitionTaskCommand {
   readonly expectedVersion: number;
   readonly failureStage?: string;
   readonly idempotencyKey: string;
+  readonly reasonCode?: string;
+  readonly requestHash?: string;
   readonly taskId: string;
   readonly toState: TaskState;
 }
@@ -28,11 +30,14 @@ export interface TaskTransitionResult {
 }
 
 export interface CreateTaskInput {
+  readonly actor?: AuditActor;
   readonly correlationId: string;
   readonly idempotencyKey: string;
   readonly origin: string;
   readonly originalMessage: string;
   readonly projectId: string;
+  readonly requestHash?: string;
+  readonly requireActiveProject?: boolean;
 }
 
 export interface CreateTaskResult {
@@ -42,11 +47,15 @@ export interface CreateTaskResult {
 }
 
 export interface RejectedTransition {
+  readonly actualVersion?: number;
   readonly actor: AuditActor;
   readonly correlationId: string;
+  readonly expectedVersion: number;
   readonly fromState: TaskState;
   readonly idempotencyKey: string;
   readonly projectId: string;
+  readonly reasonCode?: string;
+  readonly requestHash?: string;
   readonly reason: "failure_stage_required" | "invalid_transition" | "version_conflict";
   readonly taskId: string;
   readonly toState: TaskState;
@@ -58,7 +67,10 @@ export interface CommitTransitionInput extends TransitionTaskCommand {
 }
 
 export interface TaskTransitionStore {
-  findReplay(idempotencyKey: string): Promise<TaskTransitionResult | undefined>;
+  findReplay(
+    idempotencyKey: string,
+    requestHash?: string,
+  ): Promise<TaskTransitionResult | undefined>;
   getTask(taskId: string): Promise<TaskSnapshot | undefined>;
   commitTransition(input: CommitTransitionInput): Promise<TaskTransitionResult>;
   recordRejectedTransition(input: RejectedTransition): Promise<void>;
@@ -97,6 +109,20 @@ export class TaskVersionConflictError extends Error {
   }
 }
 
+export class TaskIdempotencyConflictError extends Error {
+  constructor() {
+    super("Idempotency key was already used for a different request");
+    this.name = "TaskIdempotencyConflictError";
+  }
+}
+
+export class TaskProjectNotEligibleError extends Error {
+  constructor() {
+    super("Project is not eligible for task creation");
+    this.name = "TaskProjectNotEligibleError";
+  }
+}
+
 export class TaskFailureStageRequiredError extends Error {
   constructor() {
     super("failureStage is required when transitioning to FAILED");
@@ -129,7 +155,7 @@ export class TaskStateMachine {
   constructor(private readonly store: TaskTransitionStore) {}
 
   async transition(command: TransitionTaskCommand): Promise<TaskTransitionResult> {
-    const replay = await this.store.findReplay(command.idempotencyKey);
+    const replay = await this.store.findReplay(command.idempotencyKey, command.requestHash);
     if (replay !== undefined) {
       return { ...replay, idempotentReplay: true };
     }
@@ -142,6 +168,7 @@ export class TaskStateMachine {
     if (task.version !== command.expectedVersion) {
       await this.store.recordRejectedTransition({
         ...command,
+        actualVersion: task.version,
         fromState: task.state,
         projectId: task.projectId,
         reason: "version_conflict",

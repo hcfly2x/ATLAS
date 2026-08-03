@@ -1,7 +1,7 @@
 import type { MissionControlResponse } from "@atlas/contracts";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
-import { Link, Route, Routes, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
+import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import {
   DemandWorkspaceReadError,
@@ -20,6 +20,15 @@ import {
 } from "./session.js";
 import { DemandWorkspace } from "./Workspace.js";
 import { decideDashboardApproval, type ApprovalDecisionClient } from "./approval-decision.js";
+import {
+  cancelDashboardTask,
+  createDashboardDemand,
+  fetchDashboardProjects,
+  DashboardCommandError,
+  type CancelDashboardTaskClient,
+  type CreateDashboardDemandClient,
+  type DashboardProjectsClient,
+} from "./task-commands.js";
 
 type ProactiveItem = MissionControlResponse["risks"]["items"][number];
 type WorkItem = MissionControlResponse["inProgress"]["items"][number];
@@ -164,7 +173,7 @@ function AccessGate({
         )}
         <p className="read-only-note">
           <span aria-hidden="true" className="status-dot" />
-          Ambiente somente leitura
+          Ambiente autenticado com operações governadas
         </p>
       </section>
     </main>
@@ -183,7 +192,7 @@ function ShellHeader({ generatedAt }: { readonly generatedAt?: string }) {
         <span className="context-divider" />
         <span className="context-status">
           <span aria-hidden="true" className="status-dot" />
-          Somente leitura
+          Operações governadas
         </span>
       </div>
       <div className="sync-time">
@@ -507,12 +516,156 @@ function ProactiveSection({
   );
 }
 
-function MissionControlHome({ data }: { readonly data: MissionControlResponse }) {
+function CreateDemand({
+  client,
+  projectsClient,
+}: {
+  readonly client: CreateDashboardDemandClient;
+  readonly projectsClient: DashboardProjectsClient;
+}) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [objective, setObjective] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const idempotencyKey = useRef<string | null>(null);
+  idempotencyKey.current ??= crypto.randomUUID();
+  const projects = useQuery({
+    queryFn: ({ signal }) => projectsClient(signal),
+    queryKey: ["dashboard-projects"],
+    retry: false,
+  });
+  const mutation = useMutation({
+    mutationFn: client,
+    onError: async (error) => {
+      if (error instanceof DashboardCommandError && error.code === "conflict") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["demand-workspace"] }),
+          queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+          queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] }),
+        ]);
+        idempotencyKey.current = crypto.randomUUID();
+      }
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["mission-control"] });
+      await navigate(demandLocation(result.task.id));
+    },
+  });
+
+  function submit(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedObjective = objective.trim();
+    const requestIdempotencyKey = idempotencyKey.current;
+    if (
+      normalizedObjective.length === 0 ||
+      projectId.length === 0 ||
+      mutation.isPending ||
+      requestIdempotencyKey === null
+    ) {
+      return;
+    }
+    mutation.mutate({
+      idempotencyKey: requestIdempotencyKey,
+      objective: normalizedObjective,
+      projectId,
+    });
+  }
+
+  return (
+    <section aria-labelledby="create-demand-title" className="section-card create-demand-section">
+      <header>
+        <p className="kicker">Nova operação governada</p>
+        <h2 id="create-demand-title">Criar demanda</h2>
+        <p>Registre o objetivo; o supervisor transforma a intenção em plano antes da execução.</p>
+      </header>
+      <form onSubmit={submit}>
+        <label>
+          Projeto
+          <select
+            disabled={projects.isPending || mutation.isPending}
+            onChange={(event) => {
+              setProjectId(event.currentTarget.value);
+              if (mutation.isError) {
+                idempotencyKey.current = crypto.randomUUID();
+                mutation.reset();
+              }
+            }}
+            required
+            value={projectId}
+          >
+            <option value="">Selecione um projeto</option>
+            {projects.data?.projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Objetivo
+          <textarea
+            disabled={mutation.isPending}
+            maxLength={10_000}
+            onChange={(event) => {
+              setObjective(event.currentTarget.value);
+              if (mutation.isError) {
+                idempotencyKey.current = crypto.randomUUID();
+                mutation.reset();
+              }
+            }}
+            required
+            value={objective}
+          />
+        </label>
+        {projects.isError || mutation.isError ? (
+          <p role="alert">
+            {mutation.error instanceof DashboardCommandError && mutation.error.code === "conflict"
+              ? "Esta tentativa já foi usada com dados diferentes. Inicie uma nova demanda."
+              : "Não foi possível criar a demanda."}
+          </p>
+        ) : null}
+        <button
+          disabled={
+            projects.isPending ||
+            mutation.isPending ||
+            objective.trim().length === 0 ||
+            projectId.length === 0
+          }
+          type="submit"
+        >
+          {mutation.isPending ? "Criando…" : "Criar demanda"}
+        </button>
+        {mutation.isError ? (
+          <button
+            onClick={() => {
+              idempotencyKey.current = crypto.randomUUID();
+              mutation.reset();
+            }}
+            type="button"
+          >
+            Iniciar nova tentativa
+          </button>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
+function MissionControlHome({
+  createDemandClient,
+  data,
+  projectsClient,
+}: {
+  readonly createDemandClient: CreateDashboardDemandClient;
+  readonly data: MissionControlResponse;
+  readonly projectsClient: DashboardProjectsClient;
+}) {
   return (
     <>
       <ShellHeader generatedAt={data.generatedAt} />
       <main className="mission-page">
         <Intelligence data={data} />
+        <CreateDemand client={createDemandClient} projectsClient={projectsClient} />
         <div className="dashboard-grid">
           <ProactiveSection
             block={data.needsAttention}
@@ -584,7 +737,7 @@ function MissionControlHome({ data }: { readonly data: MissionControlResponse })
             <span aria-hidden="true" className="status-dot" />
             Leitura derivada do estado canônico
           </span>
-          <span>Sem LLM · sem ações · sem progresso inferido</span>
+          <span>Operações governadas · sem progresso inferido</span>
         </footer>
       </main>
     </>
@@ -593,19 +746,26 @@ function MissionControlHome({ data }: { readonly data: MissionControlResponse })
 
 export interface AppProps {
   readonly approvalDecisionClient?: ApprovalDecisionClient;
+  readonly cancelTaskClient?: CancelDashboardTaskClient;
+  readonly createDemandClient?: CreateDashboardDemandClient;
   readonly demandWorkspaceClient?: DemandWorkspaceClient;
   readonly missionControlClient?: MissionControlClient;
+  readonly projectsClient?: DashboardProjectsClient;
   readonly sessionClient?: DashboardSessionClient;
 }
 
 function MissionControlRoute({
   authEpoch,
   client,
+  createDemandClient,
   onAuthenticate,
+  projectsClient,
 }: {
   readonly authEpoch: number;
   readonly client: MissionControlClient;
+  readonly createDemandClient: CreateDashboardDemandClient;
   readonly onAuthenticate: (credential: string) => Promise<void>;
+  readonly projectsClient: DashboardProjectsClient;
 }) {
   const projectId = new URLSearchParams(globalThis.location.search).get("projectId") ?? undefined;
   const query = useQuery({
@@ -626,7 +786,13 @@ function MissionControlRoute({
     }
     return <ErrorHome />;
   }
-  return <MissionControlHome data={query.data} />;
+  return (
+    <MissionControlHome
+      createDemandClient={createDemandClient}
+      data={query.data}
+      projectsClient={projectsClient}
+    />
+  );
 }
 
 function LoadingWorkspace() {
@@ -673,11 +839,13 @@ function WorkspaceError({ notFound = false }: { readonly notFound?: boolean }) {
 function DemandWorkspaceRoute({
   approvalDecisionClient,
   authEpoch,
+  cancelTaskClient,
   client,
   onAuthenticate,
 }: {
   readonly approvalDecisionClient: ApprovalDecisionClient;
   readonly authEpoch: number;
+  readonly cancelTaskClient: CancelDashboardTaskClient;
   readonly client: DemandWorkspaceClient;
   readonly onAuthenticate: (credential: string) => Promise<void>;
 }) {
@@ -702,13 +870,22 @@ function DemandWorkspaceRoute({
       />
     );
   }
-  return <DemandWorkspace approvalDecisionClient={approvalDecisionClient} data={query.data} />;
+  return (
+    <DemandWorkspace
+      approvalDecisionClient={approvalDecisionClient}
+      cancelTaskClient={cancelTaskClient}
+      data={query.data}
+    />
+  );
 }
 
 export function App({
   approvalDecisionClient = decideDashboardApproval,
+  cancelTaskClient = cancelDashboardTask,
+  createDemandClient = createDashboardDemand,
   demandWorkspaceClient = fetchDemandWorkspace,
   missionControlClient = fetchMissionControl,
+  projectsClient = fetchDashboardProjects,
   sessionClient = createDashboardSession,
 }: AppProps) {
   const [authEpoch, setAuthEpoch] = useState(0);
@@ -736,7 +913,9 @@ export function App({
           <MissionControlRoute
             authEpoch={authEpoch}
             client={missionControlClient}
+            createDemandClient={createDemandClient}
             onAuthenticate={authenticate}
+            projectsClient={projectsClient}
           />
         }
         path="/"
@@ -746,6 +925,7 @@ export function App({
           <DemandWorkspaceRoute
             approvalDecisionClient={approvalDecisionClient}
             authEpoch={authEpoch}
+            cancelTaskClient={cancelTaskClient}
             client={demandWorkspaceClient}
             onAuthenticate={authenticate}
           />

@@ -42,6 +42,7 @@ const demandWorkspacePrisma = {
         specifications: [],
         state: "NEW",
         updatedAt: new Date("2026-07-29T09:01:00.000Z"),
+        version: 0,
       }),
   },
 };

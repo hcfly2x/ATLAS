@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { TaskStateMachine, type TaskCoreStore, type TaskSnapshot } from "@atlas/core";
 
+import type { TaskIntakeService } from "../tasks/intake.js";
 import type { ApprovalDecisionResult, TelegramStore, TelegramTaskStatus } from "./store.js";
 import {
   telegramUpdateSchema,
@@ -29,6 +30,7 @@ export class TelegramUnauthorizedError extends Error {
 export interface TelegramGatewayOptions {
   readonly allowedUserId: bigint;
   readonly onTaskCreated?: (taskId: string, correlationId: string) => void;
+  readonly taskIntake?: TaskIntakeService;
   readonly store: TelegramStore;
   readonly taskStore: TaskCoreStore;
 }
@@ -242,14 +244,18 @@ export class TelegramGateway {
     if (project === undefined) {
       return [{ text: "Selecione um projeto primeiro com /projects." }];
     }
-    const created = await this.options.taskStore.createTask({
+    const createInput = {
       correlationId,
       idempotencyKey: `telegram:update:${String(update.update_id)}:task`,
       origin: `telegram:${userId.toString()}:${message.chat.id.toString()}`,
       originalMessage: message.text,
       projectId: project.id,
-    });
-    if (!created.idempotentReplay) {
+    };
+    const created =
+      this.options.taskIntake === undefined
+        ? await this.options.taskStore.createTask(createInput)
+        : await this.options.taskIntake.create(createInput);
+    if (!created.idempotentReplay && this.options.taskIntake === undefined) {
       this.options.onTaskCreated?.(created.task.id, correlationId);
     }
     return [

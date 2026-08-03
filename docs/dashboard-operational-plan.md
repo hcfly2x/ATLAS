@@ -226,8 +226,8 @@ ADR-025 está Proposto. C2a também foi implementada para decisões humanas de
 Approval pelo resolvedor canônico. O app React que contém as Trilhas A, B e C2a
 é agora servido pelo coordinator em `/dashboard`, conforme ADR-029 Proposto,
 com deep links autenticados e assets hasheados. A página inline de Mission
-Control foi aposentada. C2b1 (criar/cancelar) e C2c
-(pausa/retomada/prioridade) continuam fases próprias.
+Control foi aposentada. C2b1 também foi implementada para criação e
+cancelamento canônicos. C2c (pausa/retomada/prioridade) continua fase própria.
 
 ### Trilha D — Projeto como empresa independente
 
@@ -298,6 +298,11 @@ demanda, pausar, priorizar e cancelar permanecem fora desta entrega.
 
 A C2·Serving publica o build React das Trilhas A, B e C2a no coordinator,
 subordinado ao ADR-029 Proposto. Shell, deep links e assets exigem sessão e
-permissão; o catch-all não sombreia APIs ou assets inexistentes. Esta etapa não
-cria escrita nem muda domínio. C2b1 é a próxima fase para criar/cancelar; C2c
-fica reservada a pausa, retomada e prioridade.
+permissão; o catch-all não sombreia APIs ou assets inexistentes.
+
+A C2b1 foi autorizada e implementada: criação e cancelamento reutilizam o intake
+e a máquina de estados canônicos, com sessão, RBAC, CSRF, idempotência e
+auditoria. Um recibo transacional mínimo vincula a chave também aos resultados
+rejeitados, sem conteúdo bruto. Cancelamento ativo é cooperativo. A UI não oferece
+`request_change` para Approval pré-execução. C2c fica reservada a pausa,
+retomada e prioridade.

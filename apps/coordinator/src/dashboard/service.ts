@@ -1033,6 +1033,7 @@ export class DashboardService {
         risk: task.project.risk.trim().length === 0 ? INDETERMINATE : task.project.risk,
         taskId: task.id,
         taskState: task.state,
+        taskVersion: task.version,
         updatedAt: task.updatedAt,
       },
       memory: {
@@ -1093,6 +1094,15 @@ export class DashboardService {
             ? "SLA_EXCEEDED"
             : row.status,
     }));
+  }
+
+  async projects() {
+    const projects = await this.prisma.project.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: { id: true, name: true },
+    });
+    return { projects };
   }
 
   async audit(projectId: string) {
