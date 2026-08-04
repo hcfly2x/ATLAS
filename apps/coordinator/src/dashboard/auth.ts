@@ -18,6 +18,9 @@ export const dashboardPermissions = [
   "dashboard:shell:read",
   "dashboard:tasks:read",
   "dashboard:task:cancel",
+  "dashboard:task:pause",
+  "dashboard:task:priority",
+  "dashboard:task:resume",
 ] as const;
 
 export type DashboardPermission = (typeof dashboardPermissions)[number];

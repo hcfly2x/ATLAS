@@ -306,6 +306,40 @@ export const cancelDashboardTaskResponseSchema = z
   })
   .strict();
 
+const dashboardTaskOperationalSnapshotSchema = z
+  .object({
+    id: z.string().uuid(),
+    pausedFromState: z.enum(["WAITING_APPROVAL", "QUEUED"]).nullable(),
+    priority: z.union([z.literal(0), z.literal(10), z.literal(20)]),
+    projectId: z.string().min(1),
+    state: z.string().min(1),
+    version: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const dashboardTaskVersionedCommandSchema = z
+  .object({
+    idempotencyKey: z.string().uuid(),
+    taskVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const pauseDashboardTaskRequestSchema = dashboardTaskVersionedCommandSchema;
+export const resumeDashboardTaskRequestSchema = dashboardTaskVersionedCommandSchema;
+
+export const setDashboardTaskPriorityRequestSchema = dashboardTaskVersionedCommandSchema
+  .extend({
+    priority: z.union([z.literal(0), z.literal(10), z.literal(20)]),
+  })
+  .strict();
+
+export const dashboardTaskOperationalCommandResponseSchema = z
+  .object({
+    idempotentReplay: z.boolean(),
+    task: dashboardTaskOperationalSnapshotSchema,
+  })
+  .strict();
+
 export const dashboardSessionResponseSchema = z
   .object({
     csrfToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
@@ -355,5 +389,11 @@ export type CreateDashboardDemandRequest = z.infer<typeof createDashboardDemandR
 export type CreateDashboardDemandResponse = z.infer<typeof createDashboardDemandResponseSchema>;
 export type CancelDashboardTaskRequest = z.infer<typeof cancelDashboardTaskRequestSchema>;
 export type CancelDashboardTaskResponse = z.infer<typeof cancelDashboardTaskResponseSchema>;
+export type PauseDashboardTaskRequest = z.infer<typeof pauseDashboardTaskRequestSchema>;
+export type ResumeDashboardTaskRequest = z.infer<typeof resumeDashboardTaskRequestSchema>;
+export type SetDashboardTaskPriorityRequest = z.infer<typeof setDashboardTaskPriorityRequestSchema>;
+export type DashboardTaskOperationalCommandResponse = z.infer<
+  typeof dashboardTaskOperationalCommandResponseSchema
+>;
 export type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>;
 export type ApprovalDecisionResponse = z.infer<typeof approvalDecisionResponseSchema>;

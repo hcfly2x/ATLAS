@@ -8,6 +8,9 @@ import {
   dashboardSessionResponseSchema,
   demandWorkspaceResponseSchema,
   missionControlResponseSchema,
+  pauseDashboardTaskRequestSchema,
+  resumeDashboardTaskRequestSchema,
+  setDashboardTaskPriorityRequestSchema,
 } from "../src/index.js";
 
 const missionControlFixture = {
@@ -157,5 +160,32 @@ describe("@atlas/contracts dashboard schemas", () => {
     expect(() =>
       cancelDashboardTaskRequestSchema.parse({ ...cancel, messageText: "SECRET" }),
     ).toThrow();
+  });
+
+  it("validates pause, resume and priority commands strictly", () => {
+    const versioned = {
+      idempotencyKey: "33333333-3333-4333-8333-333333333333",
+      taskVersion: 8,
+    };
+    expect(pauseDashboardTaskRequestSchema.parse(versioned)).toEqual(versioned);
+    expect(resumeDashboardTaskRequestSchema.parse(versioned)).toEqual(versioned);
+    expect(() =>
+      pauseDashboardTaskRequestSchema.parse({ ...versioned, destination: "QUEUED" }),
+    ).toThrow();
+    expect(() =>
+      resumeDashboardTaskRequestSchema.parse({ ...versioned, payload: "SECRET" }),
+    ).toThrow();
+
+    for (const priority of [0, 10, 20] as const) {
+      expect(setDashboardTaskPriorityRequestSchema.parse({ ...versioned, priority })).toEqual({
+        ...versioned,
+        priority,
+      });
+    }
+    for (const priority of [-1, 5, 30]) {
+      expect(() =>
+        setDashboardTaskPriorityRequestSchema.parse({ ...versioned, priority }),
+      ).toThrow();
+    }
   });
 });

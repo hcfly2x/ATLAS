@@ -2,15 +2,13 @@
 
 ## Dashboard — após C2b1
 
-- Revisar empiricamente o C2c-3: seleção unificada pela Task, CAS transacional
-  nos dois claims, rollback integral e preservação de lease/fencing.
-- Confirmar em PostgreSQL `claim × claim` e `pause × claim` nos dois caminhos,
-  aging sem starvation, desempate determinístico, elegibilidade por projeto e
-  escopo e ausência de Assignment para `PAUSED`.
-- Manter os passos 4 e 5 não autorizados: comandos governados pelo recibo antes
-  de read-model/UI; cada etapa exige revisão completa e autorização própria.
-- No passo 4, provar `pause × Approval`, restauração por `pausedFromState` e
-  replay de rejeições pelo recibo C2b1.
+- Revisar empiricamente o C2c-4: `pause × Approval`, restauração por
+  `pausedFromState`, prioridade limitada e replay aceito/rejeitado pelo recibo
+  C2b1.
+- Confirmar em staging que uma Task pausada pelo comando não recebe Assignment
+  e que sessão, RBAC, CSRF e versões divergentes falham sem mutação.
+- Manter o passo 5 não autorizado: read-model/UI de pausa, retomada e prioridade
+  exige fase própria depois da revisão completa do backend.
 
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.
@@ -30,8 +28,8 @@
 - Definir em fase própria a entrega terminal de `answer_only` originada na
   Dashboard. Até existir um destino governado, o guard atual continua
   fail-closed e não trata `dashboard:owner` como destino Telegram.
-- Manter pausa, retomada e prioridade sem implementação até o ADR-030 ser
-  revisado e uma fase de comportamento receber autorização explícita.
+- Manter a UI de pausa, retomada e prioridade sem implementação até o passo 5
+  receber autorização explícita.
 - Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
 
 ## Entrega durável — acompanhamento após a Fase B
@@ -196,9 +194,9 @@
 - Revisar empiricamente a Trilha C1: expiração, deny-by-default rota a rota,
   loopback/flag, auditoria sanitizada e ausência de credencial/token no
   bundle, respostas ou logs.
-- Trilha C2a, seu serving e C2b1 (criar/cancelar) estão implementados. O C2c-2
-  torna schema/core aditivos e inertes; scheduler, comandos e UI permanecem
-  fases próprias, reutilizando governança canônica e sem exceção a
+- Trilha C2a, seu serving e C2b1 (criar/cancelar) estão implementados. C2c-2
+  adicionou schema/core, C2c-3 endureceu o scheduler e C2c-4 acrescenta os
+  comandos governados; read-model/UI permanecem no passo 5, sem exceção a
   `always_human`.
 - Trilha D: projeto como empresa independente, entregáveis e custo real/Budget.
 - Trilha E: OTel/observabilidade, saúde, notificações, conhecimento, decisões,

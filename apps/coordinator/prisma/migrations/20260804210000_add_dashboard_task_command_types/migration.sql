@@ -1,0 +1,3 @@
+ALTER TYPE "DashboardCommandType" ADD VALUE 'PAUSE_TASK';
+ALTER TYPE "DashboardCommandType" ADD VALUE 'RESUME_TASK';
+ALTER TYPE "DashboardCommandType" ADD VALUE 'SET_TASK_PRIORITY';

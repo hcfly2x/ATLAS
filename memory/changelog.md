@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Dashboard C2c comandos governados
+
+- O passo C2c-4 acrescenta `PAUSE_TASK`, `RESUME_TASK` e
+  `SET_TASK_PRIORITY` ao enum persistido em migração PostgreSQL isolada.
+- Três rotas `POST` autenticadas usam permissões RBAC próprias, CSRF ligado à
+  sessão, contratos estritos, versão otimista e o recibo durável C2b1.
+- Pausa e retomada passam exclusivamente pela máquina canônica; a origem é
+  derivada e a retomada usa somente `pausedFromState`. Prioridade aceita apenas
+  `0|10|20` em `WAITING_APPROVAL|QUEUED|PAUSED`, sem mudar estado ou Execution.
+- Recibo, CAS e auditoria são confirmados na mesma transação. Replay aceito ou
+  rejeitado, divergência, `PENDING`, `pause × claim` e `pause × Approval` são
+  cobertos em PostgreSQL real.
+- Esta entrega não cria UI nem altera core, scheduler, Approval, enforcement,
+  autonomia, `always_human` ou `.atlas/**`; o passo 5 permanece separado.
+
 ## Unreleased — Dashboard C2c scheduler
 
 - O passo C2c-3 unifica a seleção do claim pela Task e aplica CAS transacional de

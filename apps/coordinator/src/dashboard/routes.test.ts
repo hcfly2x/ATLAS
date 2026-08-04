@@ -502,6 +502,122 @@ describe("dashboard session authentication and RBAC", () => {
     expect(`${created.body}${cancelled.body}`).not.toContain("SECRET_PAYLOAD");
   });
 
+  it("protects pause, resume and priority with distinct RBAC permissions and CSRF", async () => {
+    const task = {
+      id: "10000000-0000-4000-8000-000000000001",
+      pausedFromState: "QUEUED",
+      priority: 20,
+      projectId: "atlas",
+      state: "PAUSED",
+      version: 8,
+    };
+    const pauseTask = vi.fn().mockResolvedValue({ idempotentReplay: false, task });
+    const resumeTask = vi.fn().mockResolvedValue({
+      idempotentReplay: false,
+      task: { ...task, pausedFromState: null, state: "QUEUED", version: 9 },
+    });
+    const setTaskPriority = vi.fn().mockResolvedValue({ idempotentReplay: false, task });
+    const auth = createAuth();
+    const cookie = sessionCookie(auth);
+    const app = createCoordinatorApp({
+      dashboardAuth: auth,
+      dashboardService: dashboard,
+      dashboardTaskCommandService: {
+        pauseTask,
+        resumeTask,
+        setTaskPriority,
+      } as unknown as DashboardTaskCommandService,
+      logger: false,
+    });
+    apps.push(app);
+    const csrf = auth.csrfToken(cookie) ?? "";
+    const base = {
+      idempotencyKey: "33333333-3333-4333-8333-333333333333",
+      taskVersion: 7,
+    };
+    const root = "/dashboard/api/tasks/10000000-0000-4000-8000-000000000001";
+
+    expect(
+      (await app.inject({ method: "POST", payload: base, url: `${root}/pause` })).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie },
+          method: "POST",
+          payload: base,
+          url: `${root}/pause`,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie, "x-atlas-csrf-token": csrf },
+          method: "POST",
+          payload: { ...base, destination: "QUEUED" },
+          url: `${root}/resume`,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await app.inject({
+          headers: { cookie, "x-atlas-csrf-token": csrf },
+          method: "POST",
+          payload: { ...base, priority: 5 },
+          url: `${root}/priority`,
+        })
+      ).statusCode,
+    ).toBe(400);
+
+    for (const [path, payload] of [
+      ["pause", base],
+      ["resume", base],
+      ["priority", { ...base, priority: 20 }],
+    ] as const) {
+      const response = await app.inject({
+        headers: { cookie, "x-atlas-csrf-token": csrf },
+        method: "POST",
+        payload,
+        url: `${root}/${path}`,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.body).not.toContain("SECRET");
+    }
+    expect(pauseTask).toHaveBeenCalledOnce();
+    expect(resumeTask).toHaveBeenCalledOnce();
+    expect(setTaskPriority).toHaveBeenCalledOnce();
+
+    for (const [permission, path, payload] of [
+      ["dashboard:task:pause", "pause", base],
+      ["dashboard:task:resume", "resume", base],
+      ["dashboard:task:priority", "priority", { ...base, priority: 20 }],
+    ] as const) {
+      const permissionAuth = createAuth({ permissions: new Set([permission]) });
+      const permissionCookie = sessionCookie(permissionAuth);
+      const isolated = createCoordinatorApp({
+        dashboardAuth: permissionAuth,
+        dashboardService: dashboard,
+        logger: false,
+      });
+      apps.push(isolated);
+      expect(
+        (
+          await isolated.inject({
+            headers: {
+              cookie: permissionCookie,
+              "x-atlas-csrf-token": permissionAuth.csrfToken(permissionCookie) ?? "",
+            },
+            method: "POST",
+            payload,
+            url: `${root}/${path}`,
+          })
+        ).statusCode,
+      ).toBe(503);
+    }
+  });
+
   it("does not expose domain write methods under /dashboard", async () => {
     const auth = createAuth();
     const cookie = sessionCookie(auth);

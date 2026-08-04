@@ -2285,3 +2285,307 @@ describe("C2c scheduler PostgreSQL hardening", () => {
     expect(pendingCalls).toBe(0);
   });
 });
+
+describe("C2c governed dashboard commands", () => {
+  it.each(["WAITING_APPROVAL", "QUEUED"] as const)(
+    "pauses and resumes %s through the durable receipt and canonical state machine",
+    async (origin) => {
+      const projectId = await createClaimProject(`c2c-command-${origin.toLowerCase()}`);
+      const fixture = await createQueuedClaimTask({
+        createdAt: new Date(),
+        projectId,
+        state: origin,
+      });
+      if (origin === "WAITING_APPROVAL") {
+        await prisma.approval.create({
+          data: {
+            actor: "USER",
+            channel: "TELEGRAM",
+            idempotencyKey: `c2c-resume-approval-${randomUUID()}`,
+            presentedPayload: {},
+            requestedBy: "c2c-command-test",
+            targetHash: fixture.specification.payloadHash,
+            targetId: fixture.specification.id,
+            targetType: "SPECIFICATION",
+            targetVersion: fixture.specification.version,
+            taskId: fixture.taskId,
+            type: "PRE_EXECUTION",
+          },
+        });
+      }
+      const commandService = new DashboardTaskCommandService(
+        { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+        new PrismaDashboardCommandReceiptStore(prisma),
+      );
+      const pauseKey = randomUUID();
+      const paused = await commandService.pauseTask(
+        fixture.taskId,
+        { idempotencyKey: pauseKey, taskVersion: 0 },
+        `c2c-pause-${origin}`,
+      );
+      expect(paused).toMatchObject({
+        idempotentReplay: false,
+        task: { pausedFromState: origin, priority: 0, state: "PAUSED", version: 1 },
+      });
+      await expect(
+        prisma.dashboardCommandReceipt.findUniqueOrThrow({
+          where: { idempotencyKey: `dashboard:command:${pauseKey}` },
+        }),
+      ).resolves.toMatchObject({ commandType: "PAUSE_TASK", status: "ACCEPTED" });
+
+      const resumed = await commandService.resumeTask(
+        fixture.taskId,
+        { idempotencyKey: randomUUID(), taskVersion: 1 },
+        `c2c-resume-${origin}`,
+      );
+      expect(resumed).toMatchObject({
+        task: { pausedFromState: null, state: origin, version: 2 },
+      });
+      await expect(
+        prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } }),
+      ).resolves.toMatchObject({ pausedFromState: null, state: origin, version: 2 });
+    },
+  );
+
+  it("does not let the scheduler claim a Task paused by the real command service", async () => {
+    const projectId = await createClaimProject("c2c-command-pause-claim");
+    const fixture = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-04T12:00:00.000Z"),
+      executionCreatedAt: new Date("2026-08-04T12:00:00.000Z"),
+      projectId,
+    });
+    const commandService = new DashboardTaskCommandService(
+      { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+      new PrismaDashboardCommandReceiptStore(prisma),
+    );
+    await commandService.pauseTask(
+      fixture.taskId,
+      { idempotencyKey: randomUUID(), taskVersion: 0 },
+      "c2c-command-pause-before-claim",
+    );
+    const workerService = c2cWorkerService(projectId);
+    const worker = await registerClaimWorker(workerService, projectId, "command-paused");
+
+    await expect(
+      workerService.claim(worker, `c2c-command-claim-${randomUUID()}`),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } }),
+    ).resolves.toMatchObject({ pausedFromState: "QUEUED", state: "PAUSED", version: 1 });
+    if (fixture.execution === null) throw new Error("expected pre-created Execution");
+    await expect(
+      prisma.execution.findUniqueOrThrow({ where: { id: fixture.execution.id } }),
+    ).resolves.toMatchObject({ leaseId: null, status: "QUEUED" });
+  });
+
+  it("allows exactly one pause × Approval decision winner", async () => {
+    const projectId = await createClaimProject("c2c-command-pause-approval");
+    const fixture = await createQueuedClaimTask({
+      createdAt: new Date(),
+      projectId,
+      state: "WAITING_APPROVAL",
+    });
+    const approval = await prisma.approval.create({
+      data: {
+        actor: "USER",
+        channel: "TELEGRAM",
+        idempotencyKey: `c2c-pause-approval-${randomUUID()}`,
+        presentedPayload: {},
+        requestedBy: "c2c-command-test",
+        targetHash: fixture.specification.payloadHash,
+        targetId: fixture.specification.id,
+        targetType: "SPECIFICATION",
+        targetVersion: fixture.specification.version,
+        taskId: fixture.taskId,
+        type: "PRE_EXECUTION",
+      },
+    });
+    const commandService = new DashboardTaskCommandService(
+      { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+      new PrismaDashboardCommandReceiptStore(prisma),
+    );
+    const outcomes = await Promise.allSettled([
+      commandService.pauseTask(
+        fixture.taskId,
+        { idempotencyKey: randomUUID(), taskVersion: 0 },
+        "c2c-command-pause-approval-pause",
+      ),
+      new PrismaApprovalDecisionService(prisma).decide({
+        approvalId: approval.id,
+        channel: "DASHBOARD",
+        correlationId: "c2c-command-pause-approval-decision",
+        decidedBy: "owner",
+        decision: "APPROVED",
+        decisionKind: "approve",
+        expectedTargetVersion: 1,
+        expectedTaskVersion: 0,
+        idempotencyKey: `c2c-command-pause-approval-decision-${randomUUID()}`,
+        requireHumanActor: true,
+      }),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+    const task = await prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } });
+    const persistedApproval = await prisma.approval.findUniqueOrThrow({
+      where: { id: approval.id },
+    });
+    if (task.state === "PAUSED") {
+      expect(task).toMatchObject({ pausedFromState: "WAITING_APPROVAL", version: 1 });
+      expect(persistedApproval.status).toBe("PENDING");
+    } else {
+      expect(task).toMatchObject({ pausedFromState: null, state: "QUEUED", version: 1 });
+      expect(persistedApproval.status).toBe("APPROVED");
+    }
+  });
+
+  it("binds invalid resume and priority rejections and conflicts on divergent replay", async () => {
+    const projectId = await createClaimProject("c2c-command-rejections");
+    const queued = await createQueuedClaimTask({ createdAt: new Date(), projectId });
+    const commandService = new DashboardTaskCommandService(
+      { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+      new PrismaDashboardCommandReceiptStore(prisma),
+    );
+    const resumeKey = randomUUID();
+    await expect(
+      commandService.resumeTask(
+        queued.taskId,
+        { idempotencyKey: resumeKey, taskVersion: 0 },
+        "c2c-invalid-resume",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_RESUME_CONFLICT"));
+    await expect(
+      commandService.resumeTask(
+        queued.taskId,
+        { idempotencyKey: resumeKey, taskVersion: 0 },
+        "c2c-invalid-resume-replay",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_RESUME_CONFLICT"));
+    await expect(
+      commandService.resumeTask(
+        queued.taskId,
+        { idempotencyKey: resumeKey, taskVersion: 1 },
+        "c2c-invalid-resume-divergent",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_IDEMPOTENCY_CONFLICT"));
+    await expect(
+      prisma.dashboardCommandReceipt.findUniqueOrThrow({
+        where: { idempotencyKey: `dashboard:command:${resumeKey}` },
+      }),
+    ).resolves.toMatchObject({ resultCode: "TASK_RESUME_CONFLICT", status: "REJECTED" });
+
+    await prisma.task.update({
+      where: { id: queued.taskId },
+      data: { state: "RUNNING", version: { increment: 1 } },
+    });
+    const priorityKey = randomUUID();
+    await expect(
+      commandService.setTaskPriority(
+        queued.taskId,
+        { idempotencyKey: priorityKey, priority: 20, taskVersion: 1 },
+        "c2c-invalid-priority",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("TASK_PRIORITY_CONFLICT"));
+    await expect(
+      prisma.dashboardCommandReceipt.findUniqueOrThrow({
+        where: { idempotencyKey: `dashboard:command:${priorityKey}` },
+      }),
+    ).resolves.toMatchObject({ resultCode: "TASK_PRIORITY_CONFLICT", status: "REJECTED" });
+  });
+
+  it.each(["WAITING_APPROVAL", "QUEUED", "PAUSED"] as const)(
+    "accepts bounded priorities in %s without changing state",
+    async (state) => {
+      const projectId = await createClaimProject(`c2c-command-priority-${state.toLowerCase()}`);
+      const fixture = await createQueuedClaimTask({
+        createdAt: new Date(),
+        ...(state === "PAUSED" ? { pausedFromState: "QUEUED" as const } : {}),
+        projectId,
+        state,
+      });
+      const commandService = new DashboardTaskCommandService(
+        { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+        new PrismaDashboardCommandReceiptStore(prisma),
+      );
+      let version = 0;
+      for (const priority of [0, 10, 20] as const) {
+        const response = await commandService.setTaskPriority(
+          fixture.taskId,
+          { idempotencyKey: randomUUID(), priority, taskVersion: version },
+          `c2c-priority-${state}-${String(priority)}`,
+        );
+        version += 1;
+        expect(response.task).toMatchObject({ priority, state, version });
+      }
+      await expect(
+        prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } }),
+      ).resolves.toMatchObject({ priority: 20, state, version: 3 });
+      await expect(
+        prisma.auditEvent.count({
+          where: { action: "task.priority.updated", taskId: fixture.taskId },
+        }),
+      ).resolves.toBe(3);
+      await expect(
+        prisma.$executeRawUnsafe(
+          `UPDATE "tasks" SET "priority" = 5 WHERE "id" = '${fixture.taskId}'`,
+        ),
+      ).rejects.toThrow();
+    },
+  );
+
+  it("applies one effect for concurrent identical keys and never reexecutes PENDING", async () => {
+    const projectId = await createClaimProject("c2c-command-idempotency");
+    const fixture = await createQueuedClaimTask({ createdAt: new Date(), projectId });
+    const commandService = new DashboardTaskCommandService(
+      { notifyTaskCreated: () => undefined } as unknown as TaskIntakeService,
+      new PrismaDashboardCommandReceiptStore(prisma),
+    );
+    const key = randomUUID();
+    const outcomes = await Promise.all([
+      commandService.pauseTask(
+        fixture.taskId,
+        { idempotencyKey: key, taskVersion: 0 },
+        "c2c-concurrent-command-a",
+      ),
+      commandService.pauseTask(
+        fixture.taskId,
+        { idempotencyKey: key, taskVersion: 0 },
+        "c2c-concurrent-command-b",
+      ),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.idempotentReplay)).toHaveLength(1);
+    await expect(
+      prisma.auditEvent.count({
+        where: { action: "task.transition.accepted", taskId: fixture.taskId },
+      }),
+    ).resolves.toBe(1);
+
+    const pendingKey = randomUUID();
+    const requestHash = canonicalPayloadHash({
+      action: "set_task_priority",
+      priority: 20,
+      taskId: fixture.taskId,
+      taskVersion: 1,
+    });
+    await prisma.dashboardCommandReceipt.create({
+      data: {
+        actor: "USER",
+        commandType: "SET_TASK_PRIORITY",
+        correlationId: "c2c-pending-command",
+        expectedVersion: 1,
+        idempotencyKey: `dashboard:command:${pendingKey}`,
+        requestHash,
+        targetTaskId: fixture.taskId,
+      },
+    });
+    await expect(
+      commandService.setTaskPriority(
+        fixture.taskId,
+        { idempotencyKey: pendingKey, priority: 20, taskVersion: 1 },
+        "c2c-pending-command-replay",
+      ),
+    ).rejects.toEqual(new DashboardTaskCommandError("DASHBOARD_COMMAND_OUTCOME_UNKNOWN"));
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } }),
+    ).resolves.toMatchObject({ priority: 0, state: "PAUSED", version: 1 });
+  });
+});

@@ -148,6 +148,9 @@ enum DashboardCommandReceiptStatus {
 enum DashboardCommandType {
   CREATE_DEMAND
   CANCEL_TASK
+  PAUSE_TASK
+  RESUME_TASK
+  SET_TASK_PRIORITY
 }
 
 model Project {
