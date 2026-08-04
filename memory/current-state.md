@@ -89,21 +89,19 @@ existente, sem guardar objetivo ou motivo bruto. Conflitos atualizam o Workspace
 e o Mission Control antes de uma nova tentativa; a criação também renova a lista
 de projetos. C2c (pausa/retomada/prioridade) permanece separada.
 
-O spike documental da C2c está proposto para revisão no ADR-030 e em
+O spike documental da C2c está registrado no ADR-030 e em
 `docs/dashboard-c2c-migration-plan.md`. O desenho limita a pausa inicial a
 `WAITING_APPROVAL|QUEUED`, restaura deterministicamente o estado anterior,
-reusa o recibo C2b1 e trata prioridade com aging. Nenhum estado, campo, rota,
-migração ou comportamento foi implementado; a implementação exige autorização
-posterior e começa pelo hardening CAS dos dois caminhos de claim.
+reusa o recibo C2b1 e trata prioridade com aging.
 
-O passo C2c-1 acrescenta somente uma rede de testes de caracterização. A matriz
-congela os 14 estados e todas as arestas atuais, afirmando a ausência de
-`PAUSED`; testes unitários registram a assimetria entre `task.update` por ID no
-claim de Execution pré-criada e o CAS `state+version` no claim de Task nua.
-PostgreSQL real cobre FIFO, lease/fencing inicial, exatamente um vencedor em
-claims e decisões de Approval concorrentes e os desfechos duráveis do recibo
-C2b1. Nenhum comportamento, schema, migration, rota ou UI mudou. Schema/core
-continuam sendo o passo 2 e exigem autorização própria.
+O passo C2c-1 acrescentou a rede de testes de caracterização. Nesta entrega, o
+passo C2c-2 acrescenta de forma inerte `PAUSED`, `pausedFromState`, `priority`,
+as cinco arestas do ADR-030 e a regra pura que deriva e valida o destino de
+retomada. O enum PostgreSQL é adicionado numa migration isolada; uma segunda
+migration cria os metadados, constraints e índice sem `UPDATE` ou backfill.
+Nenhum comando, rota, UI ou scheduler produz `PAUSED`, e ambos os claims
+continuam selecionando somente `QUEUED`. Os passos 3–5 permanecem não
+autorizados e exigem fases e revisões próprias.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
@@ -303,11 +301,11 @@ automaticamente.
 
 ## Próximo passo
 
-Revisar empiricamente o loop-breaker, incluindo limiar, reset por motivo,
-idempotência, projeção em “Precisam de você” e notificação única. Em paralelo,
-coletar amostras reais versionadas dos shadows de paths e comandos. Qualquer
-`MORE_PERMISSIVE` bloqueia o respectivo cutover; mesmo com amostra limpa, cada
-cutover exige fase e autorização próprias. A Trilha C2 continua não autorizada.
+Revisar empiricamente o C2c-2: migrations em PostgreSQL limpo, constraints,
+índice, preservação das arestas antigas, regras condicionais de retomada e
+ausência de produtores de `PAUSED`. O passo 3 — hardening CAS dos dois claims e
+scheduler com prioridade/aging — só pode começar após revisão completa e nova
+autorização explícita.
 
 ## Restrições ativas
 

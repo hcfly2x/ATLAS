@@ -32,8 +32,17 @@ class InMemoryTransitionStore implements TaskTransitionStore {
   }
 
   commitTransition(input: CommitTransitionInput): Promise<TaskTransitionResult> {
+    const current = this.tasks.get(input.taskId);
     const task: TaskSnapshot = {
       id: input.taskId,
+      ...(input.pausedFromState === undefined
+        ? current?.pausedFromState === undefined
+          ? {}
+          : { pausedFromState: current.pausedFromState }
+        : input.pausedFromState === null
+          ? {}
+          : { pausedFromState: input.pausedFromState }),
+      ...(current?.priority === undefined ? {} : { priority: current.priority }),
       projectId: input.projectId,
       state: input.toState,
       version: input.expectedVersion + 1,
@@ -68,8 +77,8 @@ const canonicalTransitions = {
   NORMALIZING: ["ROUTING", "FAILED", "CANCELLED"],
   ROUTING: ["SPECIFYING", "FAILED", "CANCELLED"],
   SPECIFYING: ["WAITING_APPROVAL", "QUEUED", "FAILED", "CANCELLED"],
-  WAITING_APPROVAL: ["QUEUED", "CANCELLED"],
-  QUEUED: ["RUNNING", "FAILED", "CANCELLED"],
+  WAITING_APPROVAL: ["QUEUED", "CANCELLED", "PAUSED"],
+  QUEUED: ["RUNNING", "FAILED", "CANCELLED", "PAUSED"],
   RUNNING: ["TESTING", "FAILED", "CANCEL_REQUESTED"],
   TESTING: ["WAITING_RESULT_APPROVAL", "FINALIZING", "FAILED", "CANCEL_REQUESTED"],
   WAITING_RESULT_APPROVAL: ["FINALIZING", "SPECIFYING", "CANCEL_REQUESTED"],
@@ -78,6 +87,7 @@ const canonicalTransitions = {
   FAILED: ["QUEUED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
+  PAUSED: ["WAITING_APPROVAL", "QUEUED", "CANCELLED"],
 } as const satisfies Record<TaskState, readonly TaskState[]>;
 
 describe("TaskStateMachine", () => {
@@ -86,7 +96,13 @@ describe("TaskStateMachine", () => {
       for (const toState of taskStateSchema.options) {
         const accepted = canonicalTransitions[fromState].some((candidate) => candidate === toState);
         expect(canTransition(fromState, toState), `${fromState} -> ${toState}`).toBe(accepted);
-        const task = { ...baseTask, state: fromState };
+        const task = {
+          ...baseTask,
+          ...(fromState === "PAUSED" && (toState === "WAITING_APPROVAL" || toState === "QUEUED")
+            ? { pausedFromState: toState }
+            : {}),
+          state: fromState,
+        };
         const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
         const transition = new TaskStateMachine(store).transition({
           actor: "system",
@@ -115,9 +131,104 @@ describe("TaskStateMachine", () => {
     }
   });
 
-  it("characterizes the current state vocabulary without PAUSED", () => {
+  it("characterizes PAUSED with exactly the five additive edges", () => {
     expect([...taskStateSchema.options].sort()).toEqual(Object.keys(canonicalTransitions).sort());
-    expect(taskStateSchema.safeParse("PAUSED").success).toBe(false);
+    expect(taskStateSchema.safeParse("PAUSED").success).toBe(true);
+    expect(canonicalTransitions.WAITING_APPROVAL).toContain("PAUSED");
+    expect(canonicalTransitions.QUEUED).toContain("PAUSED");
+    expect(canonicalTransitions.PAUSED).toEqual(["WAITING_APPROVAL", "QUEUED", "CANCELLED"]);
+  });
+
+  it.each(["WAITING_APPROVAL", "QUEUED"] as const)(
+    "records %s as the origin when entering PAUSED and only resumes there",
+    async (origin) => {
+      const task = { ...baseTask, state: origin };
+      const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
+      const machine = new TaskStateMachine(store);
+
+      const paused = await machine.transition({
+        actor: "user",
+        correlationId: `pause-${origin}`,
+        expectedVersion: 0,
+        idempotencyKey: `pause-${origin}`,
+        taskId: task.id,
+        toState: "PAUSED",
+      });
+      expect(paused.task).toMatchObject({ pausedFromState: origin, state: "PAUSED" });
+
+      const resumed = await machine.transition({
+        actor: "user",
+        correlationId: `resume-${origin}`,
+        expectedVersion: 1,
+        idempotencyKey: `resume-${origin}`,
+        taskId: task.id,
+        toState: origin,
+      });
+      expect(resumed.task.pausedFromState).toBeUndefined();
+      expect(resumed.task.state).toBe(origin);
+    },
+  );
+
+  it("fails closed when a resume destination differs from the stored origin", async () => {
+    const task = {
+      ...baseTask,
+      pausedFromState: "WAITING_APPROVAL" as const,
+      state: "PAUSED" as const,
+    };
+    const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
+
+    await expect(
+      new TaskStateMachine(store).transition({
+        actor: "user",
+        correlationId: "resume-mismatch",
+        expectedVersion: 0,
+        idempotencyKey: "resume-mismatch",
+        taskId: task.id,
+        toState: "QUEUED",
+      }),
+    ).rejects.toBeInstanceOf(InvalidTaskTransitionError);
+    expect(store.tasks.get(task.id)).toEqual(task);
+    expect(store.rejected).toEqual([
+      expect.objectContaining({ reason: "invalid_transition", toState: "QUEUED" }),
+    ]);
+  });
+
+  it("fails closed when a PAUSED snapshot has no recorded origin", async () => {
+    const task = { ...baseTask, state: "PAUSED" as const };
+    const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
+
+    await expect(
+      new TaskStateMachine(store).transition({
+        actor: "user",
+        correlationId: "resume-missing-origin",
+        expectedVersion: 0,
+        idempotencyKey: "resume-missing-origin",
+        taskId: task.id,
+        toState: "WAITING_APPROVAL",
+      }),
+    ).rejects.toBeInstanceOf(InvalidTaskTransitionError);
+    expect(store.tasks.get(task.id)).toEqual(task);
+  });
+
+  it("clears the recorded origin when a PAUSED task is cancelled", async () => {
+    const task = {
+      ...baseTask,
+      pausedFromState: "QUEUED" as const,
+      state: "PAUSED" as const,
+    };
+    const store = new InMemoryTransitionStore(new Map([[task.id, task]]));
+
+    const cancelled = await new TaskStateMachine(store).transition({
+      actor: "user",
+      correlationId: "cancel-paused",
+      expectedVersion: 0,
+      idempotencyKey: "cancel-paused",
+      taskId: task.id,
+      toState: "CANCELLED",
+    });
+
+    expect(cancelled.task.state).toBe("CANCELLED");
+    expect(cancelled.task).not.toHaveProperty("pausedFromState");
   });
 
   it("changes state and records an idempotent result", async () => {

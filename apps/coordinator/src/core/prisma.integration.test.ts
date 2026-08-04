@@ -260,6 +260,91 @@ describe("Prisma core persistence", () => {
     ).rejects.toThrow(/append-only/);
   });
 
+  it("persists additive pause metadata and enforces its PostgreSQL constraints", async () => {
+    const projectId = `pause-schema-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Pause Schema Integration",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "low",
+        status: ProjectStatus.DRAFT,
+      },
+    });
+    const created = await store.createTask({
+      correlationId: "pause-schema-create",
+      idempotencyKey: `pause-schema-${randomUUID()}`,
+      origin: "integration-test",
+      originalMessage: "synthetic pause schema test",
+      projectId,
+    });
+
+    expect(created.task).toMatchObject({ priority: 0, state: "NEW", version: 0 });
+    expect(created.task).not.toHaveProperty("pausedFromState");
+    await expect(
+      prisma.task.update({ where: { id: created.task.id }, data: { priority: 5 } }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.task.update({ where: { id: created.task.id }, data: { state: "PAUSED" } }),
+    ).rejects.toThrow();
+
+    let version = 0;
+    for (const toState of ["NORMALIZING", "ROUTING", "SPECIFYING", "WAITING_APPROVAL"] as const) {
+      const result = await machine.transition({
+        actor: "system",
+        correlationId: `pause-schema-${toState}`,
+        expectedVersion: version,
+        idempotencyKey: `pause-schema-${toState}-${randomUUID()}`,
+        taskId: created.task.id,
+        toState,
+      });
+      version = result.task.version;
+    }
+    const paused = await machine.transition({
+      actor: "user",
+      correlationId: "pause-schema-pause",
+      expectedVersion: version,
+      idempotencyKey: `pause-schema-pause-${randomUUID()}`,
+      taskId: created.task.id,
+      toState: "PAUSED",
+    });
+    expect(paused.task).toMatchObject({
+      pausedFromState: "WAITING_APPROVAL",
+      priority: 0,
+      state: "PAUSED",
+    });
+
+    const resumed = await machine.transition({
+      actor: "user",
+      correlationId: "pause-schema-resume",
+      expectedVersion: paused.task.version,
+      idempotencyKey: `pause-schema-resume-${randomUUID()}`,
+      taskId: created.task.id,
+      toState: "WAITING_APPROVAL",
+    });
+    expect(resumed.task).toMatchObject({ priority: 0, state: "WAITING_APPROVAL" });
+    expect(resumed.task).not.toHaveProperty("pausedFromState");
+
+    const indexes = await prisma.$queryRaw<{ indexname: string }[]>`
+      SELECT indexname
+      FROM pg_indexes
+      WHERE schemaname = current_schema()
+        AND tablename = 'tasks'
+        AND indexname = 'tasks_state_priority_created_at_id_idx'
+    `;
+    expect(indexes).toEqual([{ indexname: "tasks_state_priority_created_at_id_idx" }]);
+  });
+
   it("persists dashboard create and cancel idempotently without raw command content in audit", async () => {
     const projectId = `dashboard-${randomUUID()}`;
     await prisma.project.create({

@@ -25,8 +25,15 @@ export const taskStateSchema = z.enum([
   "COMPLETED",
   "FAILED",
   "CANCELLED",
+  "PAUSED",
 ]);
 export type TaskState = z.infer<typeof taskStateSchema>;
+
+export const taskPauseOriginSchema = z.enum(["WAITING_APPROVAL", "QUEUED"]);
+export type TaskPauseOrigin = z.infer<typeof taskPauseOriginSchema>;
+
+export const taskPrioritySchema = z.union([z.literal(0), z.literal(10), z.literal(20)]);
+export type TaskPriority = z.infer<typeof taskPrioritySchema>;
 
 export const auditActorSchema = z.enum(["user", "agent", "worker", "system"]);
 export type AuditActor = z.infer<typeof auditActorSchema>;

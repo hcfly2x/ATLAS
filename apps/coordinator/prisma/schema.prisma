@@ -29,6 +29,12 @@ enum TaskState {
   COMPLETED
   FAILED
   CANCELLED
+  PAUSED
+}
+
+enum TaskPauseOrigin {
+  WAITING_APPROVAL
+  QUEUED
 }
 
 enum TaskComplexity {
@@ -174,22 +180,24 @@ model Project {
 }
 
 model Task {
-  id                    String                @id @default(uuid())
-  projectId             String                @map("project_id")
+  id                    String                 @id @default(uuid())
+  projectId             String                 @map("project_id")
   origin                String
-  originalMessage       String                @map("original_message")
-  normalizedDemand      Json?                 @map("normalized_demand")
+  originalMessage       String                 @map("original_message")
+  normalizedDemand      Json?                  @map("normalized_demand")
   complexity            TaskComplexity?
-  state                 TaskState             @default(NEW)
-  failureStage          String?               @map("failure_stage")
-  version               Int                   @default(0)
-  idempotencyKey        String                @unique @map("idempotency_key")
-  activeSpecificationId String?               @unique @map("active_specification_id")
-  createdAt             DateTime              @default(now()) @map("created_at")
-  updatedAt             DateTime              @updatedAt @map("updated_at")
-  project               Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  activeSpecification   Specification?        @relation("ActiveSpecification", fields: [activeSpecificationId], references: [id], onDelete: Restrict)
-  specifications        Specification[]       @relation("TaskSpecifications")
+  state                 TaskState              @default(NEW)
+  pausedFromState       TaskPauseOrigin?       @map("paused_from_state")
+  priority              Int                    @default(0) @db.SmallInt
+  failureStage          String?                @map("failure_stage")
+  version               Int                    @default(0)
+  idempotencyKey        String                 @unique @map("idempotency_key")
+  activeSpecificationId String?                @unique @map("active_specification_id")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  project               Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  activeSpecification   Specification?         @relation("ActiveSpecification", fields: [activeSpecificationId], references: [id], onDelete: Restrict)
+  specifications        Specification[]        @relation("TaskSpecifications")
   approvals             Approval[]
   executions            Execution[]
   auditEvents           AuditEvent[]
@@ -203,6 +211,7 @@ model Task {
   deliveryOutbox        ResultDeliveryOutbox[]
 
   @@index([projectId, state])
+  @@index([state, priority(sort: Desc), createdAt, id], map: "tasks_state_priority_created_at_id_idx")
   @@map("tasks")
 }
 

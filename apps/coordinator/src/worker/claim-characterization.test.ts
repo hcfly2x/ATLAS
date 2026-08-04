@@ -115,9 +115,10 @@ describe("WorkerService claim characterization", () => {
       now,
     );
 
-    expect(executionFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { createdAt: "asc" } }),
-    );
+    expect(executionFindFirst.mock.calls[0]?.[0]).toMatchObject({
+      orderBy: { createdAt: "asc" },
+      where: { task: { state: "QUEUED" } },
+    });
     expect(taskUpdate).toHaveBeenCalledWith({
       data: { state: "RUNNING", version: { increment: 1 } },
       where: { id: taskId },
@@ -168,9 +169,10 @@ describe("WorkerService claim characterization", () => {
         now,
       ),
     ).rejects.toEqual(new WorkerConflictError("task was claimed concurrently"));
-    expect(taskFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { createdAt: "asc" } }),
-    );
+    expect(taskFindFirst.mock.calls[0]?.[0]).toMatchObject({
+      orderBy: { createdAt: "asc" },
+      where: { state: "QUEUED" },
+    });
     expect(taskUpdateMany).toHaveBeenCalledWith({
       data: { state: "RUNNING", version: { increment: 1 } },
       where: { id: taskId, state: "QUEUED", version: 9 },

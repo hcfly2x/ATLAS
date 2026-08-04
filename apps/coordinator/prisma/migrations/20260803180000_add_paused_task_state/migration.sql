@@ -1,0 +1,1 @@
+ALTER TYPE "TaskState" ADD VALUE 'PAUSED';
