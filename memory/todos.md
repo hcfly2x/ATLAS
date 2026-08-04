@@ -2,20 +2,15 @@
 
 ## Dashboard — após C2b1
 
-- Revisar empiricamente o C2c-2: separação das migrations PostgreSQL,
-  constraints/defaults/índice, cinco arestas aditivas, origem de pausa derivada
-  da Task e retomada fail-closed exclusivamente ao estado gravado.
-- Confirmar no diff que WorkerService, scheduler, Approval, recibo, rotas e UI
-  permanecem intactos e que os dois claims continuam filtrando somente
-  `QUEUED`; `PAUSED` ainda não possui produtor de aplicação.
-- Manter o passo 3 não autorizado: unificar/hardenizar os dois claims com CAS e
-  somente então aplicar prioridade/aging ao scheduler, preservando lease e
-  fencing.
+- Revisar empiricamente o C2c-3: seleção unificada pela Task, CAS transacional
+  nos dois claims, rollback integral e preservação de lease/fencing.
+- Confirmar em PostgreSQL `claim × claim` e `pause × claim` nos dois caminhos,
+  aging sem starvation, desempate determinístico, elegibilidade por projeto e
+  escopo e ausência de Assignment para `PAUSED`.
 - Manter os passos 4 e 5 não autorizados: comandos governados pelo recibo antes
   de read-model/UI; cada etapa exige revisão completa e autorização própria.
-- No passo 3 futuro, provar em PostgreSQL a corrida `pause × claim` e aging sem
-  starvation. No passo 4, provar `pause × Approval`, restauração por
-  `pausedFromState` e replay de rejeições pelo recibo C2b1.
+- No passo 4, provar `pause × Approval`, restauração por `pausedFromState` e
+  replay de rejeições pelo recibo C2b1.
 
 - Revisar empiricamente approve/reject/request_change pelo mesmo resolvedor do
   Telegram, incluindo idempotência, conflito de versão e atomicidade PostgreSQL.

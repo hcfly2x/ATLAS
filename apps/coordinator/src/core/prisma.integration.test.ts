@@ -46,6 +46,7 @@ import {
 import { TaskIntakeService } from "../tasks/intake.js";
 import {
   CodexMonthlyBudgetExceededError,
+  TASK_CLAIM_AGING_THRESHOLD_MS,
   WorkerConflictError,
   WorkerLeaseError,
   WorkerService,
@@ -1729,9 +1730,13 @@ async function createQueuedClaimTask(input: {
   createdAt: Date;
   executionCreatedAt?: Date;
   fencingToken?: bigint;
+  pausedFromState?: "QUEUED";
+  priority?: 0 | 10 | 20;
   projectId: string;
+  state?: "PAUSED" | "QUEUED" | "WAITING_APPROVAL";
+  taskId?: string;
 }) {
-  const taskId = randomUUID();
+  const taskId = input.taskId ?? randomUUID();
   await prisma.task.create({
     data: {
       createdAt: input.createdAt,
@@ -1739,8 +1744,10 @@ async function createQueuedClaimTask(input: {
       idempotencyKey: `c2c-task-${taskId}`,
       origin: "integration-test",
       originalMessage: "characterize current claim behavior",
+      ...(input.pausedFromState === undefined ? {} : { pausedFromState: input.pausedFromState }),
+      priority: input.priority ?? 0,
       projectId: input.projectId,
-      state: "QUEUED",
+      state: input.state ?? "QUEUED",
     },
   });
   const payload = specificationPayload(taskId, input.projectId);
@@ -1801,8 +1808,8 @@ async function registerClaimWorker(service: WorkerService, projectId: string, la
   return service.authenticate(token);
 }
 
-describe("C2c step 1 PostgreSQL characterization", () => {
-  it("claims the oldest pre-created Execution and preserves its fencing token", async () => {
+describe("C2c scheduler PostgreSQL hardening", () => {
+  it("selects the oldest Task before reusing its pre-created Execution", async () => {
     const projectId = await createClaimProject("c2c-precreated-fifo");
     const service = c2cWorkerService(projectId);
     const newer = await createQueuedClaimTask({
@@ -1826,17 +1833,17 @@ describe("C2c step 1 PostgreSQL characterization", () => {
     );
 
     expect(assignment).toMatchObject({
-      execution_id: older.execution?.id,
-      fencing_token: "3",
+      execution_id: newer.execution?.id,
+      fencing_token: "4",
       lease_expires_at: "2026-08-03T12:01:00.000Z",
-      task_id: older.taskId,
+      task_id: newer.taskId,
     });
     expect(assignment?.lease_id).toMatch(/^[0-9a-f-]{36}$/);
     await expect(
-      prisma.task.findUniqueOrThrow({ where: { id: older.taskId } }),
+      prisma.task.findUniqueOrThrow({ where: { id: newer.taskId } }),
     ).resolves.toMatchObject({ state: "RUNNING", version: 1 });
     await expect(
-      prisma.task.findUniqueOrThrow({ where: { id: newer.taskId } }),
+      prisma.task.findUniqueOrThrow({ where: { id: older.taskId } }),
     ).resolves.toMatchObject({ state: "QUEUED", version: 0 });
   });
 
@@ -1911,6 +1918,213 @@ describe("C2c step 1 PostgreSQL characterization", () => {
       await expect(prisma.codexUsage.count({ where: { taskId: fixture.taskId } })).resolves.toBe(1);
     },
   );
+
+  it.each(["pre-created Execution", "bare Task"])(
+    "allows exactly one pause × claim winner for the same %s",
+    async (path) => {
+      const projectId = await createClaimProject(
+        `c2c-pause-claim-${path.startsWith("pre") ? "pre" : "bare"}`,
+      );
+      const service = c2cWorkerService(projectId);
+      const fixture = await createQueuedClaimTask({
+        createdAt: new Date("2026-08-03T10:00:00.000Z"),
+        ...(path.startsWith("pre")
+          ? { executionCreatedAt: new Date("2026-08-03T10:00:00.000Z"), fencingToken: 6n }
+          : {}),
+        projectId,
+      });
+      const worker = await registerClaimWorker(service, projectId, `${path}-pause-race`);
+
+      const [pauseOutcome, claimOutcome] = await Promise.allSettled([
+        machine.transition({
+          actor: "user",
+          correlationId: `c2c-pause-race-${randomUUID()}`,
+          expectedVersion: 0,
+          idempotencyKey: `c2c-pause-race-${randomUUID()}`,
+          taskId: fixture.taskId,
+          toState: "PAUSED",
+        }),
+        service.claim(
+          worker,
+          `c2c-pause-claim-${randomUUID()}`,
+          new Date("2026-08-03T12:00:00.000Z"),
+        ),
+      ]);
+      const pauseWon = pauseOutcome.status === "fulfilled";
+      const assignment = claimOutcome.status === "fulfilled" ? claimOutcome.value : null;
+
+      expect(Number(pauseWon) + Number(assignment !== null)).toBe(1);
+      const task = await prisma.task.findUniqueOrThrow({ where: { id: fixture.taskId } });
+      if (pauseWon) {
+        expect(task).toMatchObject({ pausedFromState: "QUEUED", state: "PAUSED", version: 1 });
+        await expect(
+          prisma.execution.count({
+            where: { leaseId: { not: null }, status: "RUNNING", taskId: fixture.taskId },
+          }),
+        ).resolves.toBe(0);
+        await expect(prisma.codexUsage.count({ where: { taskId: fixture.taskId } })).resolves.toBe(
+          0,
+        );
+        if (fixture.execution === null) {
+          await expect(prisma.execution.count({ where: { taskId: fixture.taskId } })).resolves.toBe(
+            0,
+          );
+        } else {
+          await expect(
+            prisma.execution.findUniqueOrThrow({ where: { id: fixture.execution.id } }),
+          ).resolves.toMatchObject({ leaseExpiresAt: null, leaseId: null, status: "QUEUED" });
+        }
+      } else {
+        expect(task).toMatchObject({ pausedFromState: null, state: "RUNNING", version: 1 });
+        expect(assignment).toMatchObject({
+          fencing_token: path.startsWith("pre") ? "6" : "1",
+          lease_expires_at: "2026-08-03T12:01:00.000Z",
+          task_id: fixture.taskId,
+        });
+        await expect(
+          prisma.execution.count({ where: { status: "RUNNING", taskId: fixture.taskId } }),
+        ).resolves.toBe(1);
+        await expect(prisma.codexUsage.count({ where: { taskId: fixture.taskId } })).resolves.toBe(
+          1,
+        );
+      }
+    },
+  );
+
+  it("uses priority only inside the normal eligible range", async () => {
+    const projectId = await createClaimProject("c2c-priority-normal");
+    const service = c2cWorkerService(projectId);
+    const normal = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:00:00.000Z"),
+      priority: 0,
+      projectId,
+    });
+    const urgent = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:30:00.000Z"),
+      priority: 20,
+      projectId,
+    });
+    const waitingApproval = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:45:00.000Z"),
+      priority: 20,
+      projectId,
+      state: "WAITING_APPROVAL",
+    });
+    const otherProjectId = await createClaimProject("c2c-priority-outside-scope");
+    const outsideScope = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:40:00.000Z"),
+      priority: 20,
+      projectId: otherProjectId,
+    });
+    const inactiveProjectId = await createClaimProject("c2c-priority-inactive");
+    await prisma.project.update({ where: { id: inactiveProjectId }, data: { status: "DRAFT" } });
+    const inactive = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-03T11:35:00.000Z"),
+      priority: 20,
+      projectId: inactiveProjectId,
+    });
+    const worker = await registerClaimWorker(service, projectId, "priority-normal");
+
+    const assignment = await service.claim(
+      { ...worker, projectScopes: [projectId, inactiveProjectId] },
+      `c2c-priority-normal-${randomUUID()}`,
+      new Date("2026-08-03T12:00:00.000Z"),
+    );
+
+    expect(assignment?.task_id).toBe(urgent.taskId);
+    for (const untouched of [normal, waitingApproval, outsideScope, inactive]) {
+      await expect(
+        prisma.task.findUniqueOrThrow({ where: { id: untouched.taskId } }),
+      ).resolves.not.toMatchObject({ state: "RUNNING" });
+    }
+  });
+
+  it("ages an old normal Task ahead of a continuous urgent range", async () => {
+    expect(TASK_CLAIM_AGING_THRESHOLD_MS).toBe(86_400_000);
+    const projectId = await createClaimProject("c2c-aging");
+    const service = c2cWorkerService(projectId);
+    const oldNormal = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-02T11:59:59.999Z"),
+      priority: 0,
+      projectId,
+    });
+    for (const minute of [10, 20, 30]) {
+      await createQueuedClaimTask({
+        createdAt: new Date(`2026-08-03T11:${String(minute).padStart(2, "0")}:00.000Z`),
+        priority: 20,
+        projectId,
+      });
+    }
+    const worker = await registerClaimWorker(service, projectId, "aging");
+
+    const assignment = await service.claim(
+      worker,
+      `c2c-aging-${randomUUID()}`,
+      new Date("2026-08-03T12:00:00.000Z"),
+    );
+
+    expect(assignment?.task_id).toBe(oldNormal.taskId);
+  });
+
+  it("breaks equal aging timestamps deterministically by Task id", async () => {
+    const projectId = await createClaimProject("c2c-aging-tie");
+    const service = c2cWorkerService(projectId);
+    const createdAt = new Date("2026-08-01T12:00:00.000Z");
+    const [lowerTaskId, higherTaskId] = [randomUUID(), randomUUID()].sort();
+    if (lowerTaskId === undefined || higherTaskId === undefined) {
+      throw new Error("expected two deterministic Task ids");
+    }
+    const lowerId = await createQueuedClaimTask({
+      createdAt,
+      priority: 0,
+      projectId,
+      taskId: lowerTaskId,
+    });
+    await createQueuedClaimTask({
+      createdAt,
+      priority: 20,
+      projectId,
+      taskId: higherTaskId,
+    });
+    const worker = await registerClaimWorker(service, projectId, "aging-tie");
+
+    const assignment = await service.claim(
+      worker,
+      `c2c-aging-tie-${randomUUID()}`,
+      new Date("2026-08-03T12:00:00.000Z"),
+    );
+
+    expect(assignment?.task_id).toBe(lowerId.taskId);
+  });
+
+  it("never assigns a PAUSED Task", async () => {
+    const projectId = await createClaimProject("c2c-paused-not-eligible");
+    const service = c2cWorkerService(projectId);
+    const paused = await createQueuedClaimTask({
+      createdAt: new Date("2026-08-01T12:00:00.000Z"),
+      executionCreatedAt: new Date("2026-08-01T12:00:00.000Z"),
+      pausedFromState: "QUEUED",
+      priority: 20,
+      projectId,
+      state: "PAUSED",
+    });
+    const worker = await registerClaimWorker(service, projectId, "paused-not-eligible");
+
+    await expect(
+      service.claim(
+        worker,
+        `c2c-paused-not-eligible-${randomUUID()}`,
+        new Date("2026-08-03T12:00:00.000Z"),
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: paused.taskId } }),
+    ).resolves.toMatchObject({ pausedFromState: "QUEUED", state: "PAUSED", version: 0 });
+    if (paused.execution === null) throw new Error("expected a queued Execution fixture");
+    await expect(
+      prisma.execution.findUniqueOrThrow({ where: { id: paused.execution.id } }),
+    ).resolves.toMatchObject({ leaseExpiresAt: null, leaseId: null, status: "QUEUED" });
+  });
 
   it("allows exactly one concurrent Approval decision and transitions Task atomically", async () => {
     const projectId = await createClaimProject("c2c-approval-race");
