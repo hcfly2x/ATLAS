@@ -8,6 +8,9 @@ import {
   approvalDecisionRequestSchema,
   cancelDashboardTaskRequestSchema,
   createDashboardDemandRequestSchema,
+  pauseDashboardTaskRequestSchema,
+  resumeDashboardTaskRequestSchema,
+  setDashboardTaskPriorityRequestSchema,
 } from "@atlas/contracts";
 
 import {
@@ -251,6 +254,75 @@ export function registerDashboardRoutes(
       const input = cancelDashboardTaskRequestSchema.parse(request.body);
       try {
         return await options.taskCommandService.cancelTask(taskId, input, request.id);
+      } catch (error: unknown) {
+        if (error instanceof DashboardTaskCommandError) {
+          return reply.code(error.code === "TASK_NOT_FOUND" ? 404 : 409).send({ code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/dashboard/api/tasks/:taskId/pause",
+    {
+      config: {
+        dashboardPermission: "dashboard:task:pause",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.taskCommandService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_TASK_COMMANDS_UNAVAILABLE" });
+      }
+      const taskId = taskSchema.parse(request.params).taskId;
+      const input = pauseDashboardTaskRequestSchema.parse(request.body);
+      try {
+        return await options.taskCommandService.pauseTask(taskId, input, request.id);
+      } catch (error: unknown) {
+        if (error instanceof DashboardTaskCommandError) {
+          return reply.code(error.code === "TASK_NOT_FOUND" ? 404 : 409).send({ code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/dashboard/api/tasks/:taskId/resume",
+    {
+      config: {
+        dashboardPermission: "dashboard:task:resume",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.taskCommandService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_TASK_COMMANDS_UNAVAILABLE" });
+      }
+      const taskId = taskSchema.parse(request.params).taskId;
+      const input = resumeDashboardTaskRequestSchema.parse(request.body);
+      try {
+        return await options.taskCommandService.resumeTask(taskId, input, request.id);
+      } catch (error: unknown) {
+        if (error instanceof DashboardTaskCommandError) {
+          return reply.code(error.code === "TASK_NOT_FOUND" ? 404 : 409).send({ code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/dashboard/api/tasks/:taskId/priority",
+    {
+      config: {
+        dashboardPermission: "dashboard:task:priority",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.taskCommandService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_TASK_COMMANDS_UNAVAILABLE" });
+      }
+      const taskId = taskSchema.parse(request.params).taskId;
+      const input = setDashboardTaskPriorityRequestSchema.parse(request.body);
+      try {
+        return await options.taskCommandService.setTaskPriority(taskId, input, request.id);
       } catch (error: unknown) {
         if (error instanceof DashboardTaskCommandError) {
           return reply.code(error.code === "TASK_NOT_FOUND" ? 404 : 409).send({ code: error.code });

@@ -3,10 +3,15 @@ import type {
   CancelDashboardTaskResponse,
   CreateDashboardDemandRequest,
   CreateDashboardDemandResponse,
+  DashboardTaskOperationalCommandResponse,
+  PauseDashboardTaskRequest,
+  ResumeDashboardTaskRequest,
+  SetDashboardTaskPriorityRequest,
 } from "@atlas/contracts";
 import {
   cancelDashboardTaskResponseSchema,
   createDashboardDemandResponseSchema,
+  dashboardTaskOperationalCommandResponseSchema,
 } from "@atlas/contracts";
 import {
   InvalidTaskTransitionError,
@@ -22,6 +27,7 @@ import { canonicalPayloadHash, type TaskState } from "@atlas/shared";
 import type { TaskIntakeService } from "../tasks/intake.js";
 import {
   DashboardCommandOutcomeUnknownError,
+  DashboardTaskPriorityConflictError,
   type DashboardCommandReceiptStore,
 } from "./command-receipt-store.js";
 
@@ -47,6 +53,9 @@ export type DashboardTaskCommandErrorCode =
   | "DASHBOARD_PROJECT_NOT_ELIGIBLE"
   | "TASK_CANCEL_CONFLICT"
   | "TASK_NOT_FOUND"
+  | "TASK_PAUSE_CONFLICT"
+  | "TASK_PRIORITY_CONFLICT"
+  | "TASK_RESUME_CONFLICT"
   | "TASK_VERSION_CONFLICT";
 
 export class DashboardTaskCommandError extends Error {
@@ -84,11 +93,27 @@ function mapCoreError(error: unknown): DashboardTaskCommandError | undefined {
   if (error instanceof DashboardCommandOutcomeUnknownError) {
     return new DashboardTaskCommandError("DASHBOARD_COMMAND_OUTCOME_UNKNOWN");
   }
+  if (error instanceof DashboardTaskPriorityConflictError) {
+    return new DashboardTaskCommandError("TASK_PRIORITY_CONFLICT");
+  }
   return error instanceof DashboardTaskCommandError ? error : undefined;
 }
 
 function replayed<T extends { readonly idempotentReplay: boolean }>(value: T): T {
   return { ...value, idempotentReplay: true };
+}
+
+function publicOperationalTask(
+  task: TaskSnapshot,
+): DashboardTaskOperationalCommandResponse["task"] {
+  return {
+    id: task.id,
+    pausedFromState: task.pausedFromState ?? null,
+    priority: task.priority ?? 0,
+    projectId: task.projectId,
+    state: task.state,
+    version: task.version,
+  };
 }
 
 export class DashboardTaskCommandService {
@@ -232,6 +257,204 @@ export class DashboardTaskCommandService {
     return outcome.idempotentReplay ? replayed(response) : response;
   }
 
+  async pauseTask(
+    taskId: string,
+    input: PauseDashboardTaskRequest,
+    correlationId: string,
+  ): Promise<DashboardTaskOperationalCommandResponse> {
+    const requestHash = canonicalPayloadHash({
+      action: "pause_task",
+      taskId,
+      taskVersion: input.taskVersion,
+    });
+    let outcome;
+    try {
+      outcome = await this.receipts.execute<DashboardTaskOperationalCommandResponse>(
+        {
+          actor: "user",
+          command: "pause_task",
+          correlationId,
+          expectedVersion: input.taskVersion,
+          idempotencyKey: `dashboard:command:${input.idempotencyKey}`,
+          requestHash,
+          targetTaskId: taskId,
+        },
+        async (taskStore) => {
+          try {
+            const result = await new TaskStateMachine(taskStore).transition({
+              actor: "user",
+              correlationId,
+              expectedVersion: input.taskVersion,
+              idempotencyKey: `dashboard:pause:${input.idempotencyKey}`,
+              reasonCode: "owner_paused",
+              requestHash,
+              taskId,
+              toState: "PAUSED",
+            });
+            return {
+              resultCode: "TASK_PAUSED",
+              resultPayload: {
+                idempotentReplay: result.idempotentReplay,
+                task: publicOperationalTask(result.task),
+              },
+              status: "accepted",
+            };
+          } catch (error: unknown) {
+            const mapped = mapCoreError(error);
+            if (mapped === undefined) throw error;
+            return {
+              resultCode:
+                mapped.code === "TASK_CANCEL_CONFLICT" ? "TASK_PAUSE_CONFLICT" : mapped.code,
+              status: "rejected",
+            };
+          }
+        },
+      );
+    } catch (error: unknown) {
+      throw mapCoreError(error) ?? error;
+    }
+    return this.operationalOutcome(outcome, "TASK_PAUSE_CONFLICT");
+  }
+
+  async resumeTask(
+    taskId: string,
+    input: ResumeDashboardTaskRequest,
+    correlationId: string,
+  ): Promise<DashboardTaskOperationalCommandResponse> {
+    const requestHash = canonicalPayloadHash({
+      action: "resume_task",
+      taskId,
+      taskVersion: input.taskVersion,
+    });
+    let outcome;
+    try {
+      outcome = await this.receipts.execute<DashboardTaskOperationalCommandResponse>(
+        {
+          actor: "user",
+          command: "resume_task",
+          correlationId,
+          expectedVersion: input.taskVersion,
+          idempotencyKey: `dashboard:command:${input.idempotencyKey}`,
+          requestHash,
+          targetTaskId: taskId,
+        },
+        async (taskStore) => {
+          try {
+            const task = await this.stateMachineStoreTask(taskStore, taskId);
+            if (
+              task.state !== "PAUSED" ||
+              task.pausedFromState === undefined ||
+              !(await taskStore.canResumeTask(task))
+            ) {
+              return { resultCode: "TASK_RESUME_CONFLICT", status: "rejected" };
+            }
+            const result = await new TaskStateMachine(taskStore).transition({
+              actor: "user",
+              correlationId,
+              expectedVersion: input.taskVersion,
+              idempotencyKey: `dashboard:resume:${input.idempotencyKey}`,
+              reasonCode: "owner_resumed",
+              requestHash,
+              taskId,
+              toState: task.pausedFromState,
+            });
+            return {
+              resultCode: "TASK_RESUMED",
+              resultPayload: {
+                idempotentReplay: result.idempotentReplay,
+                task: publicOperationalTask(result.task),
+              },
+              status: "accepted",
+            };
+          } catch (error: unknown) {
+            const mapped = mapCoreError(error);
+            if (mapped === undefined) throw error;
+            return { resultCode: mapped.code, status: "rejected" };
+          }
+        },
+      );
+    } catch (error: unknown) {
+      throw mapCoreError(error) ?? error;
+    }
+    return this.operationalOutcome(outcome, "TASK_RESUME_CONFLICT");
+  }
+
+  async setTaskPriority(
+    taskId: string,
+    input: SetDashboardTaskPriorityRequest,
+    correlationId: string,
+  ): Promise<DashboardTaskOperationalCommandResponse> {
+    const requestHash = canonicalPayloadHash({
+      action: "set_task_priority",
+      priority: input.priority,
+      taskId,
+      taskVersion: input.taskVersion,
+    });
+    let outcome;
+    try {
+      outcome = await this.receipts.execute<DashboardTaskOperationalCommandResponse>(
+        {
+          actor: "user",
+          command: "set_task_priority",
+          correlationId,
+          expectedVersion: input.taskVersion,
+          idempotencyKey: `dashboard:command:${input.idempotencyKey}`,
+          requestHash,
+          targetTaskId: taskId,
+        },
+        async (taskStore) => {
+          try {
+            const task = await taskStore.setTaskPriority({
+              correlationId,
+              expectedVersion: input.taskVersion,
+              idempotencyKey: `dashboard:priority:${input.idempotencyKey}`,
+              priority: input.priority,
+              requestHash,
+              taskId,
+            });
+            return {
+              resultCode: "TASK_PRIORITY_UPDATED",
+              resultPayload: {
+                idempotentReplay: false,
+                task: publicOperationalTask(task),
+              },
+              status: "accepted",
+            };
+          } catch (error: unknown) {
+            const mapped = mapCoreError(error);
+            if (mapped === undefined) throw error;
+            return { resultCode: mapped.code, status: "rejected" };
+          }
+        },
+      );
+    } catch (error: unknown) {
+      throw mapCoreError(error) ?? error;
+    }
+    return this.operationalOutcome(outcome, "TASK_PRIORITY_CONFLICT");
+  }
+
+  private operationalOutcome(
+    outcome:
+      | {
+          readonly idempotentReplay: boolean;
+          readonly resultCode: string;
+          readonly resultPayload: DashboardTaskOperationalCommandResponse;
+          readonly status: "accepted";
+        }
+      | {
+          readonly idempotentReplay: boolean;
+          readonly resultCode: string;
+          readonly status: "rejected";
+        },
+    fallback: DashboardTaskCommandErrorCode,
+  ): DashboardTaskOperationalCommandResponse {
+    if (outcome.status === "rejected") {
+      throw new DashboardTaskCommandError(this.rejectedCode(outcome.resultCode, fallback));
+    }
+    const response = dashboardTaskOperationalCommandResponseSchema.parse(outcome.resultPayload);
+    return outcome.idempotentReplay ? replayed(response) : response;
+  }
+
   private rejectedCode(
     resultCode: string,
     fallback: DashboardTaskCommandErrorCode,
@@ -241,6 +464,9 @@ export class DashboardTaskCommandService {
       "DASHBOARD_PROJECT_NOT_ELIGIBLE",
       "TASK_CANCEL_CONFLICT",
       "TASK_NOT_FOUND",
+      "TASK_PAUSE_CONFLICT",
+      "TASK_PRIORITY_CONFLICT",
+      "TASK_RESUME_CONFLICT",
       "TASK_VERSION_CONFLICT",
     ]);
     return codes.has(resultCode as DashboardTaskCommandErrorCode)

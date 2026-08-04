@@ -102,9 +102,11 @@ migration cria os metadados, constraints e índice sem `UPDATE` ou backfill.
 O passo C2c-3 agora seleciona a Task antes da Execution, aplica CAS
 `id+QUEUED+version` nos dois caminhos e ordena por aging fixo de 24 horas ou,
 na faixa normal, por prioridade e FIFO determinísticos. `PAUSED` nunca é
-selecionado e nenhum comando, rota ou UI o produz. Lease e fencing preservam os
-valores anteriores. Os passos 4–5 permanecem não autorizados e exigem fases e
-revisões próprias.
+selecionado. Lease e fencing preservam os valores anteriores. O passo C2c-4
+passa a ser o primeiro produtor governado de `PAUSED`: pausa, retomada e
+prioridade usam o recibo C2b1, RBAC/CSRF, versão otimista e auditoria
+transacional. Não há UI nesta entrega; o passo 5 permanece não autorizado e
+exige fase e revisão próprias.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
@@ -304,10 +306,9 @@ automaticamente.
 
 ## Próximo passo
 
-Revisar empiricamente o C2c-3: CAS e rollback integral nos dois claims, seleção
-unificada pela Task, aging/prioridade determinísticos e corridas PostgreSQL
-`claim × claim` e `pause × claim`. Os passos 4 e 5 — comandos governados pelo
-recibo e depois read-model/UI — continuam sem autorização.
+Revisar empiricamente o C2c-4: recibos aceitos e rejeitados, restauração por
+`pausedFromState`, CAS, `pause × claim`, `pause × Approval`, RBAC/CSRF e
+sanitização. O passo 5 — read-model e UI — continua sem autorização.
 
 ## Restrições ativas
 
