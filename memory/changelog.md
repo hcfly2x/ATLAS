@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Dashboard C2c scheduler
+
+- O passo C2c-3 unifica a seleção do claim pela Task e aplica CAS transacional de
+  `id+QUEUED+version` antes de criar ou reutilizar a Execution.
+- A seleção usa aging fixo de 24 horas; Tasks envelhecidas seguem
+  `createdAt ASC, id ASC`, e a faixa normal usa
+  `priority DESC, createdAt ASC, id ASC`.
+- A integração PostgreSQL cobre `claim × claim`, `pause × claim`, prioridade,
+  anti-starvation, desempate e a exclusão de `PAUSED` nos dois caminhos.
+- Lease, fencing, heartbeat, recuperação, schema, core, Approval, recibo,
+  rotas, UI, `always_human`, autonomia e enforcement permanecem inalterados.
+
 ## Unreleased — Dashboard C2c spike de design
 
 - ADR-030 propõe `PAUSED` somente para `WAITING_APPROVAL|QUEUED`, retorno

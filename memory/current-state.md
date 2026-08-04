@@ -94,14 +94,17 @@ O spike documental da C2c está registrado no ADR-030 e em
 `WAITING_APPROVAL|QUEUED`, restaura deterministicamente o estado anterior,
 reusa o recibo C2b1 e trata prioridade com aging.
 
-O passo C2c-1 acrescentou a rede de testes de caracterização. Nesta entrega, o
-passo C2c-2 acrescenta de forma inerte `PAUSED`, `pausedFromState`, `priority`,
+O passo C2c-1 acrescentou a rede de testes de caracterização. O passo C2c-2
+acrescentou de forma inerte `PAUSED`, `pausedFromState`, `priority`,
 as cinco arestas do ADR-030 e a regra pura que deriva e valida o destino de
 retomada. O enum PostgreSQL é adicionado numa migration isolada; uma segunda
 migration cria os metadados, constraints e índice sem `UPDATE` ou backfill.
-Nenhum comando, rota, UI ou scheduler produz `PAUSED`, e ambos os claims
-continuam selecionando somente `QUEUED`. Os passos 3–5 permanecem não
-autorizados e exigem fases e revisões próprias.
+O passo C2c-3 agora seleciona a Task antes da Execution, aplica CAS
+`id+QUEUED+version` nos dois caminhos e ordena por aging fixo de 24 horas ou,
+na faixa normal, por prioridade e FIFO determinísticos. `PAUSED` nunca é
+selecionado e nenhum comando, rota ou UI o produz. Lease e fencing preservam os
+valores anteriores. Os passos 4–5 permanecem não autorizados e exigem fases e
+revisões próprias.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a
@@ -301,11 +304,10 @@ automaticamente.
 
 ## Próximo passo
 
-Revisar empiricamente o C2c-2: migrations em PostgreSQL limpo, constraints,
-índice, preservação das arestas antigas, regras condicionais de retomada e
-ausência de produtores de `PAUSED`. O passo 3 — hardening CAS dos dois claims e
-scheduler com prioridade/aging — só pode começar após revisão completa e nova
-autorização explícita.
+Revisar empiricamente o C2c-3: CAS e rollback integral nos dois claims, seleção
+unificada pela Task, aging/prioridade determinísticos e corridas PostgreSQL
+`claim × claim` e `pause × claim`. Os passos 4 e 5 — comandos governados pelo
+recibo e depois read-model/UI — continuam sem autorização.
 
 ## Restrições ativas
 

@@ -50,6 +50,8 @@ const activeExecutionStatuses = new Set<ExecutionStatus>([
   ExecutionStatus.CANCEL_REQUESTED,
 ]);
 
+export const TASK_CLAIM_AGING_THRESHOLD_MS = 24 * 60 * 60 * 1_000;
+
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -238,22 +240,67 @@ export class WorkerService {
         return this.assignment(replay, worker.projectScopes);
       }
 
-      const queuedExecution = await transaction.execution.findFirst({
-        where: {
-          status: ExecutionStatus.QUEUED,
-          task: {
-            project: { status: "ACTIVE" },
-            projectId: { in: [...worker.projectScopes] },
-            state: TaskState.QUEUED,
-          },
-        },
-        include: { specification: true, task: { include: { project: true } } },
-        orderBy: { createdAt: "asc" },
+      const eligibleTaskWhere: Prisma.TaskWhereInput = {
+        activeSpecificationId: { not: null },
+        project: { status: "ACTIVE" },
+        projectId: { in: [...worker.projectScopes] },
+        state: TaskState.QUEUED,
+      };
+      const agingCutoff = new Date(now.getTime() - TASK_CLAIM_AGING_THRESHOLD_MS);
+      const agedTask = await transaction.task.findFirst({
+        where: { ...eligibleTaskWhere, createdAt: { lt: agingCutoff } },
+        include: { activeSpecification: true, project: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
-      if (queuedExecution !== null) {
-        const leaseId = randomUUID();
-        const leaseExpiresAt = new Date(now.getTime() + this.options.leaseDurationMs);
-        const claimed = await transaction.execution.update({
+      const task =
+        agedTask ??
+        (await transaction.task.findFirst({
+          where: eligibleTaskWhere,
+          include: { activeSpecification: true, project: true },
+          orderBy: [{ priority: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+        }));
+      if (task === null) {
+        return null;
+      }
+      if (task.activeSpecification === null) {
+        return null;
+      }
+
+      const queuedExecution = await transaction.execution.findFirst({
+        where: { status: ExecutionStatus.QUEUED, taskId: task.id },
+        include: { specification: true, task: { include: { project: true } } },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      });
+      const leaseId = randomUUID();
+      const leaseExpiresAt = new Date(now.getTime() + this.options.leaseDurationMs);
+      const updated = await transaction.task.updateMany({
+        where: { id: task.id, state: TaskState.QUEUED, version: task.version },
+        data: { state: TaskState.RUNNING, version: { increment: 1 } },
+      });
+      if (updated.count !== 1) {
+        throw new WorkerConflictError("task was claimed concurrently");
+      }
+
+      let execution;
+      if (queuedExecution === null) {
+        const attempt = (await transaction.execution.count({ where: { taskId: task.id } })) + 1;
+        execution = await transaction.execution.create({
+          data: {
+            attempt,
+            claimIdempotencyKey: idempotencyKey,
+            fencingToken: 1,
+            idempotencyKey: `execution:${task.id}:${String(attempt)}`,
+            leaseExpiresAt,
+            leaseId,
+            specificationId: task.activeSpecification.id,
+            status: ExecutionStatus.RUNNING,
+            taskId: task.id,
+            workerId: worker.id,
+          },
+          include: { specification: true, task: { include: { project: true } } },
+        });
+      } else {
+        execution = await transaction.execution.update({
           where: { id: queuedExecution.id },
           data: {
             claimIdempotencyKey: idempotencyKey,
@@ -264,107 +311,6 @@ export class WorkerService {
           },
           include: { specification: true, task: { include: { project: true } } },
         });
-        await transaction.task.update({
-          where: { id: claimed.taskId },
-          data: { state: TaskState.RUNNING, version: { increment: 1 } },
-        });
-        await transaction.worker.update({
-          where: { id: worker.id },
-          data: { status: WorkerStatus.BUSY },
-        });
-        await transaction.codexUsage.create({
-          data: {
-            estimatedCostUsd: 0,
-            executionId: claimed.id,
-            projectId: claimed.task.projectId,
-            startedAt: now,
-            taskId: claimed.taskId,
-          },
-        });
-        await transaction.auditEvent.create({
-          data: {
-            action: "execution.claimed",
-            actor: "WORKER",
-            correlationId: idempotencyKey,
-            idempotencyKey: `audit:${idempotencyKey}`,
-            payload: json({
-              executionId: claimed.id,
-              fencingToken: claimed.fencingToken.toString(),
-              leaseExpiresAt: leaseExpiresAt.toISOString(),
-              leaseId,
-              workerId: worker.id,
-            }),
-            projectId: claimed.task.projectId,
-            targetId: claimed.id,
-            targetType: "EXECUTION",
-            taskId: claimed.taskId,
-          },
-        });
-        await transaction.auditEvent.create({
-          data: {
-            action: "task.transition.accepted",
-            actor: "WORKER",
-            correlationId: idempotencyKey,
-            idempotencyKey: `audit:${idempotencyKey}:task-transition`,
-            payload: json({
-              fromState: "QUEUED",
-              task: {
-                failureStage: claimed.task.failureStage,
-                id: claimed.task.id,
-                projectId: claimed.task.projectId,
-                state: "RUNNING",
-                version: claimed.task.version + 1,
-              },
-            }),
-            projectId: claimed.task.projectId,
-            targetId: claimed.taskId,
-            targetType: "task",
-            taskId: claimed.taskId,
-          },
-        });
-        return this.assignment(claimed, worker.projectScopes);
-      }
-
-      const task = await transaction.task.findFirst({
-        where: {
-          state: TaskState.QUEUED,
-          project: { status: "ACTIVE" },
-          projectId: { in: [...worker.projectScopes] },
-          activeSpecificationId: { not: null },
-        },
-        include: { activeSpecification: true, project: true },
-        orderBy: { createdAt: "asc" },
-      });
-      if (task === null) {
-        return null;
-      }
-      if (task.activeSpecification === null) {
-        return null;
-      }
-      const attempt = (await transaction.execution.count({ where: { taskId: task.id } })) + 1;
-      const leaseId = randomUUID();
-      const leaseExpiresAt = new Date(now.getTime() + this.options.leaseDurationMs);
-      const execution = await transaction.execution.create({
-        data: {
-          attempt,
-          claimIdempotencyKey: idempotencyKey,
-          fencingToken: 1,
-          idempotencyKey: `execution:${task.id}:${String(attempt)}`,
-          leaseExpiresAt,
-          leaseId,
-          specificationId: task.activeSpecification.id,
-          status: ExecutionStatus.RUNNING,
-          taskId: task.id,
-          workerId: worker.id,
-        },
-        include: { specification: true, task: { include: { project: true } } },
-      });
-      const updated = await transaction.task.updateMany({
-        where: { id: task.id, state: TaskState.QUEUED, version: task.version },
-        data: { state: TaskState.RUNNING, version: { increment: 1 } },
-      });
-      if (updated.count !== 1) {
-        throw new WorkerConflictError("task was claimed concurrently");
       }
       await transaction.worker.update({
         where: { id: worker.id },
@@ -387,7 +333,7 @@ export class WorkerService {
           idempotencyKey: `audit:${idempotencyKey}`,
           payload: json({
             executionId: execution.id,
-            fencingToken: "1",
+            fencingToken: execution.fencingToken.toString(),
             leaseExpiresAt: leaseExpiresAt.toISOString(),
             leaseId,
             workerId: worker.id,
