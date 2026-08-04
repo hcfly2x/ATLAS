@@ -77,6 +77,14 @@ assets hasheados sob cache imutável e shell sem cache. O catch-all não sombrei
 APIs ou assets inexistentes, e a página inline de Mission Control foi
 aposentada. ADR-029 permanece Proposto.
 
+Nesta entrega, a Dashboard recebe a visão read-only “Projetos” em
+`/dashboard/projetos`. Cada faixa representa um projeto e organiza as demandas
+em quatro situações operacionais derivadas do estado persistido e de Approval
+humana pendente. Cards abrem o Workspace existente; projetos inativos ou sem
+demanda ativa ficam recolhidos. A mesma entrega aplica uma paleta clara e
+centralizada ao app React e ao login inline, sem alterar os gates de sessão,
+RBAC ou qualquer escrita governada.
+
 A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
 usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados
 pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a

@@ -1,7 +1,79 @@
-import type { DemandWorkspaceResponse, MissionControlResponse } from "@atlas/contracts";
+import type {
+  DemandWorkspaceResponse,
+  MissionControlResponse,
+  ProjectsBoardResponse,
+} from "@atlas/contracts";
 
 const taskId = "10000000-0000-4000-8000-000000000001";
 const occurredAt = "2026-07-29T12:00:00.000Z";
+
+export const projectsBoardFixture: ProjectsBoardResponse = {
+  generatedAt: occurredAt,
+  projects: [
+    {
+      activeDemandCount: 3,
+      columns: {
+        completed: [
+          {
+            column: "completed",
+            objective: "Publicar a autenticação",
+            stateLabel: "Concluída",
+            taskId: "40000000-0000-4000-8000-000000000004",
+            updatedAt: occurredAt,
+          },
+        ],
+        inProgress: [
+          {
+            column: "in_progress",
+            objective: "Construir o quadro de projetos",
+            stateLabel: "Em execução",
+            taskId,
+            updatedAt: occurredAt,
+          },
+        ],
+        needsAttention: [
+          {
+            column: "needs_attention",
+            objective: "Revisar a entrega do dashboard",
+            stateLabel: "Aguardando revisão",
+            taskId: "20000000-0000-4000-8000-000000000002",
+            updatedAt: occurredAt,
+          },
+        ],
+        stopped: [
+          {
+            column: "stopped",
+            objective: "Retomar a integração externa",
+            stateLabel: "Pausada",
+            taskId: "30000000-0000-4000-8000-000000000003",
+            updatedAt: occurredAt,
+          },
+        ],
+      },
+      demandCount: 4,
+      description: "Coordena o trabalho da empresa de agentes.",
+      hasActiveDemand: true,
+      id: "atlas",
+      isActive: true,
+      name: "ATLAS",
+    },
+    {
+      activeDemandCount: 0,
+      columns: {
+        completed: [],
+        inProgress: [],
+        needsAttention: [],
+        stopped: [],
+      },
+      demandCount: 0,
+      description: "sem descrição",
+      hasActiveDemand: false,
+      id: "future",
+      isActive: false,
+      name: "Projeto futuro",
+    },
+  ],
+};
 
 const workItem = {
   complexity: "MODERATE",

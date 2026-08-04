@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Dashboard Projetos e tema claro
+
+- A rota autenticada `GET /dashboard/api/projects-board` agrega somente dados
+  persistidos já existentes em um quadro read-only por projeto, com as colunas
+  “Precisa de você”, “Em execução”, “Parado” e “Concluído”.
+- `/dashboard/projetos` apresenta objetivo sanitizado, estado simples e link
+  para o Workspace; projetos inativos ou sem demanda ativa começam recolhidos.
+- O contrato Zod compartilhado é estrito e a projeção não expõe prompt,
+  mensagem, argumentos, payload de modelo, segredo ou credencial. Contexto de
+  projeto ausente aparece como “sem descrição”.
+- A Dashboard React e o login inline passam a usar tema claro centralizado,
+  sem alterar autenticação, RBAC, rotas de escrita ou comportamento de domínio.
+- Não há mudança em schema, TaskState, worker, scheduler, enforcement,
+  autonomia, `always_human`, recibos ou Approval.
+
 ## Unreleased — Dashboard C2c comandos governados
 
 - O passo C2c-4 acrescenta `PAUSE_TASK`, `RESUME_TASK` e

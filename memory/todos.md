@@ -2,6 +2,12 @@
 
 ## Dashboard — após C2b1
 
+- Revisar empiricamente o quadro de Projetos: agrupamento completo de estados,
+  precedência de Approval humana pendente, projeto inativo recolhido, navegação
+  para Workspace e ausência de conteúdo sensível no contrato e na renderização.
+- Validar visualmente em staging o tema claro na Home, Projetos, Workspace e
+  login, em desktop e mobile, mantendo contraste AA e foco de teclado visível.
+
 - Revisar empiricamente o C2c-4: `pause × Approval`, restauração por
   `pausedFromState`, prioridade limitada e replay aceito/rejeitado pelo recibo
   C2b1.

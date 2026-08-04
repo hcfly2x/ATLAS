@@ -1,4 +1,8 @@
-import { demandWorkspaceResponseSchema, missionControlResponseSchema } from "@atlas/contracts";
+import {
+  demandWorkspaceResponseSchema,
+  missionControlResponseSchema,
+  projectsBoardResponseSchema,
+} from "@atlas/contracts";
 import { describe, expect, it } from "vitest";
 
 import { DashboardService } from "./service.js";
@@ -47,6 +51,13 @@ const demandWorkspacePrisma = {
   },
 };
 
+const projectsBoardPrisma = {
+  project: {
+    findMany: () => Promise.resolve([{ id: "atlas", name: "ATLAS", status: "ACTIVE" }]),
+  },
+  task: { findMany: () => Promise.resolve([]) },
+};
+
 describe("DashboardService public contracts", () => {
   it("serializes Mission Control in the shared contract", async () => {
     const service = new DashboardService(missionControlPrisma as never, {
@@ -68,5 +79,14 @@ describe("DashboardService public contracts", () => {
     ) as unknown;
 
     expect(demandWorkspaceResponseSchema.parse(wireResponse)).toEqual(wireResponse);
+  });
+
+  it("serializes the Projects board in the shared contract", async () => {
+    const service = new DashboardService(projectsBoardPrisma as never, {
+      now: () => new Date("2026-08-04T12:00:00.000Z"),
+    });
+    const wireResponse = JSON.parse(JSON.stringify(await service.projectsBoard())) as unknown;
+
+    expect(projectsBoardResponseSchema.parse(wireResponse)).toEqual(wireResponse);
   });
 });

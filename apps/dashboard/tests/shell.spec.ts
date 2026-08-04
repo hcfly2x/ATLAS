@@ -2,7 +2,11 @@ import { createRequire } from "node:module";
 
 import { expect, test } from "@playwright/test";
 
-import { demandWorkspaceFixture, missionControlFixture } from "../src/test/fixtures.js";
+import {
+  demandWorkspaceFixture,
+  missionControlFixture,
+  projectsBoardFixture,
+} from "../src/test/fixtures.js";
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -250,6 +254,63 @@ test("creates an expiring session through the credential gate without retaining 
   ).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText(credential)).toHaveCount(0);
+
+  await page.addScriptTag({ path: axePath });
+  const violations = await page.evaluate(async () => {
+    const axe = (
+      globalThis as unknown as {
+        axe: {
+          run: () => Promise<{
+            violations: readonly {
+              id: string;
+              nodes: readonly { target: readonly string[] }[];
+            }[];
+          }>;
+        };
+      }
+    ).axe;
+    return (await axe.run()).violations.map(({ id, nodes }) => ({ id, nodes }));
+  });
+  expect(violations).toEqual([]);
+});
+
+test("navigates through the Projects board into a demand Workspace", async ({ page }) => {
+  await page.route("**/dashboard/api/projects-board", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    expect(route.request().headers().authorization).toBeUndefined();
+    await route.fulfill({
+      body: JSON.stringify(projectsBoardFixture),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/dashboard/api/demand/*", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(demandWorkspaceFixture),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/dashboard/projetos");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Projetos e demandas" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Precisa de você" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Em execução" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Parado" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Concluído" })).toBeVisible();
+  await expect(page.getByText("Projeto futuro")).toBeVisible();
+  await page
+    .getByRole("link", { name: /Construir o quadro de projetos.*Abrir Workspace/u })
+    .click();
+
+  await expect(page).toHaveURL(new RegExp(`/demand/${demandWorkspaceFixture.header.taskId}$`));
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Construir o Workspace read-only da demanda",
+    }),
+  ).toBeVisible();
 
   await page.addScriptTag({ path: axePath });
   const violations = await page.evaluate(async () => {

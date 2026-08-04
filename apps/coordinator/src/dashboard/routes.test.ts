@@ -39,6 +39,9 @@ const missionControlMock = vi.fn(() =>
     unavailableSignals: [],
   }),
 );
+const projectsBoardMock = vi.fn(() =>
+  Promise.resolve({ generatedAt: "2026-08-04T12:00:00.000Z", projects: [] }),
+);
 const dashboard = {
   audit: vi.fn(() => Promise.resolve([])),
   demandWorkspace: demandWorkspaceMock,
@@ -65,6 +68,7 @@ const dashboard = {
     }),
   ),
   projects: vi.fn(() => Promise.resolve({ projects: [{ id: "atlas", name: "ATLAS" }] })),
+  projectsBoard: projectsBoardMock,
   task: vi.fn(() => Promise.resolve(null)),
   tasks: vi.fn(() => Promise.resolve([])),
 } as unknown as DashboardService;
@@ -175,6 +179,7 @@ describe("dashboard session authentication and RBAC", () => {
       "/dashboard/api/overview",
       "/dashboard/api/mission-control",
       "/dashboard/api/projects",
+      "/dashboard/api/projects-board",
       "/dashboard/api/tasks",
       "/dashboard/api/deliveries",
       "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
@@ -207,6 +212,11 @@ describe("dashboard session authentication and RBAC", () => {
       url: "/dashboard/api/mission-control",
       headers: { cookie },
     });
+    const projectsBoard = await app.inject({
+      method: "GET",
+      url: "/dashboard/api/projects-board",
+      headers: { cookie },
+    });
     const session = await app.inject({
       method: "GET",
       url: "/dashboard/auth/session",
@@ -223,11 +233,13 @@ describe("dashboard session authentication and RBAC", () => {
     expect(overview.body).toContain('"capUsd":75');
     expect(deliveries.statusCode).toBe(200);
     expect(missionControl.statusCode).toBe(200);
+    expect(projectsBoard.statusCode).toBe(200);
     expect(session.statusCode).toBe(200);
     expect(session.json()).toMatchObject({ role: "owner" });
     expect(JSON.stringify(session.json())).not.toContain(cookie);
     expect(deliveriesMock).toHaveBeenCalledWith(undefined);
     expect(missionControlMock).toHaveBeenCalledWith(undefined);
+    expect(projectsBoardMock).toHaveBeenCalledOnce();
   });
 
   it("serves the existing demand read-model and stable 404 only after authorization", async () => {

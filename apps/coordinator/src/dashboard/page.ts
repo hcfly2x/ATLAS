@@ -5,11 +5,11 @@ export const dashboardLoginPage = String.raw`<!doctype html>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ATLAS · Acesso</title>
   <style>
-    :root{color-scheme:dark;--bg:#07110e;--panel:#0f1e19;--line:#244438;--ink:#e9f4ef;--muted:#9bb8ad;--accent:#75e0ad}
-    *{box-sizing:border-box}body{display:grid;min-height:100vh;margin:0;padding:24px;place-items:center;background:radial-gradient(circle at 20% 0,#173a2d,var(--bg) 42%);color:var(--ink);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
-    main{width:min(100%,480px);padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 16px 40px #0003}
+    :root{color-scheme:light;--bg:#f6f8fb;--panel:#fff;--line:#cbd5e1;--ink:#172033;--muted:#4b5c73;--accent:#2457c5;--danger:#b42318;--shadow:0 24px 70px rgb(15 23 42 / 14%)}
+    *{box-sizing:border-box}body{display:grid;min-height:100vh;margin:0;padding:24px;place-items:center;background:var(--bg);color:var(--ink);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+    main{width:min(100%,480px);padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:var(--shadow)}
     h1{margin:0 0 12px;font:700 clamp(28px,7vw,44px)/1.05 ui-sans-serif,system-ui,sans-serif;letter-spacing:-.04em}.eyebrow{margin-bottom:12px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase}.muted{color:var(--muted)}
-    form{display:grid;gap:10px;margin-top:24px}input,button{width:100%;padding:11px;background:#091611;color:var(--ink);border:1px solid var(--line);border-radius:7px;font:inherit}button{cursor:pointer;color:var(--accent)}button:disabled{cursor:wait;opacity:.65}#auth-error{min-height:1.5em;color:#ffb2aa}
+    form{display:grid;gap:10px;margin-top:24px}input,button{width:100%;padding:11px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;font:inherit}input:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}button{cursor:pointer;color:#fff;background:var(--accent);font-weight:700}button:disabled{cursor:wait;opacity:.65}#auth-error{min-height:1.5em;color:var(--danger)}
   </style>
 </head>
 <body>
