@@ -4,7 +4,13 @@ import { useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from
 import { Link } from "react-router-dom";
 
 import { ApprovalDecisionError, type ApprovalDecisionClient } from "./approval-decision.js";
-import { DashboardCommandError, type CancelDashboardTaskClient } from "./task-commands.js";
+import {
+  DashboardCommandError,
+  type CancelDashboardTaskClient,
+  type PauseDashboardTaskClient,
+  type ResumeDashboardTaskClient,
+  type SetDashboardTaskPriorityClient,
+} from "./task-commands.js";
 
 type WorkspaceValue = string;
 
@@ -17,6 +23,15 @@ const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "USD",
   style: "currency",
 });
+
+const taskStateLabels: Record<string, string> = {
+  PAUSED: "Pausada",
+  QUEUED: "Na fila",
+  WAITING_APPROVAL: "Aguardando aprovação",
+};
+
+const pauseStates = new Set(["WAITING_APPROVAL", "QUEUED"]);
+const priorityStates = new Set(["WAITING_APPROVAL", "QUEUED", "PAUSED"]);
 
 function formatDate(value: string): string {
   return dateTimeFormatter.format(new Date(value));
@@ -89,7 +104,7 @@ function DemandHeader({ data }: { readonly data: DemandWorkspaceResponse }) {
       <dl className="workspace-facts">
         <div>
           <dt>Estado da demanda</dt>
-          <dd>{header.taskState}</dd>
+          <dd>{taskStateLabels[header.taskState] ?? header.taskState}</dd>
         </div>
         <div>
           <dt>Estado da execução</dt>
@@ -138,6 +153,260 @@ function DemandHeader({ data }: { readonly data: DemandWorkspaceResponse }) {
   );
 }
 
+type OperationalAction = "pause" | "resume";
+
+function TaskOperations({
+  data,
+  pauseClient,
+  priorityClient,
+  resumeClient,
+}: {
+  readonly data: DemandWorkspaceResponse;
+  readonly pauseClient: PauseDashboardTaskClient;
+  readonly priorityClient: SetDashboardTaskPriorityClient;
+  readonly resumeClient: ResumeDashboardTaskClient;
+}) {
+  const queryClient = useQueryClient();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const keys = useRef<Record<OperationalAction | "priority", string>>({
+    pause: crypto.randomUUID(),
+    priority: crypto.randomUUID(),
+    resume: crypto.randomUUID(),
+  });
+  const [action, setAction] = useState<OperationalAction>();
+  const [priority, setPriority] = useState<0 | 10 | 20>();
+  const [message, setMessage] = useState<string>();
+
+  const invalidateViews = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
+      queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+      queryClient.invalidateQueries({ queryKey: ["projects-board"] }),
+    ]);
+  };
+
+  const handleError = async (operation: OperationalAction | "priority", error: unknown) => {
+    if (error instanceof DashboardCommandError && error.code === "conflict") {
+      keys.current[operation] = crypto.randomUUID();
+      setMessage("A demanda mudou. As visões foram atualizadas antes de uma nova tentativa.");
+      await invalidateViews();
+      return;
+    }
+    if (error instanceof DashboardCommandError && error.code === "unauthorized") {
+      setAction(undefined);
+      await invalidateViews();
+      return;
+    }
+    setMessage("A operação não foi aplicada.");
+  };
+
+  const pauseMutation = useMutation({
+    mutationFn: pauseClient,
+    onError: (error) => handleError("pause", error),
+    onSuccess: async () => {
+      setAction(undefined);
+      setMessage("Demanda pausada.");
+      await invalidateViews();
+    },
+  });
+  const resumeMutation = useMutation({
+    mutationFn: resumeClient,
+    onError: (error) => handleError("resume", error),
+    onSuccess: async () => {
+      setAction(undefined);
+      setMessage("Demanda retomada.");
+      await invalidateViews();
+    },
+  });
+  const priorityMutation = useMutation({
+    mutationFn: priorityClient,
+    onError: (error) => handleError("priority", error),
+    onSuccess: async () => {
+      const labels = { 0: "normal", 10: "alta", 20: "urgente" } as const;
+      setMessage(
+        `Prioridade atualizada para ${priority === undefined ? "o nível escolhido" : labels[priority]}.`,
+      );
+      setPriority(undefined);
+      keys.current.priority = crypto.randomUUID();
+      await invalidateViews();
+    },
+  });
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (action === undefined) {
+      if (dialog?.open === true) {
+        if (typeof dialog.close === "function") dialog.close();
+        else dialog.removeAttribute("open");
+      }
+      return;
+    }
+    if (dialog?.open === false) {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+  }, [action]);
+
+  const canPause = pauseStates.has(data.header.taskState);
+  const canResume = data.header.taskState === "PAUSED";
+  const canPrioritize = priorityStates.has(data.header.taskState);
+  if (!canPause && !canResume && !canPrioritize) return null;
+
+  function submitAction(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (action === "pause" && !pauseMutation.isPending) {
+      pauseMutation.mutate({
+        request: { idempotencyKey: keys.current.pause, taskVersion: data.header.taskVersion },
+        taskId: data.header.taskId,
+      });
+    }
+    if (action === "resume" && !resumeMutation.isPending) {
+      resumeMutation.mutate({
+        request: { idempotencyKey: keys.current.resume, taskVersion: data.header.taskVersion },
+        taskId: data.header.taskId,
+      });
+    }
+  }
+
+  return (
+    <section aria-labelledby="task-operations-title" className="workspace-command task-operations">
+      <div>
+        <p className="kicker">Operação segura</p>
+        <h2 id="task-operations-title">Fila e prioridade</h2>
+        <p>O backend valida o estado e continua sendo a autoridade sobre cada mudança.</p>
+        <div className="task-operation-actions">
+          {canPause ? (
+            <button
+              onClick={() => {
+                setMessage(undefined);
+                setAction("pause");
+              }}
+              type="button"
+            >
+              Pausar demanda
+            </button>
+          ) : null}
+          {canResume ? (
+            <button
+              onClick={() => {
+                setMessage(undefined);
+                setAction("resume");
+              }}
+              type="button"
+            >
+              Retomar demanda
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {canPrioritize ? (
+        <form
+          className="priority-command"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (priority === undefined || priorityMutation.isPending) return;
+            priorityMutation.mutate({
+              request: {
+                idempotencyKey: keys.current.priority,
+                priority,
+                taskVersion: data.header.taskVersion,
+              },
+              taskId: data.header.taskId,
+            });
+          }}
+        >
+          <label>
+            Nova prioridade
+            <select
+              disabled={priorityMutation.isPending}
+              onChange={(event) => {
+                const value = Number(event.currentTarget.value);
+                setPriority(value === 0 || value === 10 || value === 20 ? value : undefined);
+                setMessage(undefined);
+              }}
+              value={priority ?? ""}
+            >
+              <option value="">Escolha um nível</option>
+              <option value="0">Normal</option>
+              <option value="10">Alta</option>
+              <option value="20">Urgente</option>
+            </select>
+          </label>
+          <button disabled={priority === undefined || priorityMutation.isPending} type="submit">
+            {priorityMutation.isPending ? "Atualizando…" : "Atualizar prioridade"}
+          </button>
+        </form>
+      ) : null}
+      {message === undefined ? null : (
+        <p
+          aria-live="polite"
+          className="operation-message"
+          role={message.includes("não foi") ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      )}
+      <dialog
+        aria-labelledby="operational-confirm-title"
+        className="approval-dialog"
+        onCancel={() => {
+          setAction(undefined);
+        }}
+        ref={dialogRef}
+      >
+        <form onSubmit={submitAction}>
+          <p className="kicker">Confirmação humana</p>
+          <h3 id="operational-confirm-title">
+            {action === "pause" ? "Confirmar pausa" : "Confirmar retomada"}
+          </h3>
+          <dl>
+            <div>
+              <dt>Demanda</dt>
+              <dd>{data.demand.objective}</dd>
+            </div>
+            <div>
+              <dt>Projeto</dt>
+              <dd>{data.header.project.name}</dd>
+            </div>
+            <div>
+              <dt>Estado atual</dt>
+              <dd>{taskStateLabels[data.header.taskState] ?? data.header.taskState}</dd>
+            </div>
+            <div>
+              <dt>O que acontece</dt>
+              <dd>
+                {action === "pause"
+                  ? "A demanda sai temporariamente da fila ou decisão. Ela não é cancelada e nenhuma execução em curso é interrompida."
+                  : "A demanda volta somente ao estado de origem preservado e validado pelo backend."}
+              </dd>
+            </div>
+          </dl>
+          {pauseMutation.isError || resumeMutation.isError ? (
+            <p role="alert">{message ?? "A operação não foi aplicada."}</p>
+          ) : null}
+          <div className="approval-actions">
+            <button
+              onClick={() => {
+                setAction(undefined);
+              }}
+              type="button"
+            >
+              Voltar
+            </button>
+            <button disabled={pauseMutation.isPending || resumeMutation.isPending} type="submit">
+              {pauseMutation.isPending || resumeMutation.isPending
+                ? "Registrando…"
+                : action === "pause"
+                  ? "Confirmar pausa"
+                  : "Confirmar retomada"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+  );
+}
+
 function CancelTask({
   client,
   data,
@@ -170,6 +439,7 @@ function CancelTask({
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
           queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+          queryClient.invalidateQueries({ queryKey: ["projects-board"] }),
         ]);
         idempotencyKey.current = crypto.randomUUID();
       }
@@ -179,6 +449,7 @@ function CancelTask({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["demand-workspace", data.header.taskId] }),
         queryClient.invalidateQueries({ queryKey: ["mission-control"] }),
+        queryClient.invalidateQueries({ queryKey: ["projects-board"] }),
       ]);
     },
   });
@@ -766,10 +1037,16 @@ export function DemandWorkspace({
   approvalDecisionClient,
   cancelTaskClient,
   data,
+  pauseTaskClient,
+  resumeTaskClient,
+  setTaskPriorityClient,
 }: {
   readonly approvalDecisionClient: ApprovalDecisionClient;
   readonly cancelTaskClient: CancelDashboardTaskClient;
   readonly data: DemandWorkspaceResponse;
+  readonly pauseTaskClient: PauseDashboardTaskClient;
+  readonly resumeTaskClient: ResumeDashboardTaskClient;
+  readonly setTaskPriorityClient: SetDashboardTaskPriorityClient;
 }) {
   return (
     <>
@@ -783,6 +1060,12 @@ export function DemandWorkspace({
       </header>
       <main className="workspace-page">
         <DemandHeader data={data} />
+        <TaskOperations
+          data={data}
+          pauseClient={pauseTaskClient}
+          priorityClient={setTaskPriorityClient}
+          resumeClient={resumeTaskClient}
+        />
         <CancelTask client={cancelTaskClient} data={data} />
         <div className="workspace-layout">
           <Overview data={data} />

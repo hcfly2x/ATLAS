@@ -31,9 +31,15 @@ import {
   createDashboardDemand,
   fetchDashboardProjects,
   DashboardCommandError,
+  pauseDashboardTask,
+  resumeDashboardTask,
+  setDashboardTaskPriority,
   type CancelDashboardTaskClient,
   type CreateDashboardDemandClient,
   type DashboardProjectsClient,
+  type PauseDashboardTaskClient,
+  type ResumeDashboardTaskClient,
+  type SetDashboardTaskPriorityClient,
 } from "./task-commands.js";
 
 type ProactiveItem = MissionControlResponse["risks"]["items"][number];
@@ -520,9 +526,11 @@ function ProactiveSection({
 
 function CreateDemand({
   client,
+  projectsBoardClient,
   projectsClient,
 }: {
   readonly client: CreateDashboardDemandClient;
+  readonly projectsBoardClient: ProjectsBoardClient;
   readonly projectsClient: DashboardProjectsClient;
 }) {
   const navigate = useNavigate();
@@ -536,6 +544,12 @@ function CreateDemand({
     queryKey: ["dashboard-projects"],
     retry: false,
   });
+  const projectStatuses = useQuery({
+    queryFn: ({ signal }) => projectsBoardClient(signal),
+    queryKey: ["projects-board", "create-demand"],
+    retry: false,
+  });
+  const inactiveProjects = projectStatuses.data?.projects.filter((project) => !project.isActive);
   const mutation = useMutation({
     mutationFn: client,
     onError: async (error) => {
@@ -603,6 +617,28 @@ function CreateDemand({
             ))}
           </select>
         </label>
+        <p className="project-selection-note">Somente projetos ativos podem receber demandas.</p>
+        {projectStatuses.isError ? (
+          <p className="value-indeterminate">
+            O status dos projetos em rascunho está indeterminado.
+          </p>
+        ) : inactiveProjects !== undefined && inactiveProjects.length > 0 ? (
+          <aside aria-labelledby="inactive-projects-title" className="activation-guidance">
+            <h3 id="inactive-projects-title">Projetos em rascunho</h3>
+            <ul>
+              {inactiveProjects.map((project) => (
+                <li key={project.id}>
+                  <strong>{project.name}</strong>
+                  <span>Ainda não ativo</span>
+                </li>
+              ))}
+            </ul>
+            <p>
+              Ative o projeto no setup local em <code>/setup</code> antes de criar demandas. O ATLAS
+              não inventa repositório, comandos ou credenciais.
+            </p>
+          </aside>
+        ) : null}
         <label>
           Objetivo
           <textarea
@@ -656,10 +692,12 @@ function CreateDemand({
 function MissionControlHome({
   createDemandClient,
   data,
+  projectsBoardClient,
   projectsClient,
 }: {
   readonly createDemandClient: CreateDashboardDemandClient;
   readonly data: MissionControlResponse;
+  readonly projectsBoardClient: ProjectsBoardClient;
   readonly projectsClient: DashboardProjectsClient;
 }) {
   return (
@@ -667,7 +705,11 @@ function MissionControlHome({
       <ShellHeader generatedAt={data.generatedAt} />
       <main className="mission-page">
         <Intelligence data={data} />
-        <CreateDemand client={createDemandClient} projectsClient={projectsClient} />
+        <CreateDemand
+          client={createDemandClient}
+          projectsBoardClient={projectsBoardClient}
+          projectsClient={projectsClient}
+        />
         <div className="dashboard-grid">
           <ProactiveSection
             block={data.needsAttention}
@@ -752,9 +794,12 @@ export interface AppProps {
   readonly createDemandClient?: CreateDashboardDemandClient;
   readonly demandWorkspaceClient?: DemandWorkspaceClient;
   readonly missionControlClient?: MissionControlClient;
+  readonly pauseTaskClient?: PauseDashboardTaskClient;
   readonly projectsClient?: DashboardProjectsClient;
   readonly projectsBoardClient?: ProjectsBoardClient;
+  readonly resumeTaskClient?: ResumeDashboardTaskClient;
   readonly sessionClient?: DashboardSessionClient;
+  readonly setTaskPriorityClient?: SetDashboardTaskPriorityClient;
 }
 
 function LoadingProjects() {
@@ -823,12 +868,14 @@ function MissionControlRoute({
   client,
   createDemandClient,
   onAuthenticate,
+  projectsBoardClient,
   projectsClient,
 }: {
   readonly authEpoch: number;
   readonly client: MissionControlClient;
   readonly createDemandClient: CreateDashboardDemandClient;
   readonly onAuthenticate: (credential: string) => Promise<void>;
+  readonly projectsBoardClient: ProjectsBoardClient;
   readonly projectsClient: DashboardProjectsClient;
 }) {
   const projectId = new URLSearchParams(globalThis.location.search).get("projectId") ?? undefined;
@@ -854,6 +901,7 @@ function MissionControlRoute({
     <MissionControlHome
       createDemandClient={createDemandClient}
       data={query.data}
+      projectsBoardClient={projectsBoardClient}
       projectsClient={projectsClient}
     />
   );
@@ -906,12 +954,18 @@ function DemandWorkspaceRoute({
   cancelTaskClient,
   client,
   onAuthenticate,
+  pauseTaskClient,
+  resumeTaskClient,
+  setTaskPriorityClient,
 }: {
   readonly approvalDecisionClient: ApprovalDecisionClient;
   readonly authEpoch: number;
   readonly cancelTaskClient: CancelDashboardTaskClient;
   readonly client: DemandWorkspaceClient;
   readonly onAuthenticate: (credential: string) => Promise<void>;
+  readonly pauseTaskClient: PauseDashboardTaskClient;
+  readonly resumeTaskClient: ResumeDashboardTaskClient;
+  readonly setTaskPriorityClient: SetDashboardTaskPriorityClient;
 }) {
   const { taskId = "" } = useParams();
   const query = useQuery({
@@ -939,6 +993,9 @@ function DemandWorkspaceRoute({
       approvalDecisionClient={approvalDecisionClient}
       cancelTaskClient={cancelTaskClient}
       data={query.data}
+      pauseTaskClient={pauseTaskClient}
+      resumeTaskClient={resumeTaskClient}
+      setTaskPriorityClient={setTaskPriorityClient}
     />
   );
 }
@@ -949,9 +1006,12 @@ export function App({
   createDemandClient = createDashboardDemand,
   demandWorkspaceClient = fetchDemandWorkspace,
   missionControlClient = fetchMissionControl,
+  pauseTaskClient = pauseDashboardTask,
   projectsClient = fetchDashboardProjects,
   projectsBoardClient = fetchProjectsBoard,
+  resumeTaskClient = resumeDashboardTask,
   sessionClient = createDashboardSession,
+  setTaskPriorityClient = setDashboardTaskPriority,
 }: AppProps) {
   const [authEpoch, setAuthEpoch] = useState(0);
 
@@ -990,6 +1050,7 @@ export function App({
             client={missionControlClient}
             createDemandClient={createDemandClient}
             onAuthenticate={authenticate}
+            projectsBoardClient={projectsBoardClient}
             projectsClient={projectsClient}
           />
         }
@@ -1003,6 +1064,9 @@ export function App({
             cancelTaskClient={cancelTaskClient}
             client={demandWorkspaceClient}
             onAuthenticate={authenticate}
+            pauseTaskClient={pauseTaskClient}
+            resumeTaskClient={resumeTaskClient}
+            setTaskPriorityClient={setTaskPriorityClient}
           />
         }
         path="/demand/:taskId"

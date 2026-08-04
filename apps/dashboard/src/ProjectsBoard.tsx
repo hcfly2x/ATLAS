@@ -36,9 +36,16 @@ function ProjectLane({ project }: { readonly project: ProjectsBoardResponse["pro
         <div>
           <span className="project-name-row">
             <strong>{project.name}</strong>
-            {project.isActive ? <span className="project-active-label">Projeto ativo</span> : null}
+            <span className={project.isActive ? "project-active-label" : "project-draft-label"}>
+              {project.isActive ? "Projeto ativo" : "Projeto em rascunho"}
+            </span>
           </span>
           <span className="project-description">{project.description}</span>
+          {project.isActive ? null : (
+            <span className="project-activation-note">
+              Ative no setup local em /setup antes de criar demandas.
+            </span>
+          )}
         </div>
         <div className="project-summary-meta">
           <span className={`project-status${project.hasActiveDemand ? " status-running" : ""}`}>

@@ -113,8 +113,14 @@ na faixa normal, por prioridade e FIFO determinísticos. `PAUSED` nunca é
 selecionado. Lease e fencing preservam os valores anteriores. O passo C2c-4
 passa a ser o primeiro produtor governado de `PAUSED`: pausa, retomada e
 prioridade usam o recibo C2b1, RBAC/CSRF, versão otimista e auditoria
-transacional. Não há UI nesta entrega; o passo 5 permanece não autorizado e
-exige fase e revisão próprias.
+transacional. O passo C2c-5 conclui a trilha: o Workspace exibe somente os
+controles válidos para o estado atual, confirma pausa/retomada e envia CSRF,
+chave idempotente e versão pelos contratos existentes. Conflitos recarregam
+Workspace, Mission Control e Projetos. A criação aceita somente projetos
+`ACTIVE`; projetos não ativos são apresentados como rascunho com orientação
+para o setup local, sem ativação automática. Próximas decisões operacionais são
+ativar explicitamente os projetos necessários e decidir os cutovers de
+enforcement; nenhuma delas é autorizada por esta entrega.
 
 O loop-breaker de retrabalho pós-execução está nesta entrega. Rejeições
 consecutivas pelo mesmo `reconciliationReason` continuam retornando a

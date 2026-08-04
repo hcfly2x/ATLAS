@@ -2,9 +2,10 @@
 
 ## Status e limite
 
-Plano subordinado ao ADR-030 Proposto. Não é uma migration executável e não
-autoriza implementação. Nenhum SQL deste documento deve ser aplicado antes de
-revisão completa e autorização própria.
+Plano subordinado ao ADR-030 Proposto. Os passos 1–5 foram autorizados,
+implementados em entregas isoladas e preservam os gates descritos abaixo. Este
+documento continua sendo histórico de desenho, não uma migration executável nem
+autorização para rollout, merge ou deploy.
 
 ## Forma proposta do schema
 
@@ -66,7 +67,7 @@ Não há `UPDATE`, backfill ou reescrita de Task. Registros existentes recebem
 `priority=0` pelo default e continuam com `paused_from_state=NULL`. Nenhum valor
 ou aresta atual é removido.
 
-## Sequência segura de implementação futura
+## Sequência segura de implementação
 
 1. **Caracterização:** congelar por testes a topologia atual, as duas formas de
    claim, decisões concorrentes de Approval e recibos C2b1.
@@ -88,6 +89,9 @@ ou aresta atual é removido.
 Cada passo é um PR próprio ou uma entrega claramente isolada e para para revisão
 completa. A fase de comportamento não pode combinar schema, scheduler e UI sem
 gates intermediários.
+
+**Estado:** passos 1–5 concluídos. O rollout e qualquer decisão operacional
+continuam sujeitos a revisão e autorização próprias.
 
 ## Compatibilidade e rollback
 
@@ -120,4 +124,3 @@ gates intermediários.
 - auditoria e respostas não contêm conteúdo livre, prompt, payload ou segredo;
 - integração PostgreSQL, `pnpm validate`, testes de concorrência e staging estão
   verdes antes da UI ou do merge.
-

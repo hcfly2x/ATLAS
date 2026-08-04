@@ -107,6 +107,15 @@ a:focus-visible {
   background: var(--surface);
 }
 
+.workspace-command select {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
 .create-demand-section textarea,
 .workspace-command textarea {
   min-height: 7rem;
@@ -120,6 +129,79 @@ a:focus-visible {
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: var(--surface);
+}
+
+.task-operations {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+}
+
+.task-operation-actions,
+.priority-command {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.task-operation-actions {
+  margin-top: 1rem;
+}
+
+.task-operation-actions button,
+.priority-command button {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent-line);
+  border-radius: 0.65rem;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+
+.priority-command label {
+  flex: 1 1 10rem;
+}
+
+.operation-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+
+.project-selection-note {
+  margin: -0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.activation-guidance {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-soft);
+}
+
+.activation-guidance h3,
+.activation-guidance p {
+  margin: 0;
+}
+
+.activation-guidance ul {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0.75rem 0;
+  list-style: none;
+}
+
+.activation-guidance li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.activation-guidance code {
+  font-weight: 700;
 }
 
 a {
@@ -510,6 +592,25 @@ a {
   border: 1px solid var(--accent-line);
   border-radius: 999px;
   background: var(--accent-soft);
+}
+
+.project-draft-label {
+  padding: 0.22rem 0.45rem;
+  color: var(--amber);
+  font-size: 0.62rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  border: 1px solid #d8b56b;
+  border-radius: 999px;
+  background: var(--amber-soft);
+}
+
+.project-activation-note {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--amber);
+  font-size: 0.76rem;
+  font-weight: 650;
 }
 
 .project-description {
@@ -1008,7 +1109,8 @@ a {
 @media (max-width: 800px) {
   .workspace-hero,
   .workspace-split,
-  .replay {
+  .replay,
+  .task-operations {
     grid-template-columns: 1fr;
   }
 

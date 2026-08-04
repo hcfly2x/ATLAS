@@ -50,6 +50,9 @@ describe("Projects board UI", () => {
     expect(lanes[1]).not.toHaveAttribute("open");
     expect(screen.getByText("Sem demanda ativa")).toBeInTheDocument();
     expect(screen.getByText("sem descrição")).toBeInTheDocument();
+    expect(screen.getByText("Projeto ativo")).toBeInTheDocument();
+    expect(screen.getByText("Projeto em rascunho")).toBeInTheDocument();
+    expect(screen.getByText(/Ative no setup local em \/setup/)).toBeInTheDocument();
   });
 
   it("keeps an inactive project collapsed even if historical data reports active work", () => {
