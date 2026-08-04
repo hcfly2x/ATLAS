@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createWorkerResult } from "@atlas/shared";
 
-import { DashboardService } from "./service.js";
+import { DashboardService, PROJECT_BOARD_COLUMN_BY_STATE } from "./service.js";
 
 const now = new Date("2026-07-29T12:00:00.000Z");
 const taskId = "10000000-0000-4000-8000-000000000001";
@@ -671,5 +671,122 @@ describe("DashboardService", () => {
     expect(JSON.stringify(query)).not.toContain("messageText");
     expect(JSON.stringify(query)).not.toContain("destinationChatId");
     expect(JSON.stringify(query)).not.toContain("destinationUserId");
+  });
+
+  it("maps every canonical state into one Projects board column", () => {
+    expect(PROJECT_BOARD_COLUMN_BY_STATE).toEqual({
+      CANCELLED: "stopped",
+      CANCEL_REQUESTED: "stopped",
+      COMPLETED: "completed",
+      FAILED: "stopped",
+      FINALIZING: "in_progress",
+      NEW: "in_progress",
+      NORMALIZING: "in_progress",
+      PAUSED: "stopped",
+      QUEUED: "in_progress",
+      ROUTING: "in_progress",
+      RUNNING: "in_progress",
+      SPECIFYING: "in_progress",
+      TESTING: "in_progress",
+      WAITING_APPROVAL: "needs_attention",
+      WAITING_RESULT_APPROVAL: "needs_attention",
+    });
+  });
+
+  it("builds a safe read-only Projects board and never returns raw demand fields", async () => {
+    let taskQuery: unknown;
+    const write = vi.fn(() => {
+      throw new Error("Projects board attempted a write");
+    });
+    const prisma = {
+      project: {
+        create: write,
+        findMany: () =>
+          Promise.resolve([
+            { id: "atlas", name: "ATLAS", status: "ACTIVE" },
+            { id: "future", name: "Futuro", status: "FUTURE" },
+          ]),
+        update: write,
+      },
+      task: {
+        create: write,
+        findMany: (input: unknown) => {
+          taskQuery = input;
+          return Promise.resolve([
+            {
+              activeSpecification: null,
+              approvals: [{ id: "approval-1" }],
+              id: taskId,
+              normalizedDemand: {
+                context: ["SECRET_CONTEXT"],
+                constraints: [],
+                objective: "Revisar entrega token=SECRET_TOKEN_VALUE",
+                prompt: "SECRET_PROMPT",
+                requested_actions: [],
+              },
+              originalMessage: "SECRET_ORIGINAL_MESSAGE",
+              projectId: "atlas",
+              state: "RUNNING",
+              updatedAt: new Date("2026-08-04T11:00:00.000Z"),
+            },
+            {
+              activeSpecification: null,
+              approvals: [],
+              id: "20000000-0000-4000-8000-000000000002",
+              normalizedDemand: null,
+              projectId: "future",
+              state: "COMPLETED",
+              updatedAt: new Date("2026-08-03T11:00:00.000Z"),
+            },
+          ]);
+        },
+        update: write,
+      },
+    };
+    const service = new DashboardService(prisma as never, {
+      now: () => new Date("2026-08-04T12:00:00.000Z"),
+      projectDescriptions: new Map([
+        ["atlas", "Orquestra demandas password=SECRET_PASSWORD_VALUE"],
+      ]),
+    });
+
+    const board = await service.projectsBoard();
+    const serialized = JSON.stringify(board);
+
+    expect(board.projects[0]).toMatchObject({
+      activeDemandCount: 1,
+      description: "Orquestra demandas [conteúdo protegido]",
+      hasActiveDemand: true,
+      id: "atlas",
+      isActive: true,
+    });
+    expect(board.projects[0]?.columns.needsAttention[0]).toMatchObject({
+      column: "needs_attention",
+      stateLabel: "Em execução",
+    });
+    expect(board.projects[1]).toMatchObject({
+      activeDemandCount: 0,
+      description: "sem descrição",
+      hasActiveDemand: false,
+      id: "future",
+    });
+    expect(write).not.toHaveBeenCalled();
+    expect(taskQuery).toMatchObject({
+      select: {
+        activeSpecification: { select: { payload: true } },
+        normalizedDemand: true,
+      },
+    });
+    for (const forbidden of [
+      "SECRET_CONTEXT",
+      "SECRET_ORIGINAL_MESSAGE",
+      "SECRET_PASSWORD_VALUE",
+      "SECRET_PROMPT",
+      "SECRET_TOKEN_VALUE",
+      "originalMessage",
+      "prompt",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
   });
 });

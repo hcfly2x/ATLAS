@@ -9,6 +9,7 @@ import {
   demandWorkspaceResponseSchema,
   missionControlResponseSchema,
   pauseDashboardTaskRequestSchema,
+  projectsBoardResponseSchema,
   resumeDashboardTaskRequestSchema,
   setDashboardTaskPriorityRequestSchema,
 } from "../src/index.js";
@@ -74,6 +75,35 @@ const demandWorkspaceFixture = {
   timeline: [],
 };
 
+const projectsBoardFixture = {
+  generatedAt: "2026-08-04T12:00:00.000Z",
+  projects: [
+    {
+      activeDemandCount: 1,
+      columns: {
+        completed: [],
+        inProgress: [
+          {
+            column: "in_progress",
+            objective: "Publicar o quadro de projetos",
+            stateLabel: "Em execução",
+            taskId: "10000000-0000-4000-8000-000000000001",
+            updatedAt: "2026-08-04T11:00:00.000Z",
+          },
+        ],
+        needsAttention: [],
+        stopped: [],
+      },
+      demandCount: 1,
+      description: "Coordena o trabalho da empresa de agentes.",
+      hasActiveDemand: true,
+      id: "atlas",
+      isActive: true,
+      name: "ATLAS",
+    },
+  ],
+};
+
 describe("@atlas/contracts dashboard schemas", () => {
   it("accepts valid Mission Control and demand Workspace fixtures", () => {
     expect(missionControlResponseSchema.parse(missionControlFixture)).toEqual(
@@ -82,6 +112,7 @@ describe("@atlas/contracts dashboard schemas", () => {
     expect(demandWorkspaceResponseSchema.parse(demandWorkspaceFixture)).toEqual(
       demandWorkspaceFixture,
     );
+    expect(projectsBoardResponseSchema.parse(projectsBoardFixture)).toEqual(projectsBoardFixture);
   });
 
   it("rejects unexpected fields at both public boundaries", () => {
@@ -95,6 +126,17 @@ describe("@atlas/contracts dashboard schemas", () => {
       demandWorkspaceResponseSchema.parse({
         ...demandWorkspaceFixture,
         payload: "must-not-cross-the-contract",
+      }),
+    ).toThrow();
+    expect(() =>
+      projectsBoardResponseSchema.parse({
+        ...projectsBoardFixture,
+        projects: [
+          {
+            ...projectsBoardFixture.projects[0],
+            messageText: "must-not-cross-the-contract",
+          },
+        ],
       }),
     ).toThrow();
   });

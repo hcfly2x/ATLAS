@@ -19,6 +19,12 @@ import {
   type DashboardSessionClient,
 } from "./session.js";
 import { DemandWorkspace } from "./Workspace.js";
+import { ProjectsBoard } from "./ProjectsBoard.js";
+import {
+  fetchProjectsBoard,
+  ProjectsBoardReadError,
+  type ProjectsBoardClient,
+} from "./projects-board.js";
 import { decideDashboardApproval, type ApprovalDecisionClient } from "./approval-decision.js";
 import {
   cancelDashboardTask,
@@ -187,14 +193,10 @@ function ShellHeader({ generatedAt }: { readonly generatedAt?: string }) {
         <AtlasMark />
         <span>ATLAS</span>
       </div>
-      <div className="topbar-context">
-        <span className="context-title">Mission Control</span>
-        <span className="context-divider" />
-        <span className="context-status">
-          <span aria-hidden="true" className="status-dot" />
-          Operações governadas
-        </span>
-      </div>
+      <nav aria-label="Navegação principal" className="topbar-navigation">
+        <Link to="/">Mission Control</Link>
+        <Link to="/projetos">Projetos</Link>
+      </nav>
       <div className="sync-time">
         <span>Última leitura</span>
         <strong>{generatedAt === undefined ? "sincronizando" : formatDate(generatedAt)}</strong>
@@ -751,7 +753,69 @@ export interface AppProps {
   readonly demandWorkspaceClient?: DemandWorkspaceClient;
   readonly missionControlClient?: MissionControlClient;
   readonly projectsClient?: DashboardProjectsClient;
+  readonly projectsBoardClient?: ProjectsBoardClient;
   readonly sessionClient?: DashboardSessionClient;
+}
+
+function LoadingProjects() {
+  return (
+    <div aria-busy="true" aria-live="polite">
+      <ShellHeader />
+      <main className="projects-page">
+        <section className="projects-hero skeleton-panel">
+          <p className="kicker">Visão por projeto</p>
+          <div className="skeleton skeleton-title" />
+          <p className="loading-label">Organizando as demandas por situação…</p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function ProjectsError() {
+  return (
+    <>
+      <ShellHeader />
+      <main className="projects-page">
+        <section aria-labelledby="projects-error-title" className="system-state-card">
+          <span className="state-symbol">!</span>
+          <p className="kicker">Leitura indisponível</p>
+          <h1 id="projects-error-title">Projetos estão indeterminados</h1>
+          <p>Nenhuma situação ou contagem foi inferida. Tente novamente em instantes.</p>
+        </section>
+      </main>
+    </>
+  );
+}
+
+function ProjectsBoardRoute({
+  authEpoch,
+  client,
+  onAuthenticate,
+}: {
+  readonly authEpoch: number;
+  readonly client: ProjectsBoardClient;
+  readonly onAuthenticate: (credential: string) => Promise<void>;
+}) {
+  const query = useQuery({
+    queryFn: ({ signal }) => client(signal),
+    queryKey: ["projects-board", authEpoch],
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  if (query.isPending) return <LoadingProjects />;
+  if (query.isError) {
+    if (query.error instanceof ProjectsBoardReadError && query.error.code === "unauthorized") {
+      return <AccessGate error="Sessão ausente ou expirada." onAuthenticate={onAuthenticate} />;
+    }
+    return <ProjectsError />;
+  }
+  return (
+    <>
+      <ShellHeader generatedAt={query.data.generatedAt} />
+      <ProjectsBoard data={query.data} />
+    </>
+  );
 }
 
 function MissionControlRoute({
@@ -886,6 +950,7 @@ export function App({
   demandWorkspaceClient = fetchDemandWorkspace,
   missionControlClient = fetchMissionControl,
   projectsClient = fetchDashboardProjects,
+  projectsBoardClient = fetchProjectsBoard,
   sessionClient = createDashboardSession,
 }: AppProps) {
   const [authEpoch, setAuthEpoch] = useState(0);
@@ -908,6 +973,16 @@ export function App({
 
   return (
     <Routes>
+      <Route
+        element={
+          <ProjectsBoardRoute
+            authEpoch={authEpoch}
+            client={projectsBoardClient}
+            onAuthenticate={authenticate}
+          />
+        }
+        path="/projetos"
+      />
       <Route
         element={
           <MissionControlRoute

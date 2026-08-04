@@ -342,6 +342,15 @@ export function registerDashboardRoutes(
     async () => service.projects(),
   );
   app.get(
+    "/dashboard/api/projects-board",
+    {
+      config: {
+        dashboardPermission: "dashboard:projects:read",
+      } satisfies DashboardRouteConfig,
+    },
+    async () => service.projectsBoard(),
+  );
+  app.get(
     "/dashboard/auth/session",
     {
       config: {

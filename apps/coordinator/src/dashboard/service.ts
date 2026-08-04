@@ -3,6 +3,7 @@ import {
   ApprovalStatus,
   DeliveryOutboxStatus,
   PostExecutionReviewStatus,
+  ProjectStatus,
   TaskState,
   type PrismaClient,
 } from "@prisma/client";
@@ -52,6 +53,9 @@ const RECENT_TERMINAL_STATES = [TaskState.COMPLETED] as const;
 const RECENT_WINDOW_DAYS = 7;
 const RECENT_WINDOW_MS = RECENT_WINDOW_DAYS * 86_400_000;
 const INDETERMINATE = "indeterminado" as const;
+const PROJECT_DESCRIPTION_UNAVAILABLE = "sem descrição";
+const DEMAND_OBJECTIVE_UNAVAILABLE = "Objetivo indisponível";
+const BOARD_TEXT_LIMIT = 160;
 const QA_RECONCILIATION_REASONS = new Set([
   "qa_empirical_failed",
   "qa_empirical_signal_missing",
@@ -114,6 +118,73 @@ const SEVERITY_ORDER: Record<DashboardSeverity, number> = {
   medium: 2,
   info: 3,
 };
+
+export const PROJECT_BOARD_COLUMN_BY_STATE = {
+  CANCELLED: "stopped",
+  CANCEL_REQUESTED: "stopped",
+  COMPLETED: "completed",
+  FAILED: "stopped",
+  FINALIZING: "in_progress",
+  NEW: "in_progress",
+  NORMALIZING: "in_progress",
+  PAUSED: "stopped",
+  QUEUED: "in_progress",
+  ROUTING: "in_progress",
+  RUNNING: "in_progress",
+  SPECIFYING: "in_progress",
+  TESTING: "in_progress",
+  WAITING_APPROVAL: "needs_attention",
+  WAITING_RESULT_APPROVAL: "needs_attention",
+} as const satisfies Record<TaskState, "completed" | "in_progress" | "needs_attention" | "stopped">;
+
+const PROJECT_BOARD_STATE_LABELS = {
+  CANCELLED: "Cancelada",
+  CANCEL_REQUESTED: "Cancelamento solicitado",
+  COMPLETED: "Concluída",
+  FAILED: "Falhou",
+  FINALIZING: "Preparando entrega",
+  NEW: "Recebida",
+  NORMALIZING: "Entendendo o pedido",
+  PAUSED: "Pausada",
+  QUEUED: "Na fila",
+  ROUTING: "Organizando o trabalho",
+  RUNNING: "Em execução",
+  SPECIFYING: "Planejando",
+  TESTING: "Em validação",
+  WAITING_APPROVAL: "Aguardando sua aprovação",
+  WAITING_RESULT_APPROVAL: "Aguardando sua revisão",
+} as const satisfies Record<TaskState, string>;
+
+const BOARD_SENSITIVE_PATTERNS = [
+  /\bBearer\s+\S+/giu,
+  /\b(?:sk|token|secret|credential|password)[-_=: ]+\S+/giu,
+  /\b(?:postgres(?:ql)?|mysql|mongodb):\/\/\S+/giu,
+] as const;
+
+function safeBoardText(value: string, fallback: string, limit = BOARD_TEXT_LIMIT): string {
+  let sanitized = value.replace(/\s+/gu, " ").trim();
+  for (const pattern of BOARD_SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, "[conteúdo protegido]");
+  }
+  if (sanitized.length === 0) return fallback;
+  return sanitized.length <= limit ? sanitized : `${sanitized.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function safeBoardObjective(task: {
+  readonly activeSpecification: { readonly payload: unknown } | null;
+  readonly normalizedDemand: unknown;
+}): string {
+  const specification = executableSpecificationPayloadSchema.safeParse(
+    task.activeSpecification?.payload,
+  );
+  if (specification.success) {
+    return safeBoardText(specification.data.objective, DEMAND_OBJECTIVE_UNAVAILABLE);
+  }
+  const normalized = normalizedDemandSchema.safeParse(task.normalizedDemand);
+  return normalized.success
+    ? safeBoardText(normalized.data.objective, DEMAND_OBJECTIVE_UNAVAILABLE)
+    : DEMAND_OBJECTIVE_UNAVAILABLE;
+}
 
 function jsonSafe(value: unknown): unknown {
   return JSON.parse(
@@ -209,6 +280,7 @@ export class DashboardService {
     private readonly options: {
       readonly deliverySlaMs?: number;
       readonly now?: () => Date;
+      readonly projectDescriptions?: ReadonlyMap<string, string>;
     } = {},
   ) {
     if (
@@ -1103,6 +1175,91 @@ export class DashboardService {
       select: { id: true, name: true },
     });
     return { projects };
+  }
+
+  async projectsBoard() {
+    const [projects, tasks] = await Promise.all([
+      this.prisma.project.findMany({
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        select: { id: true, name: true, status: true },
+      }),
+      this.prisma.task.findMany({
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        take: 500,
+        select: {
+          activeSpecification: { select: { payload: true } },
+          approvals: {
+            where: { actor: ApprovalActor.USER, status: ApprovalStatus.PENDING },
+            select: { id: true },
+          },
+          id: true,
+          normalizedDemand: true,
+          projectId: true,
+          state: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+    const tasksByProject = new Map<string, typeof tasks>();
+    for (const task of tasks) {
+      const current = tasksByProject.get(task.projectId) ?? [];
+      current.push(task);
+      tasksByProject.set(task.projectId, current);
+    }
+
+    return {
+      generatedAt: this.now(),
+      projects: projects
+        .map((project) => {
+          const projectTasks = tasksByProject.get(project.id) ?? [];
+          const columns = {
+            completed: [] as object[],
+            inProgress: [] as object[],
+            needsAttention: [] as object[],
+            stopped: [] as object[],
+          };
+          for (const task of projectTasks) {
+            const column =
+              task.approvals.length > 0
+                ? "needs_attention"
+                : PROJECT_BOARD_COLUMN_BY_STATE[task.state];
+            const demand = {
+              column,
+              objective: safeBoardObjective(task),
+              stateLabel: PROJECT_BOARD_STATE_LABELS[task.state],
+              taskId: task.id,
+              updatedAt: task.updatedAt,
+            };
+            if (column === "needs_attention") columns.needsAttention.push(demand);
+            else if (column === "in_progress") columns.inProgress.push(demand);
+            else if (column === "stopped") columns.stopped.push(demand);
+            else columns.completed.push(demand);
+          }
+          const activeDemandCount = projectTasks.filter(
+            (task) => task.state !== TaskState.COMPLETED && task.state !== TaskState.CANCELLED,
+          ).length;
+          return {
+            activeDemandCount,
+            columns,
+            demandCount: projectTasks.length,
+            description: safeBoardText(
+              this.options.projectDescriptions?.get(project.id) ?? "",
+              PROJECT_DESCRIPTION_UNAVAILABLE,
+              240,
+            ),
+            hasActiveDemand: activeDemandCount > 0,
+            id: project.id,
+            isActive: project.status === ProjectStatus.ACTIVE,
+            name: project.name,
+          };
+        })
+        .sort(
+          (left, right) =>
+            Number(right.isActive) - Number(left.isActive) ||
+            left.name.localeCompare(right.name) ||
+            left.id.localeCompare(right.id),
+        ),
+    };
   }
 
   async audit(projectId: string) {

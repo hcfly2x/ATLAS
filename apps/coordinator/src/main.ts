@@ -16,6 +16,7 @@ import { PrismaTelegramStore } from "./telegram/store.js";
 import { loadProtectedGlobs } from "./worker/config.js";
 import { WorkerService } from "./worker/service.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
+import { loadDashboardProjectDescriptions } from "./dashboard/project-descriptions.js";
 import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
@@ -65,8 +66,20 @@ const dashboardAuth =
           process.env.DASHBOARD_SESSION_TTL_SECONDS,
         ),
       });
+const dashboardProjectDescriptions =
+  dashboardAuth === undefined
+    ? new Map<string, string>()
+    : await loadDashboardProjectDescriptions(
+        process.env.ATLAS_PROJECTS_PATH ??
+          fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
+      );
 const dashboardService =
-  dashboardAuth === undefined ? undefined : new DashboardService(prisma, { deliverySlaMs });
+  dashboardAuth === undefined
+    ? undefined
+    : new DashboardService(prisma, {
+        deliverySlaMs,
+        projectDescriptions: dashboardProjectDescriptions,
+      });
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {
   throw new Error("INTERNAL_API_TOKEN is required");

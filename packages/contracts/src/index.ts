@@ -123,6 +123,53 @@ export const missionControlResponseSchema = z
 
 export type MissionControlResponse = z.infer<typeof missionControlResponseSchema>;
 
+export const projectBoardColumnSchema = z.enum([
+  "needs_attention",
+  "in_progress",
+  "stopped",
+  "completed",
+]);
+
+const projectBoardDemandSchema = z
+  .object({
+    column: projectBoardColumnSchema,
+    objective: z.string().min(1).max(160),
+    stateLabel: z.string().min(1).max(80),
+    taskId: z.string().min(1),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const projectsBoardResponseSchema = z
+  .object({
+    generatedAt: z.string().datetime(),
+    projects: z.array(
+      z
+        .object({
+          activeDemandCount: z.number().int().nonnegative(),
+          columns: z
+            .object({
+              completed: z.array(projectBoardDemandSchema),
+              inProgress: z.array(projectBoardDemandSchema),
+              needsAttention: z.array(projectBoardDemandSchema),
+              stopped: z.array(projectBoardDemandSchema),
+            })
+            .strict(),
+          demandCount: z.number().int().nonnegative(),
+          description: z.string().min(1).max(240),
+          hasActiveDemand: z.boolean(),
+          id: z.string().min(1).max(128),
+          isActive: z.boolean(),
+          name: z.string().min(1).max(120),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export type ProjectBoardColumn = z.infer<typeof projectBoardColumnSchema>;
+export type ProjectsBoardResponse = z.infer<typeof projectsBoardResponseSchema>;
+
 const workspaceValueSchema = z.union([z.string(), indeterminateSchema]);
 
 const demandWorkspaceExecutionSchema = z
