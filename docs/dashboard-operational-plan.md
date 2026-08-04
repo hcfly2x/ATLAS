@@ -227,7 +227,12 @@ Approval pelo resolvedor canônico. O app React que contém as Trilhas A, B e C2
 é agora servido pelo coordinator em `/dashboard`, conforme ADR-029 Proposto,
 com deep links autenticados e assets hasheados. A página inline de Mission
 Control foi aposentada. C2b1 também foi implementada para criação e
-cancelamento canônicos. C2c (pausa/retomada/prioridade) continua fase própria.
+cancelamento canônicos. C2c está implementada de ponta a ponta: schema/core,
+scheduler com CAS e aging, comandos governados e controles de
+pausa/retomada/prioridade no Workspace. A UI usa os contratos e rotas existentes,
+recarrega Workspace, Mission Control e Projetos em conflito e não oferece ações
+fora dos estados aceitos pelo backend. Projetos não ativos aparecem como rascunho
+e exigem ativação explícita no setup local antes de receber demandas.
 
 ### Trilha D — Projeto como empresa independente
 
@@ -304,5 +309,6 @@ A C2b1 foi autorizada e implementada: criação e cancelamento reutilizam o inta
 e a máquina de estados canônicos, com sessão, RBAC, CSRF, idempotência e
 auditoria. Um recibo transacional mínimo vincula a chave também aos resultados
 rejeitados, sem conteúdo bruto. Cancelamento ativo é cooperativo. A UI não oferece
-`request_change` para Approval pré-execução. C2c fica reservada a pausa,
-retomada e prioridade.
+`request_change` para Approval pré-execução. A C2c foi concluída em cinco passos
+isolados; sua UI não altera `always_human`, Approval, enforcement ou a autoridade
+do backend.

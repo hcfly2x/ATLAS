@@ -11,6 +11,16 @@ import {
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/dashboard/api/projects-board", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(projectsBoardFixture),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+});
+
 test("renders Mission Control with governed demand creation", async ({ page }) => {
   let createRequestObserved = false;
   await page.route("**/dashboard/api/projects", async (route) => {
@@ -79,7 +89,7 @@ test("renders Mission Control with governed demand creation", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Riscos & Proatividade" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Criar demanda" })).toBeVisible();
   await expect(page.getByRole("button", { name: /cancelar|pausar|editar/i })).toHaveCount(0);
-  await page.getByLabel("Projeto").selectOption("atlas");
+  await page.getByRole("combobox", { name: "Projeto", exact: true }).selectOption("atlas");
   await page.getByLabel("Objetivo").fill("Criar demanda pelo navegador");
   await page.getByRole("button", { name: "Criar demanda" }).click();
   await expect(page).toHaveURL(new RegExp(`/demand/${demandWorkspaceFixture.header.taskId}$`));
@@ -327,6 +337,98 @@ test("navigates through the Projects board into a demand Workspace", async ({ pa
       }
     ).axe;
     return (await axe.run()).violations.map(({ id, nodes }) => ({ id, nodes }));
+  });
+  expect(violations).toEqual([]);
+});
+
+test("pauses and resumes an eligible demand through governed commands", async ({ page }) => {
+  let taskState = "QUEUED";
+  let taskVersion = 7;
+  await page.route("**/dashboard/api/demand/*", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        ...demandWorkspaceFixture,
+        header: { ...demandWorkspaceFixture.header, taskState, taskVersion },
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/dashboard/auth/session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        csrfToken: "a".repeat(43),
+        expiresAt: "2026-07-29T13:00:00.000Z",
+        role: "owner",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/dashboard/api/tasks/*/pause", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().headers()["x-atlas-csrf-token"]).toBe("a".repeat(43));
+    expect(route.request().postDataJSON()).toMatchObject({ taskVersion: 7 });
+    taskState = "PAUSED";
+    taskVersion = 8;
+    await route.fulfill({
+      body: JSON.stringify({
+        idempotentReplay: false,
+        task: {
+          id: demandWorkspaceFixture.header.taskId,
+          pausedFromState: "QUEUED",
+          priority: 0,
+          projectId: "atlas",
+          state: taskState,
+          version: taskVersion,
+        },
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/dashboard/api/tasks/*/resume", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toMatchObject({ taskVersion: 8 });
+    taskState = "QUEUED";
+    taskVersion = 9;
+    await route.fulfill({
+      body: JSON.stringify({
+        idempotentReplay: false,
+        task: {
+          id: demandWorkspaceFixture.header.taskId,
+          pausedFromState: null,
+          priority: 0,
+          projectId: "atlas",
+          state: taskState,
+          version: taskVersion,
+        },
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto(`/dashboard/demand/${demandWorkspaceFixture.header.taskId}`);
+  await page.getByRole("button", { name: "Pausar demanda" }).click();
+  await expect(page.getByRole("dialog")).toContainText("não é cancelada");
+  await page.getByRole("button", { name: "Confirmar pausa" }).click();
+  await expect(
+    page.locator(".workspace-facts").getByText("Pausada", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Retomar demanda" }).click();
+  await page.getByRole("button", { name: "Confirmar retomada" }).click();
+  await expect(
+    page.locator(".workspace-facts").getByText("Na fila", { exact: true }),
+  ).toBeVisible();
+
+  await page.addScriptTag({ path: axePath });
+  const violations = await page.evaluate(async () => {
+    const axe = (
+      globalThis as unknown as { axe: { run: () => Promise<{ violations: unknown[] }> } }
+    ).axe;
+    return (await axe.run()).violations;
   });
   expect(violations).toEqual([]);
 });

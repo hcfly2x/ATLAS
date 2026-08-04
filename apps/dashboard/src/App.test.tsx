@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
 import type { MissionControlClient } from "./mission-control.js";
 import { DashboardReadError } from "./mission-control.js";
+import type { ProjectsBoardClient } from "./projects-board.js";
 import type { DashboardSessionClient } from "./session.js";
 import {
   DashboardCommandError,
@@ -18,12 +19,14 @@ import {
   emptyMissionControlFixture,
   indeterminateMissionControlFixture,
   missionControlFixture,
+  projectsBoardFixture,
 } from "./test/fixtures.js";
 
 function renderDashboard(
   client: MissionControlClient,
   sessionClient?: DashboardSessionClient,
   createDemandClient?: CreateDashboardDemandClient,
+  projectsBoardClient?: ProjectsBoardClient,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -34,6 +37,7 @@ function renderDashboard(
         <App
           createDemandClient={createDemandClient ?? (() => new Promise(() => undefined))}
           missionControlClient={client}
+          projectsBoardClient={projectsBoardClient ?? (() => Promise.resolve(projectsBoardFixture))}
           projectsClient={
             (() =>
               Promise.resolve({
@@ -120,6 +124,19 @@ describe("Mission Control UI", () => {
       });
       expect(createDemandClient.mock.calls[0]?.[0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
     });
+  });
+
+  it("shows draft projects as setup guidance without making them selectable", async () => {
+    const createDemandClient = vi.fn<CreateDashboardDemandClient>();
+    renderDashboard(resolvedClient(missionControlFixture), undefined, createDemandClient);
+
+    expect(await screen.findByText("Projetos em rascunho")).toBeInTheDocument();
+    expect(screen.getByText("Projeto futuro")).toBeInTheDocument();
+    expect(screen.getByText(/Ative o projeto no setup local em/)).toBeInTheDocument();
+    expect(screen.getByText("/setup")).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Projeto futuro" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Criar demanda" })).toBeDisabled();
+    expect(createDemandClient).not.toHaveBeenCalled();
   });
 
   it("refreshes dashboard context and starts a new create attempt after conflict", async () => {

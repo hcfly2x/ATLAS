@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Dashboard C2c-5 e prontidão operacional
+
+- O Workspace passa a consumir as rotas existentes do C2c-4 para pausar,
+  retomar e definir prioridade `0|10|20`, sempre com CSRF de sessão, chave
+  idempotente e versão otimista.
+- Pausa aparece somente em `WAITING_APPROVAL|QUEUED`, retomada somente em
+  `PAUSED` e prioridade somente nesses três estados; pausa e retomada exigem
+  confirmação contextual acessível.
+- Conflito recarrega Workspace, Mission Control e Projetos e rotaciona a chave;
+  sessão expirada retorna ao login e respostas remotas não são exibidas.
+- A criação continua listando apenas projetos `ACTIVE`. Projetos não ativos são
+  identificados como rascunho na Home e em Projetos e orientam ativação no
+  setup local, sem mutação de configuração.
+- C2c fica concluída. Não há backend, rota, schema, core, scheduler, Approval,
+  enforcement, autonomia, `always_human` ou `.atlas/**` novo nesta entrega.
+
 ## Unreleased — Dashboard Projetos e tema claro
 
 - A rota autenticada `GET /dashboard/api/projects-board` agrega somente dados

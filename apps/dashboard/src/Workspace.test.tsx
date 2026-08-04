@@ -8,7 +8,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { ApprovalDecisionClient } from "./approval-decision.js";
 import { App } from "./App.js";
 import { DemandWorkspaceReadError, type DemandWorkspaceClient } from "./demand-workspace.js";
-import { DashboardCommandError, type CancelDashboardTaskClient } from "./task-commands.js";
+import {
+  DashboardCommandError,
+  type CancelDashboardTaskClient,
+  type PauseDashboardTaskClient,
+  type ResumeDashboardTaskClient,
+  type SetDashboardTaskPriorityClient,
+} from "./task-commands.js";
 import {
   demandWorkspaceFixture,
   emptyDemandWorkspaceFixture,
@@ -21,6 +27,9 @@ function renderWorkspace(
   client: DemandWorkspaceClient,
   approvalDecisionClient?: ApprovalDecisionClient,
   cancelTaskClient?: CancelDashboardTaskClient,
+  pauseTaskClient?: PauseDashboardTaskClient,
+  resumeTaskClient?: ResumeDashboardTaskClient,
+  setTaskPriorityClient?: SetDashboardTaskPriorityClient,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -31,6 +40,9 @@ function renderWorkspace(
         <App
           {...(approvalDecisionClient === undefined ? {} : { approvalDecisionClient })}
           {...(cancelTaskClient === undefined ? {} : { cancelTaskClient })}
+          {...(pauseTaskClient === undefined ? {} : { pauseTaskClient })}
+          {...(resumeTaskClient === undefined ? {} : { resumeTaskClient })}
+          {...(setTaskPriorityClient === undefined ? {} : { setTaskPriorityClient })}
           demandWorkspaceClient={client}
         />
       </MemoryRouter>
@@ -41,6 +53,27 @@ function renderWorkspace(
 
 function resolvedClient(data: DemandWorkspaceResponse): DemandWorkspaceClient {
   return () => Promise.resolve(data);
+}
+
+function workspaceInState(taskState: string, taskVersion = 7): DemandWorkspaceResponse {
+  return {
+    ...demandWorkspaceFixture,
+    header: { ...demandWorkspaceFixture.header, taskState, taskVersion },
+  };
+}
+
+function operationalResult(state: string, version = 8) {
+  return {
+    idempotentReplay: false,
+    task: {
+      id: demandWorkspaceFixture.header.taskId,
+      pausedFromState: state === "PAUSED" ? ("QUEUED" as const) : null,
+      priority: 10 as const,
+      projectId: "atlas",
+      state,
+      version,
+    },
+  };
 }
 
 describe("Demand Workspace UI", () => {
@@ -73,7 +106,122 @@ describe("Demand Workspace UI", () => {
     expect(screen.getByText("pnpm, git")).toBeInTheDocument();
     expect(screen.getByText(/5 arquivo\(s\)/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancelar demanda" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /pausar|editar/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /pausar|retomar|prioridade/i })).toBeNull();
+  });
+
+  it.each([
+    ["WAITING_APPROVAL", true, false, true],
+    ["QUEUED", true, false, true],
+    ["PAUSED", false, true, true],
+    ["RUNNING", false, false, false],
+  ] as const)(
+    "shows only the operational controls valid for %s",
+    async (state, pauseVisible, resumeVisible, priorityVisible) => {
+      renderWorkspace(resolvedClient(workspaceInState(state)));
+      await screen.findByRole("heading", { level: 1 });
+
+      expect(screen.queryByRole("button", { name: "Pausar demanda" }) !== null).toBe(pauseVisible);
+      expect(screen.queryByRole("button", { name: "Retomar demanda" }) !== null).toBe(
+        resumeVisible,
+      );
+      expect(screen.queryByLabelText("Nova prioridade") !== null).toBe(priorityVisible);
+    },
+  );
+
+  it("confirms pause with demand context and sends the current task version", async () => {
+    const pauseClient = vi
+      .fn<PauseDashboardTaskClient>()
+      .mockResolvedValue(operationalResult("PAUSED"));
+    renderWorkspace(resolvedClient(workspaceInState("QUEUED")), undefined, undefined, pauseClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pausar demanda" }));
+    expect(screen.getByRole("heading", { name: "Confirmar pausa" })).toBeInTheDocument();
+    expect(screen.getAllByText(demandWorkspaceFixture.demand.objective)).not.toHaveLength(0);
+    expect(screen.getByText(/sai temporariamente da fila ou decisão/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar pausa" }));
+
+    await waitFor(() => {
+      expect(pauseClient).toHaveBeenCalledOnce();
+      expect(pauseClient.mock.calls[0]?.[0]).toMatchObject({
+        request: { taskVersion: 7 },
+        taskId: demandWorkspaceFixture.header.taskId,
+      });
+      expect(pauseClient.mock.calls[0]?.[0].request.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  it("confirms resume and sends priority with governed versioned commands", async () => {
+    const resumeClient = vi
+      .fn<ResumeDashboardTaskClient>()
+      .mockResolvedValue(operationalResult("QUEUED"));
+    const priorityClient = vi
+      .fn<SetDashboardTaskPriorityClient>()
+      .mockResolvedValue(operationalResult("PAUSED"));
+    renderWorkspace(
+      resolvedClient(workspaceInState("PAUSED", 9)),
+      undefined,
+      undefined,
+      undefined,
+      resumeClient,
+      priorityClient,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Nova prioridade"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar prioridade" }));
+    await waitFor(() => {
+      expect(priorityClient.mock.calls[0]?.[0].request.priority).toBe(20);
+      expect(priorityClient.mock.calls[0]?.[0].request.taskVersion).toBe(9);
+      expect(priorityClient.mock.calls[0]?.[0].taskId).toBe(demandWorkspaceFixture.header.taskId);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Retomar demanda" }));
+    expect(screen.getByText(/volta somente ao estado de origem/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar retomada" }));
+    await waitFor(() => {
+      expect(resumeClient.mock.calls[0]?.[0].request.taskVersion).toBe(9);
+      expect(resumeClient.mock.calls[0]?.[0].taskId).toBe(demandWorkspaceFixture.header.taskId);
+    });
+  });
+
+  it("refreshes all views and rotates the logical key after an operational conflict", async () => {
+    const workspaceClient = vi
+      .fn<DemandWorkspaceClient>()
+      .mockResolvedValue(workspaceInState("QUEUED"));
+    const pauseClient = vi
+      .fn<PauseDashboardTaskClient>()
+      .mockRejectedValue(new DashboardCommandError("conflict"));
+    const { queryClient } = renderWorkspace(workspaceClient, undefined, undefined, pauseClient);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pausar demanda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar pausa" }));
+    expect(await screen.findAllByText(/As visões foram atualizadas/i)).not.toHaveLength(0);
+    const firstKey = pauseClient.mock.calls[0]?.[0].request.idempotencyKey;
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mission-control"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["projects-board"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar pausa" }));
+    await waitFor(() => {
+      expect(pauseClient).toHaveBeenCalledTimes(2);
+    });
+    expect(pauseClient.mock.calls[1]?.[0].request.idempotencyKey).not.toBe(firstKey);
+  });
+
+  it("returns to login on 401 and never renders a remote error body", async () => {
+    const workspaceClient = vi
+      .fn<DemandWorkspaceClient>()
+      .mockResolvedValueOnce(workspaceInState("QUEUED"))
+      .mockRejectedValue(new DemandWorkspaceReadError("unauthorized"));
+    const pauseClient = vi
+      .fn<PauseDashboardTaskClient>()
+      .mockRejectedValue(new DashboardCommandError("unauthorized"));
+    renderWorkspace(workspaceClient, undefined, undefined, pauseClient);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pausar demanda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar pausa" }));
+
+    expect(await screen.findByLabelText("Credencial do dono")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("SECRET_REMOTE_ERROR_BODY");
   });
 
   it("renders explicit empty states without inventing records", async () => {

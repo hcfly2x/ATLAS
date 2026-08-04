@@ -1,6 +1,7 @@
 import {
   cancelDashboardTaskResponseSchema,
   createDashboardDemandResponseSchema,
+  dashboardTaskOperationalCommandResponseSchema,
   dashboardProjectsResponseSchema,
   dashboardSessionResponseSchema,
   type CancelDashboardTaskRequest,
@@ -8,6 +9,10 @@ import {
   type CreateDashboardDemandRequest,
   type CreateDashboardDemandResponse,
   type DashboardProjectsResponse,
+  type DashboardTaskOperationalCommandResponse,
+  type PauseDashboardTaskRequest,
+  type ResumeDashboardTaskRequest,
+  type SetDashboardTaskPriorityRequest,
 } from "@atlas/contracts";
 
 export class DashboardCommandError extends Error {
@@ -91,6 +96,42 @@ export function cancelDashboardTask(input: {
   );
 }
 
+export function pauseDashboardTask(input: {
+  readonly request: PauseDashboardTaskRequest;
+  readonly taskId: string;
+}): Promise<DashboardTaskOperationalCommandResponse> {
+  return command(
+    `/dashboard/api/tasks/${encodeURIComponent(input.taskId)}/pause`,
+    input.request,
+    (value) => dashboardTaskOperationalCommandResponseSchema.parse(value),
+  );
+}
+
+export function resumeDashboardTask(input: {
+  readonly request: ResumeDashboardTaskRequest;
+  readonly taskId: string;
+}): Promise<DashboardTaskOperationalCommandResponse> {
+  return command(
+    `/dashboard/api/tasks/${encodeURIComponent(input.taskId)}/resume`,
+    input.request,
+    (value) => dashboardTaskOperationalCommandResponseSchema.parse(value),
+  );
+}
+
+export function setDashboardTaskPriority(input: {
+  readonly request: SetDashboardTaskPriorityRequest;
+  readonly taskId: string;
+}): Promise<DashboardTaskOperationalCommandResponse> {
+  return command(
+    `/dashboard/api/tasks/${encodeURIComponent(input.taskId)}/priority`,
+    input.request,
+    (value) => dashboardTaskOperationalCommandResponseSchema.parse(value),
+  );
+}
+
 export type CreateDashboardDemandClient = typeof createDashboardDemand;
 export type CancelDashboardTaskClient = typeof cancelDashboardTask;
+export type PauseDashboardTaskClient = typeof pauseDashboardTask;
+export type ResumeDashboardTaskClient = typeof resumeDashboardTask;
+export type SetDashboardTaskPriorityClient = typeof setDashboardTaskPriority;
 export type DashboardProjectsClient = typeof fetchDashboardProjects;
