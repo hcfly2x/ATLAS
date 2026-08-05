@@ -98,9 +98,12 @@ autonomia e retenção e ativar/desativar explicitamente. O fluxo usa C1, CSRF,
 recibo idempotente e auditoria sanitizada; `.atlas/projects.yaml` segue como
 fonte de verdade. Retry com a mesma intenção e o boot reconciliam a projeção
 PostgreSQL pelo YAML; intenção divergente continua em conflito, e YAML inválido
-aborta o startup sem alterar o banco. Projeções ativas ausentes do YAML são
-arquivadas para não ampliar elegibilidade. ADR-031 permanece Proposto. Criar
-demanda continua no C2b1 e exige projeto ativo.
+aborta o startup sem alterar o banco. Qualquer projeção não arquivada ausente do
+YAML — rascunho, ativa ou futura — é arquivada com auditoria sanitizada, sem
+deletar Project, Task ou AuditEvent. As listagens operacionais usam os IDs
+declarados e excluem arquivados, de modo que a board mostra somente projetos
+reais da fonte de verdade. ADR-031 permanece Proposto. Criar demanda continua
+no C2b1 e exige projeto ativo.
 
 Nesta entrega, títulos `##` no Plano declarado passam a formar um roadmap com
 seções, contagens exatas e uma barra baseada somente na razão feito/total dos

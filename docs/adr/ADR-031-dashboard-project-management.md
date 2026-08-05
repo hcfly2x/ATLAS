@@ -23,9 +23,14 @@ comandos permitidos, autonomia, retenção e elegibilidade para novas demandas.
   ou conteúdo divergente continua falhando fechado.
 - Antes de escutar tráfego, o coordinator valida o YAML completo e, em uma
   transação, faz upsert exato de todos os projetos declarados. Uma projeção
-  `ACTIVE` ausente do YAML é arquivada para nunca manter elegibilidade mais
-  permissiva que a fonte de verdade. YAML ausente ou inválido aborta o startup
-  sem alterar a projeção.
+  ausente do YAML é arquivada, independentemente de estar `DRAFT`, `ACTIVE` ou
+  `FUTURE`, para nunca manter a operação mais ampla que a fonte de verdade.
+  Nenhuma linha é apagada. YAML ausente ou inválido aborta o startup sem alterar
+  a projeção.
+- As listagens operacionais da Dashboard usam também os IDs declarados no YAML
+  e excluem `ARCHIVED`; não dependem apenas da reconciliação de boot para
+  esconder projeções órfãs. A tela de configuração continua lendo diretamente
+  a fonte de verdade.
 - Toda escrita exige sessão C1, permissão `dashboard:project-config:write`, CSRF,
   confirmação explícita, hash otimista e recibo durável idempotente. Leitura usa
   a permissão separada `dashboard:project-config:read`.
@@ -54,6 +59,8 @@ sem duplicar projeto; divergência de hash falha fechado para revisão humana.
 O boot também converge divergências anteriores. A reconciliação não cria Task,
 Execution ou Approval e registra somente status, autonomia, retenção,
 executáveis, presença de repositório e hashes canônicos — nunca path ou args.
+Projetos arquivados e suas Tasks/AuditEvents permanecem no banco para inspeção;
+qualquer deleção continua submetida a `always_human`.
 
 ## Fora de escopo
 

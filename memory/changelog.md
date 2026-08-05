@@ -2,11 +2,17 @@
 
 ## Unreleased — Reconciliação da projeção de projetos
 
+- A reconciliação passa a arquivar toda projeção `DRAFT|ACTIVE|FUTURE` ausente
+  de `.atlas/projects.yaml`, com motivo estável e evidência sanitizada. Linhas de
+  Project, Task e AuditEvent nunca são apagadas.
+- A board e as listagens operacionais filtram pelos IDs declarados no YAML e
+  excluem `ARCHIVED`, evitando que fixtures ou projeções órfãs apareçam como
+  projetos reais.
 - Um reconciliador único ressincroniza a projeção PostgreSQL quando um retry
   encontra a mesma intenção já aplicada em `.atlas/projects.yaml`.
 - No startup, o coordinator valida o YAML inteiro antes de escrever, faz upsert
-  determinístico dos projetos declarados e arquiva projeções `ACTIVE` ausentes
-  da fonte de verdade. YAML ausente ou inválido aborta sem rebaixamento cego.
+  determinístico dos projetos declarados e arquiva projeções não declaradas.
+  YAML ausente ou inválido aborta sem rebaixamento cego.
 - Requisição divergente continua em conflito; create-demand continua exigindo
   projeto ativo na projeção. Auditoria e erro de boot usam somente evidência
   sanitizada e códigos estáveis.

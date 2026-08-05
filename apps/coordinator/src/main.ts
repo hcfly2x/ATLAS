@@ -76,7 +76,11 @@ const dashboardAuth =
       });
 const dashboardProjectContexts =
   dashboardAuth === undefined
-    ? { descriptions: new Map<string, string>(), plans: new Map<string, string>() }
+    ? {
+        declaredProjectIds: new Set<string>(),
+        descriptions: new Map<string, string>(),
+        plans: new Map<string, string>(),
+      }
     : await loadDashboardProjectContexts(
         process.env.ATLAS_PROJECTS_PATH ??
           fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
@@ -86,6 +90,7 @@ const dashboardService =
     ? undefined
     : new DashboardService(prisma, {
         deliverySlaMs,
+        declaredProjectIds: dashboardProjectContexts.declaredProjectIds,
         ...(dashboardGoLiveAt === undefined ? {} : { goLiveAt: dashboardGoLiveAt }),
         projectDescriptions: dashboardProjectContexts.descriptions,
         projectPlans: dashboardProjectContexts.plans,

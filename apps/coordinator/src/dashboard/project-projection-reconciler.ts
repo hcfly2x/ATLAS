@@ -26,6 +26,45 @@ export function safeProjectChange(project: EditableProject | null): Prisma.Input
   });
 }
 
+function safeProjectedExecutables(value: Prisma.JsonValue): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value.flatMap((command) => {
+        if (command === null || Array.isArray(command) || typeof command !== "object") return [];
+        const executable = command.executable;
+        return typeof executable === "string" ? [executable] : [];
+      }),
+    ),
+  ];
+}
+
+function safeProjectedRetention(value: Prisma.JsonValue): Prisma.InputJsonValue {
+  if (value === null || Array.isArray(value) || typeof value !== "object") return {};
+  const safeEntries = Object.entries(value).filter(
+    ([key, entry]) =>
+      ["audit_events_expire", "files_days", "logs_days", "sensitive_days"].includes(key) &&
+      (entry === null || typeof entry === "boolean" || typeof entry === "number"),
+  );
+  return json(Object.fromEntries(safeEntries));
+}
+
+function safeProjectedProjectChange(project: {
+  readonly allowedCommands: Prisma.JsonValue;
+  readonly autonomyLevel: number;
+  readonly repository: string | null;
+  readonly retention: Prisma.JsonValue;
+  readonly status: ProjectStatus;
+}): Prisma.InputJsonObject {
+  return {
+    allowedExecutables: safeProjectedExecutables(project.allowedCommands),
+    autonomyLevel: project.autonomyLevel,
+    repositoryConfigured: project.repository !== null,
+    retention: safeProjectedRetention(project.retention),
+    status: project.status.toLowerCase(),
+  };
+}
+
 function projectionData(project: EditableProject) {
   return {
     allowedCommands: json(project.allowed_commands),
@@ -84,24 +123,34 @@ export class ProjectProjectionReconciler {
     );
     return prisma.$transaction(async (transaction) => {
       const declaredIds = projects.map(({ id }) => id);
-      const activeUndeclared = await transaction.project.findMany({
+      const undeclared = await transaction.project.findMany({
         where: {
-          status: ProjectStatus.ACTIVE,
+          status: { not: ProjectStatus.ARCHIVED },
           ...(declaredIds.length === 0 ? {} : { id: { notIn: declaredIds } }),
         },
         orderBy: { id: "asc" },
-        select: { id: true },
+        select: {
+          allowedCommands: true,
+          autonomyLevel: true,
+          id: true,
+          repository: true,
+          retention: true,
+          status: true,
+          updatedAt: true,
+        },
       });
 
       for (const project of projects) {
         await this.syncProject(transaction, project);
       }
 
-      for (const project of activeUndeclared) {
-        await transaction.project.updateMany({
-          where: { id: project.id, status: ProjectStatus.ACTIVE },
+      const archivedUndeclared = [] as typeof undeclared;
+      for (const project of undeclared) {
+        const archived = await transaction.project.updateMany({
+          where: { id: project.id, status: project.status },
           data: { status: ProjectStatus.ARCHIVED },
         });
+        if (archived.count === 1) archivedUndeclared.push(project);
       }
 
       const auditEvents = [
@@ -122,14 +171,21 @@ export class ProjectProjectionReconciler {
             targetType: "project",
           };
         }),
-        ...activeUndeclared.map((project) => ({
+        ...archivedUndeclared.map((project) => ({
           action: "project.projection.archived_undeclared",
           actor: AuditActor.SYSTEM,
           correlationId: "project-projection:startup",
-          idempotencyKey: `project-projection:${canonicalPayloadHash({ projectId: project.id, status: "archived_undeclared" })}`,
+          idempotencyKey: `project-projection:${canonicalPayloadHash({
+            projectedAt: project.updatedAt.toISOString(),
+            projectId: project.id,
+            status: "archived_undeclared",
+          })}`,
           payload: json({
-            after: { status: "archived" },
-            before: { status: "active" },
+            after: {
+              ...safeProjectedProjectChange(project),
+              status: "archived",
+            },
+            before: safeProjectedProjectChange(project),
             reason: "absent_from_projects_yaml",
           }),
           projectId: project.id,
@@ -145,7 +201,7 @@ export class ProjectProjectionReconciler {
       }
 
       return {
-        archivedUndeclaredCount: activeUndeclared.length,
+        archivedUndeclaredCount: archivedUndeclared.length,
         declaredCount: projects.length,
       } satisfies ProjectProjectionReconciliationResult;
     });

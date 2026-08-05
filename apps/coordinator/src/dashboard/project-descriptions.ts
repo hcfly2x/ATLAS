@@ -31,6 +31,7 @@ export interface DashboardProjectContext {
 }
 
 export interface DashboardProjectContexts {
+  readonly declaredProjectIds: ReadonlySet<string>;
   readonly descriptions: ReadonlyMap<string, string>;
   readonly plans: ReadonlyMap<string, string>;
 }
@@ -59,6 +60,7 @@ export async function loadDashboardProjectContexts(
       });
     }
     return {
+      declaredProjectIds: new Set(contexts.keys()),
       descriptions: new Map(
         [...contexts].flatMap(([id, context]) =>
           context.description === undefined ? [] : [[id, context.description] as const],
@@ -71,7 +73,7 @@ export async function loadDashboardProjectContexts(
       ),
     };
   } catch {
-    return { descriptions: new Map(), plans: new Map() };
+    return { declaredProjectIds: new Set(), descriptions: new Map(), plans: new Map() };
   }
 }
 

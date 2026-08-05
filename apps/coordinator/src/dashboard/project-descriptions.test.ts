@@ -27,6 +27,7 @@ describe("dashboard project context", () => {
 
     const contexts = await loadDashboardProjectContexts(path);
 
+    expect([...contexts.declaredProjectIds]).toEqual(["atlas"]);
     expect(contexts.descriptions.get("atlas")).toBe("Descrição da Dashboard");
     expect(contexts.plans.get("atlas")).toContain("Base concluída");
   });
@@ -34,6 +35,7 @@ describe("dashboard project context", () => {
   it("fails open when the declared context is absent or unreadable", async () => {
     const contexts = await loadDashboardProjectContexts("/path/that/does/not/exist");
 
+    expect([...contexts.declaredProjectIds]).toEqual([]);
     expect([...contexts.descriptions]).toEqual([]);
     expect([...contexts.plans]).toEqual([]);
   });
