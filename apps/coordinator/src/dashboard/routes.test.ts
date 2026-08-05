@@ -9,6 +9,7 @@ import {
 import { assertRemoteDashboardConfiguration, type DashboardAuthAuditEvent } from "./routes.js";
 import type { DashboardService } from "./service.js";
 import type { DashboardTaskCommandService } from "./task-command-service.js";
+import type { DashboardProjectConfigService } from "./project-config-service.js";
 
 const ownerCredential = "synthetic-dashboard-owner-credential-123456";
 const deliveriesMock = vi.fn(() => Promise.resolve([]));
@@ -180,6 +181,7 @@ describe("dashboard session authentication and RBAC", () => {
       "/dashboard/api/mission-control",
       "/dashboard/api/projects",
       "/dashboard/api/projects-board",
+      "/dashboard/api/project-configs",
       "/dashboard/api/tasks",
       "/dashboard/api/deliveries",
       "/dashboard/api/demand/20000000-0000-4000-8000-000000000002",
@@ -421,6 +423,108 @@ describe("dashboard session authentication and RBAC", () => {
       url,
     });
     expect(forbidden.statusCode).toBe(403);
+  });
+
+  it("separates project configuration reads from CSRF-protected writes", async () => {
+    const list = vi.fn().mockResolvedValue({ projects: [] });
+    const create = vi.fn().mockResolvedValue({
+      idempotentReplay: false,
+      project: {
+        activationIssues: ["Informe o caminho absoluto do repositório."],
+        activationReady: false,
+        allowedExecutables: [],
+        autonomyLevel: 2,
+        configHash: `sha256:${"a".repeat(64)}`,
+        id: "new-project",
+        name: "New Project",
+        repositoryConfigured: false,
+        retention: {
+          audit_events_expire: false,
+          files_days: 30,
+          logs_days: 30,
+          sensitive_days: 7,
+        },
+        status: "draft",
+      },
+    });
+    const projectConfigService = { create, list } as unknown as DashboardProjectConfigService;
+    const readAuth = createAuth({ permissions: new Set(["dashboard:project-config:read"]) });
+    const readCookie = sessionCookie(readAuth);
+    const readApp = createCoordinatorApp({
+      dashboardAuth: readAuth,
+      dashboardProjectConfigService: projectConfigService,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(readApp);
+
+    expect(
+      (
+        await readApp.inject({
+          headers: { cookie: readCookie },
+          method: "GET",
+          url: "/dashboard/api/project-configs",
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await readApp.inject({
+          headers: {
+            cookie: readCookie,
+            "x-atlas-csrf-token": readAuth.csrfToken(readCookie) ?? "",
+          },
+          method: "POST",
+          payload: {
+            confirmed: true,
+            id: "new-project",
+            idempotencyKey: "10000000-0000-4000-8000-000000000001",
+            name: "New Project",
+          },
+          url: "/dashboard/api/project-configs",
+        })
+      ).statusCode,
+    ).toBe(403);
+
+    const writeAuth = createAuth({ permissions: new Set(["dashboard:project-config:write"]) });
+    const writeCookie = sessionCookie(writeAuth);
+    const writeApp = createCoordinatorApp({
+      dashboardAuth: writeAuth,
+      dashboardProjectConfigService: projectConfigService,
+      dashboardService: dashboard,
+      logger: false,
+    });
+    apps.push(writeApp);
+    const payload = {
+      confirmed: true,
+      id: "new-project",
+      idempotencyKey: "10000000-0000-4000-8000-000000000001",
+      name: "New Project",
+    };
+    expect(
+      (
+        await writeApp.inject({
+          headers: { cookie: writeCookie },
+          method: "POST",
+          payload,
+          url: "/dashboard/api/project-configs",
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await writeApp.inject({
+          headers: {
+            cookie: writeCookie,
+            "x-atlas-csrf-token": writeAuth.csrfToken(writeCookie) ?? "",
+          },
+          method: "POST",
+          payload,
+          url: "/dashboard/api/project-configs",
+        })
+      ).statusCode,
+    ).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
   });
 
   it("protects create and cancel with permission, CSRF and strict payloads", async () => {

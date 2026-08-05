@@ -4,7 +4,7 @@ import { basename, isAbsolute, join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
 
-import { workerRuntimeSchema } from "@atlas/shared";
+import { canonicalPayloadHash, workerRuntimeSchema } from "@atlas/shared";
 
 export const projectCommandSchema = z.object({
   executable: z.string().min(1).max(255),
@@ -98,6 +98,11 @@ export const repositorySuggestionSchema = z.object({
 
 export type EditableProject = z.infer<typeof editableProjectSchema>;
 export type RepositorySuggestion = z.infer<typeof repositorySuggestionSchema>;
+export interface ProjectConfigMutation {
+  readonly before: EditableProject | null;
+  readonly changed: boolean;
+  readonly project: EditableProject;
+}
 type ProjectConfig = z.infer<typeof projectConfigSchema>;
 type StoredProject = z.infer<typeof storedProjectSchema>;
 
@@ -211,6 +216,20 @@ export class ProjectConfigConflictError extends Error {
   }
 }
 
+export class ProjectConfigNotFoundError extends Error {
+  constructor() {
+    super("project configuration was not found");
+    this.name = "ProjectConfigNotFoundError";
+  }
+}
+
+export class ProjectConfigVersionConflictError extends Error {
+  constructor() {
+    super("project configuration changed");
+    this.name = "ProjectConfigVersionConflictError";
+  }
+}
+
 export class ProjectConfigValidationError extends Error {
   constructor(readonly issues: readonly string[]) {
     super("Project configuration is not ready for activation");
@@ -220,6 +239,7 @@ export class ProjectConfigValidationError extends Error {
 
 export class ProjectConfigStore {
   private readonly configPath: string;
+  private mutationQueue: Promise<void> = Promise.resolve();
 
   constructor(configPath: string) {
     this.configPath = resolve(configPath);
@@ -228,6 +248,59 @@ export class ProjectConfigStore {
   async list(): Promise<EditableProject[]> {
     const config = await this.read();
     return config.projects.map((project) => editable(config, project));
+  }
+
+  async get(projectId: string): Promise<EditableProject | undefined> {
+    const config = await this.read();
+    const project = config.projects.find((candidate) => candidate.id === projectId);
+    return project === undefined ? undefined : editable(config, project);
+  }
+
+  configHash(project: EditableProject): string {
+    return canonicalPayloadHash(editableProjectSchema.parse(project));
+  }
+
+  async createDraft(input: {
+    readonly id: string;
+    readonly name: string;
+  }): Promise<ProjectConfigMutation> {
+    const identity = z
+      .object({
+        id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+        name: z.string().trim().min(1).max(120),
+      })
+      .strict()
+      .parse(input);
+    return this.mutate((config) => {
+      const existing = config.projects.find((candidate) => candidate.id === identity.id);
+      if (existing !== undefined) {
+        const current = editable(config, existing);
+        if (current.name === identity.name && this.isSafeDraft(current)) {
+          return { before: current, changed: false, project: current };
+        }
+        throw new ProjectConfigConflictError("project id already exists");
+      }
+      this.assertNameAvailable(config, identity.id, identity.name);
+      const defaults = config.schema.defaults;
+      const project = editableProjectSchema.parse({
+        id: identity.id,
+        name: identity.name,
+        status: "draft",
+        risk: "critical",
+        data_classification: "internal_sensitive",
+        policy: "least_privilege",
+        autonomy_level: 2,
+        repository: null,
+        protected_paths_profile: defaults.protected_paths_profile,
+        allowed_commands: [],
+        runtime: null,
+        required_tools: defaults.required_tools,
+        task_cost_limit_usd: defaults.task_cost_limit_usd,
+        retention: defaults.retention,
+      });
+      config.projects.push(storedProjectSchema.parse(project));
+      return { before: null, changed: true, project };
+    });
   }
 
   async suggest(repository: string): Promise<RepositorySuggestion> {
@@ -251,40 +324,73 @@ export class ProjectConfigStore {
     if (project.status === "active" && issues.length > 0) {
       throw new ProjectConfigValidationError(issues);
     }
-    const file = await lstat(this.configPath);
-    if (file.isSymbolicLink() || !file.isFile()) {
-      throw new ProjectConfigConflictError("projects.yaml must be a regular file");
+    return (
+      await this.mutate((config) => {
+        this.assertNameAvailable(config, project.id, project.name);
+        const existingIndex = config.projects.findIndex((candidate) => candidate.id === project.id);
+        const existing = existingIndex === -1 ? undefined : config.projects[existingIndex];
+        // Runtime is intentionally not exposed by the pilot wizard. Preserve a
+        // manifest already declared outside that UI instead of silently clearing it.
+        const runtime = project.runtime ?? existing?.runtime;
+        const stored = storedProjectSchema.parse({
+          ...(existing ?? {}),
+          ...project,
+          ...(runtime === undefined || runtime === null ? {} : { runtime }),
+        });
+        if (existingIndex === -1) config.projects.push(stored);
+        else config.projects[existingIndex] = stored;
+        return {
+          before: existing === undefined ? null : editable(config, existing),
+          changed:
+            existing === undefined ||
+            this.configHash(editable(config, existing)) !== this.configHash(project),
+          project: editable(config, stored),
+        };
+      })
+    ).project;
+  }
+
+  async put(input: EditableProject, expectedConfigHash: string): Promise<ProjectConfigMutation> {
+    const desired = editableProjectSchema.parse(input);
+    if (desired.repository !== null && !(await validGitRepository(desired.repository))) {
+      throw new ProjectConfigValidationError([
+        "O repositório informado precisa existir, usar caminho absoluto e conter .git.",
+      ]);
     }
-    const config = await this.read();
-    const duplicateName = config.projects.find(
-      (candidate) =>
-        candidate.id !== project.id &&
-        candidate.name.toLocaleLowerCase() === project.name.toLocaleLowerCase(),
-    );
-    if (duplicateName !== undefined) {
-      throw new ProjectConfigConflictError("another project already uses this name");
-    }
-    const existingIndex = config.projects.findIndex((candidate) => candidate.id === project.id);
-    const existing = existingIndex === -1 ? undefined : config.projects[existingIndex];
-    // Runtime is intentionally not exposed by the pilot wizard. Preserve a
-    // manifest already declared outside that UI instead of silently clearing it.
-    const runtime = project.runtime ?? existing?.runtime;
-    const stored = storedProjectSchema.parse({
-      ...(existing ?? {}),
-      ...project,
-      ...(runtime === undefined || runtime === null ? {} : { runtime }),
+    return this.mutate((config) => {
+      const index = config.projects.findIndex((candidate) => candidate.id === desired.id);
+      if (index === -1) throw new ProjectConfigNotFoundError();
+      const existing = config.projects[index];
+      if (existing === undefined) throw new ProjectConfigNotFoundError();
+      const before = editable(config, existing);
+      const currentHash = this.configHash(before);
+      const desiredHash = this.configHash(desired);
+      if (currentHash !== expectedConfigHash && currentHash !== desiredHash) {
+        throw new ProjectConfigVersionConflictError();
+      }
+      this.assertNameAvailable(config, desired.id, desired.name);
+      const runtime = desired.runtime ?? existing.runtime;
+      const stored = storedProjectSchema.parse({
+        ...existing,
+        ...desired,
+        status: before.status,
+        ...(runtime === undefined || runtime === null ? {} : { runtime }),
+      });
+      config.projects[index] = stored;
+      return {
+        before,
+        changed: currentHash !== this.configHash(editable(config, stored)),
+        project: editable(config, stored),
+      };
     });
-    if (existingIndex === -1) {
-      config.projects.push(stored);
-    } else {
-      config.projects[existingIndex] = stored;
-    }
-    const serialized = stringify(config, { lineWidth: 100 });
-    projectConfigSchema.parse(parse(serialized));
-    const temporaryPath = `${this.configPath}.tmp-${process.pid.toString()}`;
-    await writeFile(temporaryPath, serialized, { encoding: "utf8", mode: file.mode });
-    await rename(temporaryPath, this.configPath);
-    return editable(config, stored);
+  }
+
+  async activate(projectId: string, expectedConfigHash: string): Promise<ProjectConfigMutation> {
+    return this.changeStatus(projectId, expectedConfigHash, "active");
+  }
+
+  async deactivate(projectId: string, expectedConfigHash: string): Promise<ProjectConfigMutation> {
+    return this.changeStatus(projectId, expectedConfigHash, "draft");
   }
 
   async validate(input: EditableProject): Promise<{ issues: string[]; valid: boolean }> {
@@ -293,7 +399,7 @@ export class ProjectConfigStore {
     return { issues, valid: issues.length === 0 };
   }
 
-  private async activationIssues(project: EditableProject): Promise<string[]> {
+  async activationIssues(project: EditableProject): Promise<string[]> {
     const issues: string[] = [];
     if (project.autonomy_level === 4) issues.push("Nível 4 não está habilitado no MVP.");
     if (project.repository === null || project.repository.trim().length === 0) {
@@ -317,6 +423,81 @@ export class ProjectConfigStore {
 
   private async read(): Promise<ProjectConfig> {
     return projectConfigSchema.parse(parse(await readFile(this.configPath, "utf8")));
+  }
+
+  private async changeStatus(
+    projectId: string,
+    expectedConfigHash: string,
+    status: "active" | "draft",
+  ): Promise<ProjectConfigMutation> {
+    return this.mutate(async (config) => {
+      const index = config.projects.findIndex((candidate) => candidate.id === projectId);
+      if (index === -1) throw new ProjectConfigNotFoundError();
+      const existing = config.projects[index];
+      if (existing === undefined) throw new ProjectConfigNotFoundError();
+      const before = editable(config, existing);
+      const desired = editableProjectSchema.parse({ ...before, status });
+      const currentHash = this.configHash(before);
+      const desiredHash = this.configHash(desired);
+      if (currentHash !== expectedConfigHash && currentHash !== desiredHash) {
+        throw new ProjectConfigVersionConflictError();
+      }
+      if (status === "active") {
+        const issues = await this.activationIssues(desired);
+        if (issues.length > 0) throw new ProjectConfigValidationError(issues);
+      }
+      config.projects[index] = storedProjectSchema.parse({ ...existing, status });
+      return { before, changed: currentHash !== desiredHash, project: desired };
+    });
+  }
+
+  private assertNameAvailable(config: ProjectConfig, projectId: string, name: string): void {
+    const duplicateName = config.projects.find(
+      (candidate) =>
+        candidate.id !== projectId &&
+        candidate.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    if (duplicateName !== undefined) {
+      throw new ProjectConfigConflictError("another project already uses this name");
+    }
+  }
+
+  private isSafeDraft(project: EditableProject): boolean {
+    return (
+      project.status === "draft" &&
+      project.autonomy_level === 2 &&
+      project.policy === "least_privilege" &&
+      project.allowed_commands.length === 0 &&
+      project.repository === null
+    );
+  }
+
+  private async mutate(
+    operation: (config: ProjectConfig) => ProjectConfigMutation | Promise<ProjectConfigMutation>,
+  ): Promise<ProjectConfigMutation> {
+    let release!: () => void;
+    const previous = this.mutationQueue;
+    this.mutationQueue = new Promise<void>((resolveQueue) => {
+      release = resolveQueue;
+    });
+    await previous;
+    try {
+      const file = await lstat(this.configPath);
+      if (file.isSymbolicLink() || !file.isFile()) {
+        throw new ProjectConfigConflictError("projects.yaml must be a regular file");
+      }
+      const config = await this.read();
+      const result = await operation(config);
+      if (!result.changed) return result;
+      const serialized = stringify(config, { lineWidth: 100 });
+      projectConfigSchema.parse(parse(serialized));
+      const temporaryPath = `${this.configPath}.tmp-${process.pid.toString()}`;
+      await writeFile(temporaryPath, serialized, { encoding: "utf8", mode: file.mode });
+      await rename(temporaryPath, this.configPath);
+      return result;
+    } finally {
+      release();
+    }
   }
 }
 

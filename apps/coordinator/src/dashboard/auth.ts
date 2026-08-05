@@ -14,6 +14,8 @@ export const dashboardPermissions = [
   "dashboard:mission-control:read",
   "dashboard:overview:read",
   "dashboard:projects:read",
+  "dashboard:project-config:read",
+  "dashboard:project-config:write",
   "dashboard:session:read",
   "dashboard:shell:read",
   "dashboard:tasks:read",

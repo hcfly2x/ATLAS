@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Gestão governada de projetos pela Dashboard
+
+- `Projetos → Gerenciar` permite criar rascunho com defaults conservadores,
+  conectar um repositório Git local do Mac, configurar comandos permitidos,
+  autonomia e retenção, e ativar ou desativar explicitamente.
+- As rotas usam sessão C1, permissões separadas de leitura/escrita, CSRF,
+  confirmação, hash otimista e o recibo durável C2b1. `.atlas/projects.yaml`
+  continua fonte de verdade e a projeção PostgreSQL é sincronizada.
+- O caminho absoluto é validado somente no servidor e nunca volta no contrato,
+  log ou auditoria. Auditoria contém apenas diferenças sanitizadas.
+- A criação de demanda continua no fluxo C2b1 e somente projetos ativos são
+  elegíveis. ADR-031 permanece Proposto.
+- Core, worker, scheduler, Approval, enforcement, máquina de estados,
+  autonomia global e `always_human` permanecem inalterados.
+
 ## Unreleased — Plano por projeto e histórico pré-go-live
 
 - A aba Projetos separa o Plano declarado e sanitizado das Demandas

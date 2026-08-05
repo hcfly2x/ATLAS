@@ -132,8 +132,10 @@ describe("Mission Control UI", () => {
 
     expect(await screen.findByText("Projetos em rascunho")).toBeInTheDocument();
     expect(screen.getByText("Projeto futuro")).toBeInTheDocument();
-    expect(screen.getByText(/Ative o projeto no setup local em/)).toBeInTheDocument();
-    expect(screen.getByText("/setup")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Configure e ative em Projetos/u })).toHaveAttribute(
+      "href",
+      "/projetos/gerenciar",
+    );
     expect(screen.queryByRole("option", { name: "Projeto futuro" })).toBeNull();
     expect(screen.getByRole("button", { name: "Criar demanda" })).toBeDisabled();
     expect(createDemandClient).not.toHaveBeenCalled();

@@ -99,7 +99,7 @@ function ProjectLane({ project }: { readonly project: ProjectsBoardResponse["pro
           <span className="project-description">{project.description}</span>
           {project.isActive ? null : (
             <span className="project-activation-note">
-              Ative no setup local em /setup antes de criar demandas.
+              Configure e ative em Projetos → Gerenciar antes de criar demandas.
             </span>
           )}
         </div>
@@ -161,6 +161,9 @@ export function ProjectsBoard({ data }: { readonly data: ProjectsBoardResponse }
         <p>
           Compare o plano declarado com o que já foi feito e acompanhe as demandas operacionais.
         </p>
+        <Link className="card-link" to="/projetos/gerenciar">
+          Gerenciar projetos →
+        </Link>
       </header>
       {data.projects.length === 0 ? (
         <section className="projects-empty">

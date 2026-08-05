@@ -26,6 +26,11 @@ import {
 import type { DashboardAuthenticator, DashboardPermission } from "./auth.js";
 import type { DashboardApprovalService } from "./approval-service.js";
 import { dashboardLoginPage } from "./page.js";
+import { ProjectConfigValidationError } from "../setup/project-config.js";
+import {
+  DashboardProjectConfigError,
+  type DashboardProjectConfigService,
+} from "./project-config-service.js";
 import type { DashboardService } from "./service.js";
 import {
   DashboardTaskCommandError,
@@ -53,7 +58,28 @@ export interface DashboardRouteOptions {
   readonly authAudit?: ((event: DashboardAuthAuditEvent) => void) | undefined;
   readonly dashboardDistPath?: string | undefined;
   readonly remoteAccessEnabled?: boolean | undefined;
+  readonly projectConfigService?: DashboardProjectConfigService | undefined;
   readonly taskCommandService?: DashboardTaskCommandService | undefined;
+}
+
+async function projectConfigReply(
+  reply: FastifyReply,
+  operation: Promise<unknown>,
+  acceptedStatus = 200,
+): Promise<unknown> {
+  try {
+    const result = await operation;
+    return await reply.code(acceptedStatus).send(result);
+  } catch (error: unknown) {
+    if (!(error instanceof DashboardProjectConfigError)) throw error;
+    const status =
+      error.code === "DASHBOARD_PROJECT_CONFIG_NOT_FOUND"
+        ? 404
+        : error.code === "DASHBOARD_PROJECT_CONFIG_INVALID"
+          ? 422
+          : 409;
+    return reply.code(status).send({ code: error.code });
+  }
 }
 
 export function assertRemoteDashboardConfiguration(
@@ -117,6 +143,9 @@ export function registerDashboardRoutes(
   });
   const loginSchema = z.object({ credential: z.string().min(1).max(1024) }).strict();
   const projectSchema = z.object({ projectId: z.string().min(1) });
+  const projectConfigParamsSchema = z.object({
+    projectId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  });
   const taskSchema = z.object({ taskId: z.string().uuid() });
 
   app.addHook("preHandler", async (request, reply) => {
@@ -350,6 +379,97 @@ export function registerDashboardRoutes(
     },
     async () => service.projectsBoard(),
   );
+  app.get(
+    "/dashboard/api/project-configs",
+    {
+      config: {
+        dashboardPermission: "dashboard:project-config:read",
+      } satisfies DashboardRouteConfig,
+    },
+    async (_request, reply) => {
+      if (options.projectConfigService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_PROJECT_CONFIG_UNAVAILABLE" });
+      }
+      return options.projectConfigService.list();
+    },
+  );
+  app.post(
+    "/dashboard/api/project-configs/detect",
+    {
+      config: {
+        dashboardPermission: "dashboard:project-config:write",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.projectConfigService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_PROJECT_CONFIG_UNAVAILABLE" });
+      }
+      try {
+        return await options.projectConfigService.detect(request.body);
+      } catch (error: unknown) {
+        if (error instanceof ProjectConfigValidationError) {
+          return reply.code(422).send({ code: "DASHBOARD_PROJECT_CONFIG_INVALID" });
+        }
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/dashboard/api/project-configs",
+    {
+      config: {
+        dashboardPermission: "dashboard:project-config:write",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.projectConfigService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_PROJECT_CONFIG_UNAVAILABLE" });
+      }
+      return projectConfigReply(
+        reply,
+        options.projectConfigService.create(request.body, request.id),
+        201,
+      );
+    },
+  );
+  app.put(
+    "/dashboard/api/project-configs/:projectId",
+    {
+      config: {
+        dashboardPermission: "dashboard:project-config:write",
+      } satisfies DashboardRouteConfig,
+    },
+    async (request, reply) => {
+      if (options.projectConfigService === undefined) {
+        return reply.code(503).send({ code: "DASHBOARD_PROJECT_CONFIG_UNAVAILABLE" });
+      }
+      const { projectId } = projectConfigParamsSchema.parse(request.params);
+      return projectConfigReply(
+        reply,
+        options.projectConfigService.update(projectId, request.body, request.id),
+      );
+    },
+  );
+  for (const action of ["activate", "deactivate"] as const) {
+    app.post(
+      `/dashboard/api/project-configs/:projectId/${action}`,
+      {
+        config: {
+          dashboardPermission: "dashboard:project-config:write",
+        } satisfies DashboardRouteConfig,
+      },
+      async (request, reply) => {
+        if (options.projectConfigService === undefined) {
+          return reply.code(503).send({ code: "DASHBOARD_PROJECT_CONFIG_UNAVAILABLE" });
+        }
+        const { projectId } = projectConfigParamsSchema.parse(request.params);
+        return projectConfigReply(
+          reply,
+          options.projectConfigService[action](projectId, request.body, request.id),
+        );
+      },
+    );
+  }
   app.get(
     "/dashboard/auth/session",
     {

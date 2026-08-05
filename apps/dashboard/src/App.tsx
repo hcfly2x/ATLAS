@@ -20,6 +20,7 @@ import {
 } from "./session.js";
 import { DemandWorkspace } from "./Workspace.js";
 import { ProjectsBoard } from "./ProjectsBoard.js";
+import { ProjectManagement } from "./ProjectManagement.js";
 import {
   fetchProjectsBoard,
   ProjectsBoardReadError,
@@ -202,6 +203,7 @@ function ShellHeader({ generatedAt }: { readonly generatedAt?: string }) {
       <nav aria-label="Navegação principal" className="topbar-navigation">
         <Link to="/">Mission Control</Link>
         <Link to="/projetos">Projetos</Link>
+        <Link to="/projetos/gerenciar">Gerenciar</Link>
       </nav>
       <div className="sync-time">
         <span>Última leitura</span>
@@ -634,8 +636,8 @@ function CreateDemand({
               ))}
             </ul>
             <p>
-              Ative o projeto no setup local em <code>/setup</code> antes de criar demandas. O ATLAS
-              não inventa repositório, comandos ou credenciais.
+              <Link to="/projetos/gerenciar">Configure e ative em Projetos → Gerenciar</Link>. O
+              ATLAS não inventa repositório, comandos ou credenciais.
             </p>
           </aside>
         ) : null}
@@ -1033,6 +1035,15 @@ export function App({
 
   return (
     <Routes>
+      <Route
+        element={
+          <>
+            <ShellHeader />
+            <ProjectManagement />
+          </>
+        }
+        path="/projetos/gerenciar"
+      />
       <Route
         element={
           <ProjectsBoardRoute

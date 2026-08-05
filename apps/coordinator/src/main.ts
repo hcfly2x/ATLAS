@@ -27,6 +27,7 @@ import { DashboardAuthenticator, parseDashboardSessionTtlSeconds } from "./dashb
 import { DashboardApprovalService } from "./dashboard/approval-service.js";
 import { DashboardTaskCommandService } from "./dashboard/task-command-service.js";
 import { PrismaDashboardCommandReceiptStore } from "./dashboard/command-receipt-store.js";
+import { DashboardProjectConfigService } from "./dashboard/project-config-service.js";
 import { PrismaApprovalDecisionService } from "./approvals/service.js";
 import { TaskIntakeService } from "./tasks/intake.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
@@ -47,12 +48,10 @@ const setupWizardEnabled = process.env.SETUP_WIZARD_ENABLED === "true";
 if (setupWizardEnabled && host !== "127.0.0.1" && host !== "::1" && host !== "localhost") {
   throw new Error("Pilot Setup Wizard requires HOST=127.0.0.1");
 }
-const projectConfigStore = setupWizardEnabled
-  ? new ProjectConfigStore(
-      process.env.ATLAS_PROJECTS_PATH ??
-        fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
-    )
-  : undefined;
+const projectsPath =
+  process.env.ATLAS_PROJECTS_PATH ??
+  fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url));
+const projectConfigStore = new ProjectConfigStore(projectsPath);
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
 const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_MS);
@@ -194,6 +193,13 @@ const dashboardTaskCommandService =
   dashboardAuth === undefined
     ? undefined
     : new DashboardTaskCommandService(taskIntake, new PrismaDashboardCommandReceiptStore(prisma));
+const dashboardProjectConfigService =
+  dashboardAuth === undefined
+    ? undefined
+    : new DashboardProjectConfigService(
+        projectConfigStore,
+        new PrismaDashboardCommandReceiptStore(prisma),
+      );
 
 const telegramGateway = telegramEnabled
   ? new TelegramGateway({
@@ -228,6 +234,7 @@ const app = createCoordinatorApp({
     : {
         ...(dashboardApprovalService === undefined ? {} : { dashboardApprovalService }),
         ...(dashboardTaskCommandService === undefined ? {} : { dashboardTaskCommandService }),
+        ...(dashboardProjectConfigService === undefined ? {} : { dashboardProjectConfigService }),
         dashboardAuth,
         dashboardRemoteAccessEnabled,
         dashboardService,
@@ -236,7 +243,7 @@ const app = createCoordinatorApp({
   logger: true,
   memoryService,
   ...(postExecutionQaService === undefined ? {} : { postExecutionQaService }),
-  ...(projectConfigStore === undefined ? {} : { projectConfigStore }),
+  ...(setupWizardEnabled ? { projectConfigStore } : {}),
   ...(supervisorService === undefined ? {} : { supervisorService }),
   taskStore,
   ...workerAppOptions,
