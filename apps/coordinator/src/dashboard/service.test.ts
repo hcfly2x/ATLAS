@@ -1,11 +1,84 @@
 import { describe, expect, it, vi } from "vitest";
 import { createWorkerResult } from "@atlas/shared";
 
-import { DashboardService, PROJECT_BOARD_COLUMN_BY_STATE } from "./service.js";
+import { DashboardService, PROJECT_BOARD_COLUMN_BY_STATE, projectPlan } from "./service.js";
 
 const now = new Date("2026-07-29T12:00:00.000Z");
 const taskId = "10000000-0000-4000-8000-000000000001";
 const hash = `sha256:${"a".repeat(64)}`;
+
+describe("declared project plan parser", () => {
+  it("groups checklist items under sections with exact section and total counts", () => {
+    expect(
+      projectPlan(`## Motor
+- [x] Base pronta
+- [ ] Ligar operação
+
+## Escritório
+- [x] Dashboard pronta`),
+    ).toMatchObject({
+      completedCount: 2,
+      format: "roadmap",
+      pendingCount: 1,
+      sections: [
+        {
+          completedCount: 1,
+          items: [
+            { label: "Base pronta", status: "completed" },
+            { label: "Ligar operação", status: "pending" },
+          ],
+          pendingCount: 1,
+          title: "Motor",
+        },
+        {
+          completedCount: 1,
+          items: [{ label: "Dashboard pronta", status: "completed" }],
+          pendingCount: 0,
+          title: "Escritório",
+        },
+      ],
+      status: "available",
+    });
+  });
+
+  it("uses an implicit Geral section for items before the first heading", () => {
+    expect(
+      projectPlan(`- [ ] Preparação
+## Próximo ato
+- [x] Entrega`),
+    ).toMatchObject({
+      format: "roadmap",
+      sections: [
+        { items: [{ label: "Preparação" }], title: "Geral" },
+        { items: [{ label: "Entrega" }], title: "Próximo ato" },
+      ],
+    });
+  });
+
+  it("preserves checklist, text and unavailable legacy formats", () => {
+    expect(projectPlan("- [x] Etapa legada")).toMatchObject({
+      completedCount: 1,
+      format: "checklist",
+      pendingCount: 0,
+    });
+    expect(projectPlan("Estudar opções e recomendar o próximo passo.")).toEqual({
+      format: "text",
+      status: "available",
+      text: "Estudar opções e recomendar o próximo passo.",
+    });
+    expect(projectPlan("  ")).toEqual({ status: "unavailable" });
+  });
+
+  it("sanitizes section titles and items before exposing the roadmap", () => {
+    const serialized = JSON.stringify(
+      projectPlan(`## Operação token=SECRET_SECTION_TOKEN
+- [ ] Conectar password=SECRET_ITEM_PASSWORD`),
+    );
+
+    expect(serialized).not.toContain("SECRET_");
+    expect(serialized).toContain("[conteúdo protegido]");
+  });
+});
 
 function workTask(state: string, updatedAt = new Date("2026-07-29T10:00:00.000Z")) {
   return {
@@ -765,7 +838,7 @@ describe("DashboardService", () => {
       projectPlans: new Map([
         [
           "atlas",
-          "# Plano\n- [x] Base concluída\n- [ ] Ligar token=SECRET_PLAN_TOKEN ao próximo bloco",
+          "## Motor token=SECRET_SECTION_TOKEN\n- [x] Base concluída\n- [ ] Ligar token=SECRET_PLAN_TOKEN ao próximo bloco",
         ],
         ["future", "Estudar o mercado e preparar uma recomendação password=SECRET_FREE_PLAN."],
       ]),
@@ -783,8 +856,15 @@ describe("DashboardService", () => {
       isActive: true,
       plan: {
         completedCount: 1,
-        format: "checklist",
+        format: "roadmap",
         pendingCount: 1,
+        sections: [
+          {
+            completedCount: 1,
+            pendingCount: 1,
+            title: "Motor [conteúdo protegido]",
+          },
+        ],
         status: "available",
       },
     });
@@ -819,6 +899,7 @@ describe("DashboardService", () => {
       "SECRET_ORIGINAL_MESSAGE",
       "SECRET_PASSWORD_VALUE",
       "SECRET_PROMPT",
+      "SECRET_SECTION_TOKEN",
       "SECRET_PLAN_TOKEN",
       "SECRET_TOKEN_VALUE",
       "originalMessage",

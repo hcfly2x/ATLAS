@@ -805,3 +805,13 @@
   otimista, contrato Zod e confirmação contextual na UI.
 - Registra ADR-027 como Proposto; C2b, merge, deploy e `always_human` permanecem
   fora do escopo.
+# 2026-08-05 — Roadmap declarado na aba Plano
+
+- O read-model do Plano reconhece títulos `##` e agrupa checklists em seções,
+  com contagens por seção e totais exatos, preservando os formatos legados.
+- A Dashboard renderiza o roadmap e uma barra feita somente de `feito/total`,
+  sem inferência a partir de Tasks, repositório ou sinais operacionais.
+- O projeto `atlas` passa a declarar seu plano curado em
+  `.atlas/projects.yaml`; nenhum campo de governança foi alterado.
+- A entrega permanece read-only e não muda core, worker, scheduler, Approval,
+  enforcement, autonomia, `always_human`, schema ou migrações.

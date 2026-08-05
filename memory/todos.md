@@ -14,6 +14,11 @@
 
 - Declarar, sob revisão humana da configuração de cada projeto, o bloco
   `dashboard.plan` quando houver um documento de plano apropriado para exibição.
+- Manter manualmente o roadmap declarado do `atlas`, mudando `- [ ]` para
+  `- [x]` somente quando a etapa realmente fechar; declarar `dashboard.plan`
+  nos demais projetos apenas sob revisão humana do contexto correspondente.
+- Revisar empiricamente se as seções, contagens e barra do roadmap refletem
+  exatamente o checklist declarado, sem inferir progresso de Tasks.
 - Definir `DASHBOARD_GO_LIVE_AT` no ambiente somente após conferir o marco real;
   validar em staging que demandas anteriores aparecem no histórico recolhido e
   continuam acessíveis pelo Workspace.

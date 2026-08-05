@@ -46,6 +46,39 @@ schema:
 projects:
   - id: atlas
     name: ATLAS
+    dashboard:
+      plan: |-
+        ## Motor (bastidores)
+        - [x] Confere o trabalho rodando de verdade
+        - [x] Revisor independente
+        - [x] Reconciliação (só passa com pass + approved)
+        - [x] Autonomia proporcional ao risco
+        - [x] Entrega garantida (outbox)
+        - [x] Anti-loop de retrabalho
+
+        ## Escritório (a dashboard)
+        - [x] Fundação e stack
+        - [x] Mission Control
+        - [x] Workspace + replay
+        - [x] Login e segurança
+        - [x] Aprovar / rejeitar pela tela
+        - [x] Publicar no site
+        - [x] Criar + cancelar demanda
+        - [x] Pausar / retomar / priorizar
+        - [x] Tela Projetos + tema claro
+        - [x] Plano + histórico por projeto
+
+        ## Operação (go-live)
+        - [ ] Gerir projetos pela web (criar / conectar / ativar)
+        - [ ] Mac como servidor + dashboard exposta com segurança
+        - [ ] Ativar a Escola do Painel de LED
+        - [ ] Ligar o enforcement (hoje só observa)
+        - [ ] Primeira demanda real de teste
+
+        ## Objetivo (empresa de agentes)
+        - [ ] Operar ATLAS + Escola 100% pela web
+        - [ ] Humano nos gates críticos (merge, deploy, pagamento)
+        - [ ] Evolução nuvem: repositório por URL + worker hospedado
     status: draft
     risk: critical
     data_classification: internal_sensitive

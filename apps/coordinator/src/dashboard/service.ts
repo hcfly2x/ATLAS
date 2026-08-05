@@ -164,8 +164,11 @@ const BOARD_SENSITIVE_PATTERNS = [
 ] as const;
 
 const PROJECT_PLAN_ITEM_LIMIT = 240;
+const PROJECT_PLAN_SECTION_TITLE_LIMIT = 120;
 const PROJECT_PLAN_TOTAL_LIMIT = 12_000;
 const PROJECT_PLAN_MAX_ITEMS = 100;
+const PROJECT_PLAN_MAX_ITEMS_PER_SECTION = 25;
+const PROJECT_PLAN_MAX_SECTIONS = 24;
 
 function safeBoardText(value: string, fallback: string, limit = BOARD_TEXT_LIMIT): string {
   let sanitized = value.replace(/\s+/gu, " ").trim();
@@ -176,29 +179,85 @@ function safeBoardText(value: string, fallback: string, limit = BOARD_TEXT_LIMIT
   return sanitized.length <= limit ? sanitized : `${sanitized.slice(0, limit - 1).trimEnd()}…`;
 }
 
-function projectPlan(value: string | undefined) {
+export function projectPlan(value: string | undefined) {
   if (value === undefined || value.trim().length === 0) {
     return { status: "unavailable" as const };
   }
   const limited = value.slice(0, PROJECT_PLAN_TOTAL_LIMIT);
-  const items = limited
-    .split(/\r?\n/gu)
-    .flatMap((line, lineIndex) => {
-      const match = /^\s*[-*]\s+\[([ xX])\]\s+(.+)\s*$/u.exec(line);
-      if (match === null) return [];
-      const label = safeBoardText(match[2] ?? "", "Item do plano", PROJECT_PLAN_ITEM_LIMIT);
-      return [
-        {
-          id: canonicalPayloadHash({ label, lineIndex, status: match[1] }),
-          label,
-          status:
-            match[1]?.toLocaleLowerCase() === "x" ? ("completed" as const) : ("pending" as const),
-        },
-      ];
-    })
-    .slice(0, PROJECT_PLAN_MAX_ITEMS);
+  const lines = limited.split(/\r?\n/gu);
+  const sections: {
+    items: { id: string; label: string; status: "completed" | "pending" }[];
+    title: string;
+  }[] = [];
+  let currentSection: (typeof sections)[number] | undefined;
+  let hasSectionHeading = false;
+  let itemCount = 0;
+
+  for (const [lineIndex, line] of lines.entries()) {
+    const heading = /^\s*##\s+(.+?)\s*$/u.exec(line);
+    if (heading !== null) {
+      hasSectionHeading = true;
+      if (sections.length < PROJECT_PLAN_MAX_SECTIONS) {
+        currentSection = {
+          items: [],
+          title: safeBoardText(
+            heading[1] ?? "",
+            "Seção do plano",
+            PROJECT_PLAN_SECTION_TITLE_LIMIT,
+          ),
+        };
+        sections.push(currentSection);
+      } else {
+        currentSection = undefined;
+      }
+      continue;
+    }
+
+    const match = /^\s*[-*]\s+\[([ xX])\]\s+(.+)\s*$/u.exec(line);
+    if (match === null || itemCount >= PROJECT_PLAN_MAX_ITEMS) continue;
+    if (currentSection === undefined && !hasSectionHeading) {
+      currentSection = { items: [], title: "Geral" };
+      sections.push(currentSection);
+    }
+    if (
+      currentSection === undefined ||
+      currentSection.items.length >= PROJECT_PLAN_MAX_ITEMS_PER_SECTION
+    ) {
+      continue;
+    }
+    const label = safeBoardText(match[2] ?? "", "Item do plano", PROJECT_PLAN_ITEM_LIMIT);
+    currentSection.items.push({
+      id: canonicalPayloadHash({ label, lineIndex, status: match[1] }),
+      label,
+      status: match[1]?.toLocaleLowerCase() === "x" ? ("completed" as const) : ("pending" as const),
+    });
+    itemCount += 1;
+  }
+
+  const items = sections.flatMap((section) => section.items);
   if (items.length > 0) {
     const completedCount = items.filter((item) => item.status === "completed").length;
+    if (hasSectionHeading) {
+      return {
+        completedCount,
+        format: "roadmap" as const,
+        pendingCount: items.length - completedCount,
+        sections: sections
+          .filter((section) => section.items.length > 0)
+          .map((section) => {
+            const sectionCompletedCount = section.items.filter(
+              (item) => item.status === "completed",
+            ).length;
+            return {
+              completedCount: sectionCompletedCount,
+              items: section.items,
+              pendingCount: section.items.length - sectionCompletedCount,
+              title: section.title,
+            };
+          }),
+        status: "available" as const,
+      };
+    }
     return {
       completedCount,
       format: "checklist" as const,

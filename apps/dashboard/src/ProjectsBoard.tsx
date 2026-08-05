@@ -28,6 +28,10 @@ function DemandCard({
 
 function ProjectPlan({ project }: { readonly project: ProjectsBoardResponse["projects"][number] }) {
   const plan = project.plan;
+  const total =
+    plan.status === "available" && (plan.format === "checklist" || plan.format === "roadmap")
+      ? plan.completedCount + plan.pendingCount
+      : 0;
   return (
     <section aria-labelledby={`${project.id}-plan`} className="project-plan">
       <header className="project-section-header">
@@ -35,7 +39,8 @@ function ProjectPlan({ project }: { readonly project: ProjectsBoardResponse["pro
           <p className="kicker">Contexto declarado</p>
           <h2 id={`${project.id}-plan`}>Plano</h2>
         </div>
-        {plan.status === "available" && plan.format === "checklist" ? (
+        {plan.status === "available" &&
+        (plan.format === "checklist" || plan.format === "roadmap") ? (
           <span>
             {plan.completedCount} feito(s) · {plan.pendingCount} pendente(s)
           </span>
@@ -45,6 +50,48 @@ function ProjectPlan({ project }: { readonly project: ProjectsBoardResponse["pro
         <p className="project-plan-unavailable">Plano não disponível.</p>
       ) : plan.format === "text" ? (
         <p className="project-plan-text">{plan.text}</p>
+      ) : plan.format === "roadmap" ? (
+        <div className="project-roadmap">
+          <div className="project-roadmap-progress">
+            <div>
+              <strong>Progresso do plano</strong>
+              <span>
+                {plan.completedCount} de {total} etapas concluídas
+              </span>
+            </div>
+            <progress
+              aria-label={`Progresso do plano: ${String(plan.completedCount)} de ${String(total)} etapas concluídas`}
+              max={total}
+              value={plan.completedCount}
+            />
+          </div>
+          <div className="project-roadmap-sections">
+            {plan.sections.map((section, sectionIndex) => (
+              <section
+                aria-labelledby={`${project.id}-plan-section-${String(sectionIndex)}`}
+                className="project-roadmap-section"
+                key={`${section.title}-${String(sectionIndex)}`}
+              >
+                <header>
+                  <h3 id={`${project.id}-plan-section-${String(sectionIndex)}`}>{section.title}</h3>
+                  <span>
+                    {section.completedCount}/{section.completedCount + section.pendingCount}{" "}
+                    feito(s)
+                  </span>
+                </header>
+                <ul className="project-plan-list">
+                  {section.items.map((item) => (
+                    <li className={`plan-${item.status}`} key={item.id}>
+                      <span aria-hidden="true">{item.status === "completed" ? "✓" : "○"}</span>
+                      <span>{item.label}</span>
+                      <strong>{item.status === "completed" ? "Feito" : "Pendente"}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </div>
       ) : (
         <ul className="project-plan-list">
           {plan.items.map((item) => (

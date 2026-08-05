@@ -73,11 +73,27 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
       name: "ATLAS",
       plan: {
         completedCount: 2,
-        format: "checklist",
-        items: [
-          { id: "plan-foundation", label: "Base operacional do ATLAS", status: "completed" },
-          { id: "plan-dashboard", label: "Dashboard read-only", status: "completed" },
-          { id: "plan-enforcement", label: "Cutover do enforcement", status: "pending" },
+        format: "roadmap",
+        sections: [
+          {
+            completedCount: 2,
+            items: [
+              {
+                id: "plan-foundation",
+                label: "Base operacional do ATLAS",
+                status: "completed",
+              },
+              { id: "plan-dashboard", label: "Dashboard read-only", status: "completed" },
+            ],
+            pendingCount: 0,
+            title: "Motor",
+          },
+          {
+            completedCount: 0,
+            items: [{ id: "plan-enforcement", label: "Cutover do enforcement", status: "pending" }],
+            pendingCount: 1,
+            title: "Operação",
+          },
         ],
         pendingCount: 1,
         status: "available",
