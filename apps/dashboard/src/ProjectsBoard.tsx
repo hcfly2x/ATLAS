@@ -26,6 +26,62 @@ function DemandCard({
   );
 }
 
+function ProjectPlan({ project }: { readonly project: ProjectsBoardResponse["projects"][number] }) {
+  const plan = project.plan;
+  return (
+    <section aria-labelledby={`${project.id}-plan`} className="project-plan">
+      <header className="project-section-header">
+        <div>
+          <p className="kicker">Contexto declarado</p>
+          <h2 id={`${project.id}-plan`}>Plano</h2>
+        </div>
+        {plan.status === "available" && plan.format === "checklist" ? (
+          <span>
+            {plan.completedCount} feito(s) · {plan.pendingCount} pendente(s)
+          </span>
+        ) : null}
+      </header>
+      {plan.status === "unavailable" ? (
+        <p className="project-plan-unavailable">Plano não disponível.</p>
+      ) : plan.format === "text" ? (
+        <p className="project-plan-text">{plan.text}</p>
+      ) : (
+        <ul className="project-plan-list">
+          {plan.items.map((item) => (
+            <li className={`plan-${item.status}`} key={item.id}>
+              <span aria-hidden="true">{item.status === "completed" ? "✓" : "○"}</span>
+              <span>{item.label}</span>
+              <strong>{item.status === "completed" ? "Feito" : "Pendente"}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function HistoricalDemands({
+  project,
+}: {
+  readonly project: ProjectsBoardResponse["projects"][number];
+}) {
+  if (project.history.length === 0) return null;
+  return (
+    <details className="project-history">
+      <summary>
+        <span>Histórico (pré–go-live)</span>
+        <span>{project.historicalDemandCount} demanda(s)</span>
+      </summary>
+      <p>Registros anteriores ao marco operacional. Nada foi apagado.</p>
+      <div className="project-history-list">
+        {project.history.map((demand) => (
+          <DemandCard demand={demand} key={demand.taskId} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function ProjectLane({ project }: { readonly project: ProjectsBoardResponse["projects"][number] }) {
   return (
     <details
@@ -55,32 +111,43 @@ function ProjectLane({ project }: { readonly project: ProjectsBoardResponse["pro
           <span>{project.demandCount} demanda(s)</span>
         </div>
       </summary>
-      <div className="project-board-columns">
-        {columns.map((column) => {
-          const demands = project.columns[column.key];
-          return (
-            <section
-              aria-labelledby={`${project.id}-${column.key}`}
-              className={`project-column column-${column.key}`}
-              key={column.key}
-            >
-              <header>
-                <h2 id={`${project.id}-${column.key}`}>{column.title}</h2>
-                <span aria-label={`${String(demands.length)} demandas`}>{demands.length}</span>
-              </header>
-              {demands.length === 0 ? (
-                <p className="project-column-empty">{column.empty}</p>
-              ) : (
-                <div className="project-demand-list">
-                  {demands.map((demand) => (
-                    <DemandCard demand={demand} key={demand.taskId} />
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
+      <ProjectPlan project={project} />
+      <section aria-labelledby={`${project.id}-demands`} className="project-demands">
+        <header className="project-section-header">
+          <div>
+            <p className="kicker">Operação atual</p>
+            <h2 id={`${project.id}-demands`}>Demandas</h2>
+          </div>
+          <span>{project.demandCount - project.historicalDemandCount} demanda(s) no quadro</span>
+        </header>
+        <div className="project-board-columns">
+          {columns.map((column) => {
+            const demands = project.columns[column.key];
+            return (
+              <section
+                aria-labelledby={`${project.id}-${column.key}`}
+                className={`project-column column-${column.key}`}
+                key={column.key}
+              >
+                <header>
+                  <h2 id={`${project.id}-${column.key}`}>{column.title}</h2>
+                  <span aria-label={`${String(demands.length)} demandas`}>{demands.length}</span>
+                </header>
+                {demands.length === 0 ? (
+                  <p className="project-column-empty">{column.empty}</p>
+                ) : (
+                  <div className="project-demand-list">
+                    {demands.map((demand) => (
+                      <DemandCard demand={demand} key={demand.taskId} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+        <HistoricalDemands project={project} />
+      </section>
     </details>
   );
 }
@@ -90,8 +157,10 @@ export function ProjectsBoard({ data }: { readonly data: ProjectsBoardResponse }
     <main className="projects-page">
       <header className="projects-hero">
         <p className="kicker">Visão por projeto</p>
-        <h1>Projetos e demandas</h1>
-        <p>Veja onde cada demanda está e o que precisa da sua atenção.</p>
+        <h1>Projetos</h1>
+        <p>
+          Compare o plano declarado com o que já foi feito e acompanhe as demandas operacionais.
+        </p>
       </header>
       {data.projects.length === 0 ? (
         <section className="projects-empty">

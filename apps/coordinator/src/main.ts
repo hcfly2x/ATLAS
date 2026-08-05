@@ -16,7 +16,10 @@ import { PrismaTelegramStore } from "./telegram/store.js";
 import { loadProtectedGlobs } from "./worker/config.js";
 import { WorkerService } from "./worker/service.js";
 import { ProjectConfigStore } from "./setup/project-config.js";
-import { loadDashboardProjectDescriptions } from "./dashboard/project-descriptions.js";
+import {
+  loadDashboardProjectContexts,
+  parseDashboardGoLiveAt,
+} from "./dashboard/project-descriptions.js";
 import { PrismaMemoryService } from "./memory/service.js";
 import { DashboardService } from "./dashboard/service.js";
 import { assertRemoteDashboardConfiguration } from "./dashboard/routes.js";
@@ -56,6 +59,7 @@ const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_
 const maxAutomaticRework = parseMaxAutomaticRework(process.env.ATLAS_MAX_AUTOMATIC_REWORK);
 const dashboardCredential = process.env.DASHBOARD_OWNER_CREDENTIAL;
 const dashboardRemoteAccessEnabled = process.env.DASHBOARD_REMOTE_ACCESS_ENABLED === "true";
+const dashboardGoLiveAt = parseDashboardGoLiveAt(process.env.DASHBOARD_GO_LIVE_AT);
 assertRemoteDashboardConfiguration(dashboardRemoteAccessEnabled, dashboardCredential);
 const dashboardAuth =
   dashboardCredential === undefined || dashboardCredential.trim().length === 0
@@ -66,10 +70,10 @@ const dashboardAuth =
           process.env.DASHBOARD_SESSION_TTL_SECONDS,
         ),
       });
-const dashboardProjectDescriptions =
+const dashboardProjectContexts =
   dashboardAuth === undefined
-    ? new Map<string, string>()
-    : await loadDashboardProjectDescriptions(
+    ? { descriptions: new Map<string, string>(), plans: new Map<string, string>() }
+    : await loadDashboardProjectContexts(
         process.env.ATLAS_PROJECTS_PATH ??
           fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
       );
@@ -78,7 +82,9 @@ const dashboardService =
     ? undefined
     : new DashboardService(prisma, {
         deliverySlaMs,
-        projectDescriptions: dashboardProjectDescriptions,
+        ...(dashboardGoLiveAt === undefined ? {} : { goLiveAt: dashboardGoLiveAt }),
+        projectDescriptions: dashboardProjectContexts.descriptions,
+        projectPlans: dashboardProjectContexts.plans,
       });
 const internalAuthToken = process.env.INTERNAL_API_TOKEN;
 if (internalAuthToken === undefined || internalAuthToken.length === 0) {

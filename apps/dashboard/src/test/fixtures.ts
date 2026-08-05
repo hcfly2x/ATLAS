@@ -16,6 +16,7 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
         completed: [
           {
             column: "completed",
+            createdAt: occurredAt,
             objective: "Publicar a autenticação",
             stateLabel: "Concluída",
             taskId: "40000000-0000-4000-8000-000000000004",
@@ -25,6 +26,7 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
         inProgress: [
           {
             column: "in_progress",
+            createdAt: occurredAt,
             objective: "Construir o quadro de projetos",
             stateLabel: "Em execução",
             taskId,
@@ -34,6 +36,7 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
         needsAttention: [
           {
             column: "needs_attention",
+            createdAt: occurredAt,
             objective: "Revisar a entrega do dashboard",
             stateLabel: "Aguardando revisão",
             taskId: "20000000-0000-4000-8000-000000000002",
@@ -43,6 +46,7 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
         stopped: [
           {
             column: "stopped",
+            createdAt: occurredAt,
             objective: "Retomar a integração externa",
             stateLabel: "Pausada",
             taskId: "30000000-0000-4000-8000-000000000003",
@@ -50,12 +54,34 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
           },
         ],
       },
-      demandCount: 4,
+      demandCount: 5,
       description: "Coordena o trabalho da empresa de agentes.",
       hasActiveDemand: true,
+      historicalDemandCount: 1,
+      history: [
+        {
+          column: "stopped",
+          createdAt: "2026-07-20T12:00:00.000Z",
+          objective: "Tentativa anterior ao go-live",
+          stateLabel: "Falhou",
+          taskId: "50000000-0000-4000-8000-000000000005",
+          updatedAt: "2026-07-20T12:00:00.000Z",
+        },
+      ],
       id: "atlas",
       isActive: true,
       name: "ATLAS",
+      plan: {
+        completedCount: 2,
+        format: "checklist",
+        items: [
+          { id: "plan-foundation", label: "Base operacional do ATLAS", status: "completed" },
+          { id: "plan-dashboard", label: "Dashboard read-only", status: "completed" },
+          { id: "plan-enforcement", label: "Cutover do enforcement", status: "pending" },
+        ],
+        pendingCount: 1,
+        status: "available",
+      },
     },
     {
       activeDemandCount: 0,
@@ -68,9 +94,12 @@ export const projectsBoardFixture: ProjectsBoardResponse = {
       demandCount: 0,
       description: "sem descrição",
       hasActiveDemand: false,
+      historicalDemandCount: 0,
+      history: [],
       id: "future",
       isActive: false,
       name: "Projeto futuro",
+      plan: { status: "unavailable" },
     },
   ],
 };

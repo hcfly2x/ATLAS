@@ -133,12 +133,41 @@ export const projectBoardColumnSchema = z.enum([
 const projectBoardDemandSchema = z
   .object({
     column: projectBoardColumnSchema,
+    createdAt: z.string().datetime(),
     objective: z.string().min(1).max(160),
     stateLabel: z.string().min(1).max(80),
     taskId: z.string().min(1),
     updatedAt: z.string().datetime(),
   })
   .strict();
+
+const projectPlanSchema = z.union([
+  z
+    .object({
+      completedCount: z.number().int().nonnegative(),
+      format: z.literal("checklist"),
+      items: z.array(
+        z
+          .object({
+            id: z.string().min(1).max(80),
+            label: z.string().min(1).max(240),
+            status: z.enum(["completed", "pending"]),
+          })
+          .strict(),
+      ),
+      pendingCount: z.number().int().nonnegative(),
+      status: z.literal("available"),
+    })
+    .strict(),
+  z
+    .object({
+      format: z.literal("text"),
+      status: z.literal("available"),
+      text: z.string().min(1).max(12_000),
+    })
+    .strict(),
+  z.object({ status: z.literal("unavailable") }).strict(),
+]);
 
 export const projectsBoardResponseSchema = z
   .object({
@@ -158,9 +187,12 @@ export const projectsBoardResponseSchema = z
           demandCount: z.number().int().nonnegative(),
           description: z.string().min(1).max(240),
           hasActiveDemand: z.boolean(),
+          historicalDemandCount: z.number().int().nonnegative(),
+          history: z.array(projectBoardDemandSchema),
           id: z.string().min(1).max(128),
           isActive: z.boolean(),
           name: z.string().min(1).max(120),
+          plan: projectPlanSchema,
         })
         .strict(),
     ),

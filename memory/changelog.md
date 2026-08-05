@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Plano por projeto e histórico pré-go-live
+
+- A aba Projetos separa o Plano declarado e sanitizado das Demandas
+  operacionais. Checklist Markdown informa somente feito e pendente; texto
+  livre não recebe progresso inferido e ausência falha para “não disponível”.
+- `DASHBOARD_GO_LIVE_AT` é opcional e validado no startup. Tasks anteriores ao
+  marco ficam em histórico recolhido; sem marco, o comportamento anterior é
+  preservado.
+- A rota continua GET sob sessão e RBAC. Nenhuma Task ou AuditEvent é alterada,
+  arquivada ou apagada, e não há mudança de schema, core, worker, scheduler,
+  Approval, enforcement, autonomia, `always_human` ou `.atlas/**`.
+
 ## Unreleased — Dashboard C2c-5 e prontidão operacional
 
 - O Workspace passa a consumir as rotas existentes do C2c-4 para pausar,

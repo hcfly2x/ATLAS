@@ -2,6 +2,14 @@
 
 ## Dashboard — após C2b1
 
+- Declarar, sob revisão humana da configuração de cada projeto, o bloco
+  `dashboard.plan` quando houver um documento de plano apropriado para exibição.
+- Definir `DASHBOARD_GO_LIVE_AT` no ambiente somente após conferir o marco real;
+  validar em staging que demandas anteriores aparecem no histórico recolhido e
+  continuam acessíveis pelo Workspace.
+- Manter limpeza destrutiva de Task/AuditEvent proibida; qualquer retenção real
+  exige fase e autorização `always_human` próprias.
+
 - Revisar empiricamente o quadro de Projetos: agrupamento completo de estados,
   precedência de Approval humana pendente, projeto inativo recolhido, navegação
   para Workspace e ausência de conteúdo sensível no contrato e na renderização.
