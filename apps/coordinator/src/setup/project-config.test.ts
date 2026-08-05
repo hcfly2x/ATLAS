@@ -9,6 +9,7 @@ import {
   ProjectConfigConflictError,
   ProjectConfigStore,
   ProjectConfigValidationError,
+  ProjectConfigVersionConflictError,
   type EditableProject,
 } from "./project-config.js";
 
@@ -116,6 +117,16 @@ describe("ProjectConfigStore", () => {
     expect((await store.list()).filter(({ id }) => id === "new-project")).toHaveLength(1);
   });
 
+  it("rejects a draft with the same identity but divergent governed content", async () => {
+    const { store } = await fixture();
+    const created = await store.createDraft({ id: "new-project", name: "New Project" });
+    await store.save({ ...created.project, risk: "low" });
+
+    await expect(
+      store.createDraft({ id: "new-project", name: "New Project" }),
+    ).rejects.toBeInstanceOf(ProjectConfigConflictError);
+  });
+
   it("rejects relative and non-git repository updates before persisting them", async () => {
     const { store } = await fixture();
     const created = await store.createDraft({ id: "new-project", name: "New Project" });
@@ -180,6 +191,26 @@ describe("ProjectConfigStore", () => {
       name: "sample-app",
       source: "package.json",
     });
+  });
+
+  it("accepts only the exact completed status change as a retry", async () => {
+    const { root, store } = await fixture();
+    const repository = join(root, "repository");
+    await mkdir(join(repository, ".git"), { recursive: true });
+    const draft = await store.createDraft({ id: "pilot-project", name: "Pilot Project" });
+    const configured = await store.put(
+      { ...validProject(repository), status: "draft" },
+      store.configHash(draft.project),
+    );
+    const expectedConfigHash = store.configHash(configured.project);
+
+    await store.activate("pilot-project", expectedConfigHash);
+    const replay = await store.activate("pilot-project", expectedConfigHash);
+
+    expect(replay.changed).toBe(false);
+    await expect(
+      store.activate("pilot-project", "sha256:divergent-request"),
+    ).rejects.toBeInstanceOf(ProjectConfigVersionConflictError);
   });
 
   it("suggests safe commands from pyproject.toml and Makefile without executing them", async () => {

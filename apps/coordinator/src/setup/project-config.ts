@@ -272,17 +272,8 @@ export class ProjectConfigStore {
       .strict()
       .parse(input);
     return this.mutate((config) => {
-      const existing = config.projects.find((candidate) => candidate.id === identity.id);
-      if (existing !== undefined) {
-        const current = editable(config, existing);
-        if (current.name === identity.name && this.isSafeDraft(current)) {
-          return { before: current, changed: false, project: current };
-        }
-        throw new ProjectConfigConflictError("project id already exists");
-      }
-      this.assertNameAvailable(config, identity.id, identity.name);
       const defaults = config.schema.defaults;
-      const project = editableProjectSchema.parse({
+      const desired = editableProjectSchema.parse({
         id: identity.id,
         name: identity.name,
         status: "draft",
@@ -298,8 +289,17 @@ export class ProjectConfigStore {
         task_cost_limit_usd: defaults.task_cost_limit_usd,
         retention: defaults.retention,
       });
-      config.projects.push(storedProjectSchema.parse(project));
-      return { before: null, changed: true, project };
+      const existing = config.projects.find((candidate) => candidate.id === identity.id);
+      if (existing !== undefined) {
+        const current = editable(config, existing);
+        if (this.configHash(current) === this.configHash(desired)) {
+          return { before: current, changed: false, project: current };
+        }
+        throw new ProjectConfigConflictError("project id already exists");
+      }
+      this.assertNameAvailable(config, identity.id, identity.name);
+      config.projects.push(storedProjectSchema.parse(desired));
+      return { before: null, changed: true, project: desired };
     });
   }
 
@@ -439,8 +439,14 @@ export class ProjectConfigStore {
       const desired = editableProjectSchema.parse({ ...before, status });
       const currentHash = this.configHash(before);
       const desiredHash = this.configHash(desired);
-      if (currentHash !== expectedConfigHash && currentHash !== desiredHash) {
-        throw new ProjectConfigVersionConflictError();
+      if (currentHash !== expectedConfigHash) {
+        const retrySource = editableProjectSchema.parse({
+          ...before,
+          status: status === "active" ? "draft" : "active",
+        });
+        if (before.status !== status || this.configHash(retrySource) !== expectedConfigHash) {
+          throw new ProjectConfigVersionConflictError();
+        }
       }
       if (status === "active") {
         const issues = await this.activationIssues(desired);
@@ -460,16 +466,6 @@ export class ProjectConfigStore {
     if (duplicateName !== undefined) {
       throw new ProjectConfigConflictError("another project already uses this name");
     }
-  }
-
-  private isSafeDraft(project: EditableProject): boolean {
-    return (
-      project.status === "draft" &&
-      project.autonomy_level === 2 &&
-      project.policy === "least_privilege" &&
-      project.allowed_commands.length === 0 &&
-      project.repository === null
-    );
   }
 
   private async mutate(

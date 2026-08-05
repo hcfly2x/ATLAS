@@ -115,6 +115,22 @@ describe("DashboardProjectConfigService", () => {
     expect(JSON.stringify({ result, audit: audit.mock.calls })).not.toContain("repository:");
   });
 
+  it("reports a YAML-ahead retry as idempotent while reconciling the projection", async () => {
+    const { service, upsert } = await harness();
+    const request = {
+      confirmed: true as const,
+      id: "new-project",
+      idempotencyKey: "10000000-0000-4000-8000-000000000001",
+      name: "New Project",
+    };
+    await service.create(request, "correlation-1");
+
+    const replay = await service.create(request, "correlation-2");
+
+    expect(replay.idempotentReplay).toBe(true);
+    expect(upsert).toHaveBeenCalledTimes(2);
+  });
+
   it("binds activation rejection when required fields are absent", async () => {
     const { service } = await harness();
     const created = await service.create(

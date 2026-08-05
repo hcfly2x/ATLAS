@@ -18,6 +18,14 @@ comandos permitidos, autonomia, retenção e elegibilidade para novas demandas.
   `ProjectConfigStore`; não cria um segundo modelo de configuração.
 - A projeção `Project` do Postgres é sincronizada após cada alteração aceita para
   que o intake existente veja imediatamente o novo status.
+- A sincronização usa um reconciliador único. Um retry cuja intenção já está
+  aplicada no YAML repete o upsert da projeção e conclui idempotentemente; hash
+  ou conteúdo divergente continua falhando fechado.
+- Antes de escutar tráfego, o coordinator valida o YAML completo e, em uma
+  transação, faz upsert exato de todos os projetos declarados. Uma projeção
+  `ACTIVE` ausente do YAML é arquivada para nunca manter elegibilidade mais
+  permissiva que a fonte de verdade. YAML ausente ou inválido aborta o startup
+  sem alterar a projeção.
 - Toda escrita exige sessão C1, permissão `dashboard:project-config:write`, CSRF,
   confirmação explícita, hash otimista e recibo durável idempotente. Leitura usa
   a permissão separada `dashboard:project-config:read`.
@@ -43,6 +51,9 @@ O arquivo e o banco não compartilham uma transação. A operação escreve o ar
 atomicamente e usa uma transação Prisma para projeção, auditoria e recibo. Em
 falha posterior à escrita, o retry com a mesma chave reconcilia o estado desejado
 sem duplicar projeto; divergência de hash falha fechado para revisão humana.
+O boot também converge divergências anteriores. A reconciliação não cria Task,
+Execution ou Approval e registra somente status, autonomia, retenção,
+executáveis, presença de repositório e hashes canônicos — nunca path ou args.
 
 ## Fora de escopo
 

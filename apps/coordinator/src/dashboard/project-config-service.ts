@@ -1,4 +1,4 @@
-import { AuditActor, Prisma, ProjectStatus } from "@prisma/client";
+import { AuditActor, type Prisma } from "@prisma/client";
 
 import {
   createDashboardProjectRequestSchema,
@@ -26,6 +26,7 @@ import type {
   DashboardCommandKind,
   DashboardCommandReceiptStore,
 } from "./command-receipt-store.js";
+import { ProjectProjectionReconciler, safeProjectChange } from "./project-projection-reconciler.js";
 
 export type DashboardProjectConfigErrorCode =
   | "DASHBOARD_PROJECT_CONFIG_CONFLICT"
@@ -40,26 +41,8 @@ export class DashboardProjectConfigError extends Error {
   }
 }
 
-const statusMap: Record<EditableProject["status"], ProjectStatus> = {
-  active: ProjectStatus.ACTIVE,
-  archived: ProjectStatus.ARCHIVED,
-  draft: ProjectStatus.DRAFT,
-  future: ProjectStatus.FUTURE,
-};
-
 function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-}
-
-function safeChange(project: EditableProject | null): Prisma.InputJsonValue | null {
-  if (project === null) return null;
-  return json({
-    allowedExecutables: [...new Set(project.allowed_commands.map(({ executable }) => executable))],
-    autonomyLevel: project.autonomy_level,
-    repositoryConfigured: project.repository !== null,
-    retention: project.retention,
-    status: project.status,
-  });
 }
 
 async function publicProject(
@@ -95,6 +78,7 @@ export class DashboardProjectConfigService {
   constructor(
     private readonly store: ProjectConfigStore,
     private readonly receipts: DashboardCommandReceiptStore,
+    private readonly projection = new ProjectProjectionReconciler(store),
   ) {}
 
   async list() {
@@ -183,6 +167,7 @@ export class DashboardProjectConfigService {
     correlationId: string,
     mutate: () => Promise<ProjectConfigMutation>,
   ) {
+    let yamlReplay = false;
     const result = await this.receipts.executeProject<DashboardProjectConfig>(
       {
         actor: "user",
@@ -201,7 +186,8 @@ export class DashboardProjectConfigService {
           if (code === undefined) throw error;
           return { resultCode: code, status: "rejected" };
         }
-        await this.syncProject(transaction, mutation.project);
+        yamlReplay = !mutation.changed;
+        await this.projection.syncProject(transaction, mutation.project);
         await transaction.auditEvent.create({
           data: {
             action: `dashboard.project.${command}`,
@@ -209,8 +195,8 @@ export class DashboardProjectConfigService {
             correlationId,
             idempotencyKey: `${idempotencyKey}:audit`,
             payload: json({
-              after: safeChange(mutation.project),
-              before: safeChange(mutation.before),
+              after: safeProjectChange(mutation.project),
+              before: safeProjectChange(mutation.before),
               changed: mutation.changed,
               requestHash,
             }),
@@ -230,37 +216,8 @@ export class DashboardProjectConfigService {
       throw new DashboardProjectConfigError(result.resultCode as DashboardProjectConfigErrorCode);
     }
     return dashboardProjectCommandResponseSchema.parse({
-      idempotentReplay: result.idempotentReplay,
+      idempotentReplay: result.idempotentReplay || yamlReplay,
       project: result.resultPayload,
-    });
-  }
-
-  private async syncProject(
-    transaction: Prisma.TransactionClient,
-    project: EditableProject,
-  ): Promise<void> {
-    const data = {
-      allowedCommands: json(project.allowed_commands),
-      autonomyLevel: project.autonomy_level,
-      dataClassification: project.data_classification,
-      name: project.name,
-      policy: project.policy,
-      protectedPathsProfile: project.protected_paths_profile,
-      repository: project.repository,
-      requiredTools: json(project.required_tools),
-      retention: json(project.retention),
-      risk: project.risk,
-      runtime:
-        project.runtime === null || project.runtime === undefined
-          ? Prisma.JsonNull
-          : json(project.runtime),
-      status: statusMap[project.status],
-      taskCostLimitUsd: project.task_cost_limit_usd,
-    };
-    await transaction.project.upsert({
-      where: { id: project.id },
-      create: { id: project.id, ...data },
-      update: data,
     });
   }
 }
