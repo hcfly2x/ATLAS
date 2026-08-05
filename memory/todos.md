@@ -5,11 +5,12 @@
 - Revisar empiricamente a gestão web de projetos: defaults de rascunho,
   colisões, validação Git no Mac, hash concorrente, replay aceito/rejeitado,
   sincronização YAML/Postgres e auditoria sanitizada.
+- Revisar empiricamente a reconciliação de boot e retry: YAML à frente converge,
+  intenção divergente conflita, YAML inválido aborta sem mutação e projeção ativa
+  ausente é arquivada sem vazar path ou argumentos.
 - Validar em staging Mac-servidor o fluxo criar → conectar → configurar →
   ativar → criar demanda. Um coordinator remoto deve falhar fechado para paths
   locais; clone por URL/worker hospedado continua não autorizado.
-- Decidir em fase própria estratégia de reconciliação operacional caso a escrita
-  atômica do YAML conclua e a transação PostgreSQL falhe repetidamente.
 
 - Declarar, sob revisão humana da configuração de cada projeto, o bloco
   `dashboard.plan` quando houver um documento de plano apropriado para exibição.

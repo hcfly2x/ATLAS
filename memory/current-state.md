@@ -96,8 +96,11 @@ A gestão governada de projetos pela Dashboard está nesta entrega. Em
 validar um repositório Git visível pelo Mac-servidor, configurar comandos,
 autonomia e retenção e ativar/desativar explicitamente. O fluxo usa C1, CSRF,
 recibo idempotente e auditoria sanitizada; `.atlas/projects.yaml` segue como
-fonte de verdade. ADR-031 permanece Proposto. Criar demanda continua no C2b1 e
-exige projeto ativo.
+fonte de verdade. Retry com a mesma intenção e o boot reconciliam a projeção
+PostgreSQL pelo YAML; intenção divergente continua em conflito, e YAML inválido
+aborta o startup sem alterar o banco. Projeções ativas ausentes do YAML são
+arquivadas para não ampliar elegibilidade. ADR-031 permanece Proposto. Criar
+demanda continua no C2b1 e exige projeto ativo.
 
 A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
 usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados

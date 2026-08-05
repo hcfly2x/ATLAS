@@ -28,6 +28,10 @@ import { DashboardApprovalService } from "./dashboard/approval-service.js";
 import { DashboardTaskCommandService } from "./dashboard/task-command-service.js";
 import { PrismaDashboardCommandReceiptStore } from "./dashboard/command-receipt-store.js";
 import { DashboardProjectConfigService } from "./dashboard/project-config-service.js";
+import {
+  ProjectProjectionReconciler,
+  reconcileProjectProjectionAtStartup,
+} from "./dashboard/project-projection-reconciler.js";
 import { PrismaApprovalDecisionService } from "./approvals/service.js";
 import { TaskIntakeService } from "./tasks/intake.js";
 import { PrismaTelegramProgressStore, TelegramProgressPublisher } from "./telegram/progress.js";
@@ -52,6 +56,7 @@ const projectsPath =
   process.env.ATLAS_PROJECTS_PATH ??
   fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url));
 const projectConfigStore = new ProjectConfigStore(projectsPath);
+const projectProjectionReconciler = new ProjectProjectionReconciler(projectConfigStore);
 const taskStore = new PrismaTaskCoreStore(prisma);
 const memoryService = new PrismaMemoryService(prisma);
 const deliverySlaMs = parseDeliveryWatchdogSlaMs(process.env.ATLAS_DELIVERY_SLA_MS);
@@ -199,6 +204,7 @@ const dashboardProjectConfigService =
     : new DashboardProjectConfigService(
         projectConfigStore,
         new PrismaDashboardCommandReceiptStore(prisma),
+        projectProjectionReconciler,
       );
 
 const telegramGateway = telegramEnabled
@@ -251,6 +257,15 @@ const app = createCoordinatorApp({
 });
 
 app.addHook("onClose", async () => prisma.$disconnect());
+try {
+  await reconcileProjectProjectionAtStartup(projectProjectionReconciler, prisma, (code) => {
+    app.log.error({ code }, "project projection startup reconciliation failed");
+  });
+} catch (error: unknown) {
+  await app.close();
+  throw error;
+}
+
 const technicalRetryTimer =
   workerService === undefined
     ? undefined

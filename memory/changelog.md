@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Reconciliação da projeção de projetos
+
+- Um reconciliador único ressincroniza a projeção PostgreSQL quando um retry
+  encontra a mesma intenção já aplicada em `.atlas/projects.yaml`.
+- No startup, o coordinator valida o YAML inteiro antes de escrever, faz upsert
+  determinístico dos projetos declarados e arquiva projeções `ACTIVE` ausentes
+  da fonte de verdade. YAML ausente ou inválido aborta sem rebaixamento cego.
+- Requisição divergente continua em conflito; create-demand continua exigindo
+  projeto ativo na projeção. Auditoria e erro de boot usam somente evidência
+  sanitizada e códigos estáveis.
+- Core, worker, scheduler, Approval, enforcement, `always_human`, `TaskState`,
+  schema e migrações permanecem inalterados.
+
 ## Unreleased — Gestão governada de projetos pela Dashboard
 
 - `Projetos → Gerenciar` permite criar rascunho com defaults conservadores,
