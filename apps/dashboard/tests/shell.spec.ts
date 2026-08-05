@@ -304,7 +304,9 @@ test("navigates through the Projects board into a demand Workspace", async ({ pa
 
   await page.goto("/dashboard/projetos");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Projetos e demandas" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Projetos" })).toBeVisible();
+  await expect(page.getByText("Base operacional do ATLAS")).toBeVisible();
+  await expect(page.getByText("Histórico (pré–go-live)")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Precisa de você" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Em execução" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Parado" })).toBeVisible();

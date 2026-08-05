@@ -705,6 +705,7 @@ describe("DashboardService", () => {
           Promise.resolve([
             { id: "atlas", name: "ATLAS", status: "ACTIVE" },
             { id: "future", name: "Futuro", status: "FUTURE" },
+            { id: "missing", name: "Sem plano", status: "DRAFT" },
           ]),
         update: write,
       },
@@ -716,6 +717,7 @@ describe("DashboardService", () => {
             {
               activeSpecification: null,
               approvals: [{ id: "approval-1" }],
+              createdAt: new Date("2026-08-04T11:00:00.000Z"),
               id: taskId,
               normalizedDemand: {
                 context: ["SECRET_CONTEXT"],
@@ -732,6 +734,17 @@ describe("DashboardService", () => {
             {
               activeSpecification: null,
               approvals: [],
+              createdAt: new Date("2026-08-03T11:00:00.000Z"),
+              id: "30000000-0000-4000-8000-000000000003",
+              normalizedDemand: null,
+              projectId: "atlas",
+              state: "FAILED",
+              updatedAt: new Date("2026-08-03T11:00:00.000Z"),
+            },
+            {
+              activeSpecification: null,
+              approvals: [],
+              createdAt: new Date("2026-08-04T11:00:00.000Z"),
               id: "20000000-0000-4000-8000-000000000002",
               normalizedDemand: null,
               projectId: "future",
@@ -744,9 +757,17 @@ describe("DashboardService", () => {
       },
     };
     const service = new DashboardService(prisma as never, {
+      goLiveAt: new Date("2026-08-04T10:00:00.000Z"),
       now: () => new Date("2026-08-04T12:00:00.000Z"),
       projectDescriptions: new Map([
         ["atlas", "Orquestra demandas password=SECRET_PASSWORD_VALUE"],
+      ]),
+      projectPlans: new Map([
+        [
+          "atlas",
+          "# Plano\n- [x] Base concluída\n- [ ] Ligar token=SECRET_PLAN_TOKEN ao próximo bloco",
+        ],
+        ["future", "Estudar o mercado e preparar uma recomendação password=SECRET_FREE_PLAN."],
       ]),
     });
 
@@ -757,36 +778,82 @@ describe("DashboardService", () => {
       activeDemandCount: 1,
       description: "Orquestra demandas [conteúdo protegido]",
       hasActiveDemand: true,
+      historicalDemandCount: 1,
       id: "atlas",
       isActive: true,
+      plan: {
+        completedCount: 1,
+        format: "checklist",
+        pendingCount: 1,
+        status: "available",
+      },
     });
     expect(board.projects[0]?.columns.needsAttention[0]).toMatchObject({
       column: "needs_attention",
       stateLabel: "Em execução",
     });
+    expect(board.projects[0]?.history).toHaveLength(1);
     expect(board.projects[1]).toMatchObject({
       activeDemandCount: 0,
       description: "sem descrição",
       hasActiveDemand: false,
       id: "future",
+      plan: {
+        format: "text",
+        status: "available",
+        text: "Estudar o mercado e preparar uma recomendação [conteúdo protegido]",
+      },
     });
+    expect(board.projects[2]?.plan).toEqual({ status: "unavailable" });
     expect(write).not.toHaveBeenCalled();
     expect(taskQuery).toMatchObject({
       select: {
         activeSpecification: { select: { payload: true } },
+        createdAt: true,
         normalizedDemand: true,
       },
     });
     for (const forbidden of [
       "SECRET_CONTEXT",
+      "SECRET_FREE_PLAN",
       "SECRET_ORIGINAL_MESSAGE",
       "SECRET_PASSWORD_VALUE",
       "SECRET_PROMPT",
+      "SECRET_PLAN_TOKEN",
       "SECRET_TOKEN_VALUE",
       "originalMessage",
       "prompt",
     ]) {
       expect(serialized).not.toContain(forbidden);
     }
+  });
+
+  it("keeps every demand in the operational columns when go-live is absent", async () => {
+    const prisma = {
+      project: {
+        findMany: () => Promise.resolve([{ id: "atlas", name: "ATLAS", status: "ACTIVE" }]),
+      },
+      task: {
+        findMany: () =>
+          Promise.resolve([
+            {
+              activeSpecification: null,
+              approvals: [],
+              createdAt: new Date("2020-01-01T00:00:00.000Z"),
+              id: taskId,
+              normalizedDemand: null,
+              projectId: "atlas",
+              state: "COMPLETED",
+              updatedAt: new Date("2020-01-01T00:00:00.000Z"),
+            },
+          ]),
+      },
+    };
+
+    const board = await new DashboardService(prisma as never).projectsBoard();
+
+    expect(board.projects[0]?.columns.completed).toHaveLength(1);
+    expect(board.projects[0]?.history).toEqual([]);
+    expect(board.projects[0]?.historicalDemandCount).toBe(0);
   });
 });

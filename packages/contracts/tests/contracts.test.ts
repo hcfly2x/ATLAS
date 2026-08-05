@@ -85,6 +85,7 @@ const projectsBoardFixture = {
         inProgress: [
           {
             column: "in_progress",
+            createdAt: "2026-08-04T10:00:00.000Z",
             objective: "Publicar o quadro de projetos",
             stateLabel: "Em execução",
             taskId: "10000000-0000-4000-8000-000000000001",
@@ -97,9 +98,12 @@ const projectsBoardFixture = {
       demandCount: 1,
       description: "Coordena o trabalho da empresa de agentes.",
       hasActiveDemand: true,
+      historicalDemandCount: 0,
+      history: [],
       id: "atlas",
       isActive: true,
       name: "ATLAS",
+      plan: { status: "unavailable" },
     },
   ],
 };

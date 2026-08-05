@@ -8,6 +8,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import {
+  canonicalPayloadHash,
   executableSpecificationPayloadSchema,
   normalizedDemandSchema,
   runtimeCommandSchema,
@@ -159,7 +160,12 @@ const BOARD_SENSITIVE_PATTERNS = [
   /\bBearer\s+\S+/giu,
   /\b(?:sk|token|secret|credential|password)[-_=: ]+\S+/giu,
   /\b(?:postgres(?:ql)?|mysql|mongodb):\/\/\S+/giu,
+  /(?:\/Users|\/home|\/private|\/tmp|\/var)\/\S+/gu,
 ] as const;
+
+const PROJECT_PLAN_ITEM_LIMIT = 240;
+const PROJECT_PLAN_TOTAL_LIMIT = 12_000;
+const PROJECT_PLAN_MAX_ITEMS = 100;
 
 function safeBoardText(value: string, fallback: string, limit = BOARD_TEXT_LIMIT): string {
   let sanitized = value.replace(/\s+/gu, " ").trim();
@@ -168,6 +174,44 @@ function safeBoardText(value: string, fallback: string, limit = BOARD_TEXT_LIMIT
   }
   if (sanitized.length === 0) return fallback;
   return sanitized.length <= limit ? sanitized : `${sanitized.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function projectPlan(value: string | undefined) {
+  if (value === undefined || value.trim().length === 0) {
+    return { status: "unavailable" as const };
+  }
+  const limited = value.slice(0, PROJECT_PLAN_TOTAL_LIMIT);
+  const items = limited
+    .split(/\r?\n/gu)
+    .flatMap((line, lineIndex) => {
+      const match = /^\s*[-*]\s+\[([ xX])\]\s+(.+)\s*$/u.exec(line);
+      if (match === null) return [];
+      const label = safeBoardText(match[2] ?? "", "Item do plano", PROJECT_PLAN_ITEM_LIMIT);
+      return [
+        {
+          id: canonicalPayloadHash({ label, lineIndex, status: match[1] }),
+          label,
+          status:
+            match[1]?.toLocaleLowerCase() === "x" ? ("completed" as const) : ("pending" as const),
+        },
+      ];
+    })
+    .slice(0, PROJECT_PLAN_MAX_ITEMS);
+  if (items.length > 0) {
+    const completedCount = items.filter((item) => item.status === "completed").length;
+    return {
+      completedCount,
+      format: "checklist" as const,
+      items,
+      pendingCount: items.length - completedCount,
+      status: "available" as const,
+    };
+  }
+  return {
+    format: "text" as const,
+    status: "available" as const,
+    text: safeBoardText(limited, "Plano não disponível", PROJECT_PLAN_TOTAL_LIMIT),
+  };
 }
 
 function safeBoardObjective(task: {
@@ -279,8 +323,10 @@ export class DashboardService {
     private readonly prisma: PrismaClient,
     private readonly options: {
       readonly deliverySlaMs?: number;
+      readonly goLiveAt?: Date;
       readonly now?: () => Date;
       readonly projectDescriptions?: ReadonlyMap<string, string>;
+      readonly projectPlans?: ReadonlyMap<string, string>;
     } = {},
   ) {
     if (
@@ -1193,6 +1239,7 @@ export class DashboardService {
             select: { id: true },
           },
           id: true,
+          createdAt: true,
           normalizedDemand: true,
           projectId: true,
           state: true,
@@ -1212,30 +1259,43 @@ export class DashboardService {
       projects: projects
         .map((project) => {
           const projectTasks = tasksByProject.get(project.id) ?? [];
+          const goLiveAt = this.options.goLiveAt;
+          const operationalTasks =
+            goLiveAt === undefined
+              ? projectTasks
+              : projectTasks.filter((task) => task.createdAt >= goLiveAt);
+          const historicalTasks =
+            goLiveAt === undefined ? [] : projectTasks.filter((task) => task.createdAt < goLiveAt);
           const columns = {
             completed: [] as object[],
             inProgress: [] as object[],
             needsAttention: [] as object[],
             stopped: [] as object[],
           };
-          for (const task of projectTasks) {
+          const demandFromTask = (task: (typeof projectTasks)[number]) => {
             const column =
               task.approvals.length > 0
                 ? "needs_attention"
                 : PROJECT_BOARD_COLUMN_BY_STATE[task.state];
-            const demand = {
+            return {
               column,
+              createdAt: task.createdAt,
               objective: safeBoardObjective(task),
               stateLabel: PROJECT_BOARD_STATE_LABELS[task.state],
               taskId: task.id,
               updatedAt: task.updatedAt,
             };
+          };
+          for (const task of operationalTasks) {
+            const demand = demandFromTask(task);
+            const column = demand.column;
             if (column === "needs_attention") columns.needsAttention.push(demand);
             else if (column === "in_progress") columns.inProgress.push(demand);
             else if (column === "stopped") columns.stopped.push(demand);
             else columns.completed.push(demand);
           }
-          const activeDemandCount = projectTasks.filter(
+          const history = historicalTasks.map(demandFromTask);
+          const activeDemandCount = operationalTasks.filter(
             (task) => task.state !== TaskState.COMPLETED && task.state !== TaskState.CANCELLED,
           ).length;
           return {
@@ -1248,9 +1308,12 @@ export class DashboardService {
               240,
             ),
             hasActiveDemand: activeDemandCount > 0,
+            historicalDemandCount: history.length,
+            history,
             id: project.id,
             isActive: project.status === ProjectStatus.ACTIVE,
             name: project.name,
+            plan: projectPlan(this.options.projectPlans?.get(project.id)),
           };
         })
         .sort(

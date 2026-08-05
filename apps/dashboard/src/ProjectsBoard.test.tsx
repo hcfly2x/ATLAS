@@ -24,12 +24,10 @@ function renderRoute(client: ProjectsBoardClient) {
 }
 
 describe("Projects board UI", () => {
-  it("groups demands into four simple workflow columns", async () => {
+  it("separates the declared plan, operational demands and pre-go-live history", async () => {
     renderRoute(() => Promise.resolve(projectsBoardFixture));
 
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Projetos e demandas" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Projetos" })).toBeInTheDocument();
     for (const heading of ["Precisa de você", "Em execução", "Parado", "Concluído"]) {
       expect(screen.getAllByRole("heading", { name: heading })).toHaveLength(2);
     }
@@ -37,7 +35,13 @@ describe("Projects board UI", () => {
     expect(screen.getByText("Construir o quadro de projetos")).toBeInTheDocument();
     expect(screen.getByText("Retomar a integração externa")).toBeInTheDocument();
     expect(screen.getByText("Publicar a autenticação")).toBeInTheDocument();
-    expect(screen.getAllByText("Abrir Workspace →")).toHaveLength(4);
+    expect(screen.getAllByRole("heading", { name: "Plano" })).toHaveLength(2);
+    expect(screen.getByText("Base operacional do ATLAS")).toBeInTheDocument();
+    expect(screen.getAllByText("Feito")).toHaveLength(2);
+    expect(screen.getByText("Pendente")).toBeInTheDocument();
+    expect(screen.getByText("Histórico (pré–go-live)")).toBeInTheDocument();
+    expect(screen.getByText("Tentativa anterior ao go-live")).toBeInTheDocument();
+    expect(screen.getAllByText("Abrir Workspace →")).toHaveLength(5);
   });
 
   it("keeps projects without active demands collapsed", async () => {
@@ -53,6 +57,8 @@ describe("Projects board UI", () => {
     expect(screen.getByText("Projeto ativo")).toBeInTheDocument();
     expect(screen.getByText("Projeto em rascunho")).toBeInTheDocument();
     expect(screen.getByText(/Ative no setup local em \/setup/)).toBeInTheDocument();
+    expect(screen.getByText("Plano não disponível.")).toBeInTheDocument();
+    expect(container.querySelector("details.project-history")).not.toHaveAttribute("open");
   });
 
   it("keeps an inactive project collapsed even if historical data reports active work", () => {

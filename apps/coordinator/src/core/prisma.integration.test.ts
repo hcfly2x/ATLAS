@@ -35,6 +35,7 @@ import {
   SensitiveApprovalDashboardDeniedError,
 } from "../approvals/service.js";
 import { DashboardApprovalService } from "../dashboard/approval-service.js";
+import { DashboardService } from "../dashboard/service.js";
 import {
   DashboardTaskCommandError,
   DashboardTaskCommandService,
@@ -1779,6 +1780,52 @@ async function createQueuedClaimTask(input: {
         });
   return { execution, specification, taskId };
 }
+
+describe("Projects board PostgreSQL read-only boundary", () => {
+  it("does not mutate Tasks or AuditEvents while projecting plan and go-live history", async () => {
+    const projectId = `dashboard-read-only-${randomUUID()}`;
+    await prisma.project.create({
+      data: {
+        allowedCommands: [],
+        dataClassification: "internal_test",
+        id: projectId,
+        name: "Dashboard read-only",
+        policy: "least_privilege",
+        protectedPathsProfile: "project_default",
+        requiredTools: {},
+        retention: {
+          audit_events_expire: false,
+          files_days: 1,
+          logs_days: 1,
+          sensitive_days: null,
+        },
+        risk: "low",
+        status: ProjectStatus.ACTIVE,
+      },
+    });
+    const created = await store.createTask({
+      correlationId: `dashboard-read-only-${randomUUID()}`,
+      idempotencyKey: `dashboard-read-only-${randomUUID()}`,
+      origin: "integration-test",
+      originalMessage: "synthetic dashboard read-only fixture",
+      projectId,
+    });
+    const before = {
+      audits: await prisma.auditEvent.count({ where: { taskId: created.task.id } }),
+      tasks: await prisma.task.count({ where: { id: created.task.id } }),
+    };
+
+    await new DashboardService(prisma, {
+      goLiveAt: new Date("2100-01-01T00:00:00.000Z"),
+      projectPlans: new Map([[projectId, "- [ ] Validate read-only projection"]]),
+    }).projectsBoard();
+
+    await expect(prisma.task.count({ where: { id: created.task.id } })).resolves.toBe(before.tasks);
+    await expect(prisma.auditEvent.count({ where: { taskId: created.task.id } })).resolves.toBe(
+      before.audits,
+    );
+  });
+});
 
 function c2cWorkerService(projectId: string): WorkerService {
   return new WorkerService({

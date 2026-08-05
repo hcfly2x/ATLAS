@@ -255,6 +255,7 @@ configure somente no secret store:
 DASHBOARD_REMOTE_ACCESS_ENABLED=true
 DASHBOARD_OWNER_CREDENTIAL=<credencial aleatória com pelo menos 32 caracteres>
 DASHBOARD_SESSION_TTL_SECONDS=900
+DASHBOARD_GO_LIVE_AT=<timestamp ISO-8601 opcional>
 ```
 
 Gere o token localmente, sem registrá-lo no repositório:
@@ -271,6 +272,31 @@ o SPA em `/dashboard`. Não inicie
 `pnpm coordinator:local` apenas para usar a dashboard quando a instância web
 remota estiver habilitada. Rotacionar a credencial invalida as sessões
 anteriores.
+
+### Plano e histórico na aba Projetos
+
+O contexto declarado em `ATLAS_PROJECTS_PATH` pode incluir um bloco opcional e
+somente leitura para a Dashboard. O setup não o cria nem o altera:
+
+```yaml
+projects:
+  - id: atlas
+    dashboard:
+      description: Coordena a empresa de agentes.
+      plan: |
+        - [x] Fundação operacional
+        - [ ] Próximo marco autorizado
+```
+
+Checklist Markdown produz contagens determinísticas de feito e pendente. Outro
+formato aparece apenas como texto sanitizado; campo ausente ou ilegível aparece
+como “Plano não disponível”. O coordinator nunca procura um documento dentro do
+repositório do projeto por inferência.
+
+Quando `DASHBOARD_GO_LIVE_AT` contém um timestamp ISO-8601 válido, Tasks criadas
+antes dele saem das colunas operacionais e aparecem no histórico pré-go-live
+recolhido. O banco e a auditoria não mudam. Sem a variável, a projeção continua
+mostrando todas as demandas como antes; valor inválido impede o startup.
 
 ## Worker local
 

@@ -234,6 +234,12 @@ recarrega Workspace, Mission Control e Projetos em conflito e não oferece açõ
 fora dos estados aceitos pelo backend. Projetos não ativos aparecem como rascunho
 e exigem ativação explícita no setup local antes de receber demandas.
 
+A aba Projetos também separa, de forma read-only, o Plano declarado no contexto
+das Demandas persistidas. Checklist Markdown é projetado como feito ou pendente
+sem inferência; texto livre é apenas sanitizado. Um marco opcional de go-live
+move registros anteriores para um histórico visual recolhido. Essa separação
+não arquiva, altera ou apaga Task ou AuditEvent e não antecipa a Trilha D.
+
 ### Trilha D — Projeto como empresa independente
 
 - workspace do projeto com contexto automático:

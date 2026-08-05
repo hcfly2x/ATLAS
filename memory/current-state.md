@@ -85,6 +85,12 @@ demanda ativa ficam recolhidos. A mesma entrega aplica uma paleta clara e
 centralizada ao app React e ao login inline, sem alterar os gates de sessão,
 RBAC ou qualquer escrita governada.
 
+A aba Projetos agora separa o Plano vindo do contexto declarado das Demandas.
+Checklist Markdown gera somente os estados explícitos feito e pendente; formato
+livre aparece como texto sanitizado e ausência aparece como indisponível. Um
+marco opcional `DASHBOARD_GO_LIVE_AT` desloca Tasks anteriores apenas para um
+histórico visual recolhido. Nenhuma Task ou AuditEvent é removida ou alterada.
+
 A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
 usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados
 pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a
