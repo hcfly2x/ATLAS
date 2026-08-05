@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 
 import {
+  ProjectConfigConflictError,
   ProjectConfigStore,
   ProjectConfigValidationError,
   type EditableProject,
@@ -81,6 +82,53 @@ function validProject(repository: string): EditableProject {
 }
 
 describe("ProjectConfigStore", () => {
+  it("creates a unique inactive project with conservative defaults", async () => {
+    const { path, store } = await fixture();
+
+    const created = await store.createDraft({ id: "new-project", name: "New Project" });
+
+    expect(created).toMatchObject({
+      before: null,
+      changed: true,
+      project: {
+        allowed_commands: [],
+        autonomy_level: 2,
+        id: "new-project",
+        name: "New Project",
+        policy: "least_privilege",
+        repository: null,
+        status: "draft",
+      },
+    });
+    expect(stringify(parse(await readFile(path, "utf8")))).not.toContain("active\n");
+    await expect(
+      store.createDraft({ id: "new-project", name: "Different Name" }),
+    ).rejects.toBeInstanceOf(ProjectConfigConflictError);
+  });
+
+  it("replays the same safe draft without duplicating it", async () => {
+    const { store } = await fixture();
+    await store.createDraft({ id: "new-project", name: "New Project" });
+
+    const replay = await store.createDraft({ id: "new-project", name: "New Project" });
+
+    expect(replay.changed).toBe(false);
+    expect((await store.list()).filter(({ id }) => id === "new-project")).toHaveLength(1);
+  });
+
+  it("rejects relative and non-git repository updates before persisting them", async () => {
+    const { store } = await fixture();
+    const created = await store.createDraft({ id: "new-project", name: "New Project" });
+
+    await expect(
+      store.put(
+        { ...created.project, repository: "relative/repository" },
+        store.configHash(created.project),
+      ),
+    ).rejects.toBeInstanceOf(ProjectConfigValidationError);
+    expect((await store.get("new-project"))?.repository).toBeNull();
+  });
+
   it("resolves defaults without mutating the source file", async () => {
     const { path, store } = await fixture([
       {

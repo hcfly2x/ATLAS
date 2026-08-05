@@ -23,7 +23,15 @@ import {
 import { PrismaTaskCoreStore } from "../core/prisma-task-core-store.js";
 
 export type DashboardCommandKind =
-  "cancel_task" | "create_demand" | "pause_task" | "resume_task" | "set_task_priority";
+  | "activate_project"
+  | "cancel_task"
+  | "create_demand"
+  | "create_project"
+  | "deactivate_project"
+  | "pause_task"
+  | "resume_task"
+  | "set_task_priority"
+  | "update_project_config";
 
 export class DashboardTaskPriorityConflictError extends Error {
   constructor() {
@@ -77,6 +85,12 @@ export interface DashboardCommandReceiptStore {
       taskStore: DashboardCommandTaskStore,
     ) => Promise<DashboardCommandOperationResult<Result>>,
   ): Promise<DashboardCommandReceiptResult<Result>>;
+  executeProject<Result>(
+    input: DashboardCommandReceiptClaim,
+    operation: (
+      transaction: Prisma.TransactionClient,
+    ) => Promise<DashboardCommandOperationResult<Result>>,
+  ): Promise<DashboardCommandReceiptResult<Result>>;
 }
 
 export class DashboardCommandOutcomeUnknownError extends Error {
@@ -87,11 +101,15 @@ export class DashboardCommandOutcomeUnknownError extends Error {
 }
 
 const commandMap: Record<DashboardCommandKind, DashboardCommandType> = {
+  activate_project: DashboardCommandType.ACTIVATE_PROJECT,
   cancel_task: DashboardCommandType.CANCEL_TASK,
   create_demand: DashboardCommandType.CREATE_DEMAND,
+  create_project: DashboardCommandType.CREATE_PROJECT,
+  deactivate_project: DashboardCommandType.DEACTIVATE_PROJECT,
   pause_task: DashboardCommandType.PAUSE_TASK,
   resume_task: DashboardCommandType.RESUME_TASK,
   set_task_priority: DashboardCommandType.SET_TASK_PRIORITY,
+  update_project_config: DashboardCommandType.UPDATE_PROJECT_CONFIG,
 };
 
 function snapshot(task: {
@@ -259,6 +277,66 @@ export class PrismaDashboardCommandReceiptStore implements DashboardCommandRecei
         });
 
         const result = await operation(new PrismaDashboardCommandTaskStore(transaction));
+        await transaction.dashboardCommandReceipt.update({
+          where: { idempotencyKey: input.idempotencyKey },
+          data: {
+            resultCode: result.resultCode,
+            resultPayload:
+              result.status === "accepted" ? json(result.resultPayload) : Prisma.JsonNull,
+            status:
+              result.status === "accepted"
+                ? DashboardCommandReceiptStatus.ACCEPTED
+                : DashboardCommandReceiptStatus.REJECTED,
+          },
+        });
+        return { ...result, idempotentReplay: false };
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        throw error;
+      }
+      const existing = await this.prisma.dashboardCommandReceipt.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (existing === null) throw error;
+      return this.replay<Result>(existing, input);
+    }
+  }
+
+  async executeProject<Result>(
+    input: DashboardCommandReceiptClaim,
+    operation: (
+      transaction: Prisma.TransactionClient,
+    ) => Promise<DashboardCommandOperationResult<Result>>,
+  ): Promise<DashboardCommandReceiptResult<Result>> {
+    return this.executeTransaction(input, operation);
+  }
+
+  private async executeTransaction<Result>(
+    input: DashboardCommandReceiptClaim,
+    operation: (
+      transaction: Prisma.TransactionClient,
+    ) => Promise<DashboardCommandOperationResult<Result>>,
+  ): Promise<DashboardCommandReceiptResult<Result>> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await transaction.dashboardCommandReceipt.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+        });
+        if (existing !== null) return this.replay<Result>(existing, input);
+        await transaction.dashboardCommandReceipt.create({
+          data: {
+            actor: AuditActor.USER,
+            commandType: commandMap[input.command],
+            correlationId: input.correlationId,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+            ...(input.requestedProject === undefined
+              ? {}
+              : { requestedProject: input.requestedProject }),
+          },
+        });
+        const result = await operation(transaction);
         await transaction.dashboardCommandReceipt.update({
           where: { idempotencyKey: input.idempotencyKey },
           data: {

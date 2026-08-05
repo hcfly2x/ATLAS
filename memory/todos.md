@@ -2,6 +2,15 @@
 
 ## Dashboard — após C2b1
 
+- Revisar empiricamente a gestão web de projetos: defaults de rascunho,
+  colisões, validação Git no Mac, hash concorrente, replay aceito/rejeitado,
+  sincronização YAML/Postgres e auditoria sanitizada.
+- Validar em staging Mac-servidor o fluxo criar → conectar → configurar →
+  ativar → criar demanda. Um coordinator remoto deve falhar fechado para paths
+  locais; clone por URL/worker hospedado continua não autorizado.
+- Decidir em fase própria estratégia de reconciliação operacional caso a escrita
+  atômica do YAML conclua e a transação PostgreSQL falhe repetidamente.
+
 - Declarar, sob revisão humana da configuração de cada projeto, o bloco
   `dashboard.plan` quando houver um documento de plano apropriado para exibição.
 - Definir `DASHBOARD_GO_LIVE_AT` no ambiente somente após conferir o marco real;
@@ -46,9 +55,8 @@
 - Definir em fase própria a entrega terminal de `answer_only` originada na
   Dashboard. Até existir um destino governado, o guard atual continua
   fail-closed e não trata `dashboard:owner` como destino Telegram.
-- Ativar no setup local apenas os projetos que o dono configurar com
-  repositório e comandos reais; a Dashboard não ativa projeto nem inventa
-  configuração.
+- Ativar apenas projetos que o dono configurar com repositório e comandos
+  reais; a Dashboard não inventa configuração nem credencial.
 - Manter merge, deploy e ações `always_human` sem exceção na Dashboard.
 
 ## Entrega durável — acompanhamento após a Fase B

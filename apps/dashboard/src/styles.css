@@ -204,6 +204,79 @@ a:focus-visible {
   font-weight: 700;
 }
 
+.new-project-card,
+.project-management-card {
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.new-project-card form,
+.project-management-card form {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-management-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.project-management-card > header,
+.management-actions,
+.retention-grid {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.project-management-card label,
+.new-project-card label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.project-management-card input,
+.project-management-card select,
+.new-project-card input {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: #fff;
+  color: var(--ink);
+}
+
+.retention-grid > * {
+  flex: 1;
+}
+
+.activation-issues {
+  padding: 1rem 1rem 1rem 2rem;
+  border-radius: 0.75rem;
+  background: #fff5e9;
+  color: #70400d;
+}
+
+.activation-ready {
+  color: #17613a;
+  font-weight: 800;
+}
+
+@media (max-width: 700px) {
+  .project-management-card > header,
+  .management-actions,
+  .retention-grid {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 a {
   color: inherit;
 }

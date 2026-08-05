@@ -427,6 +427,98 @@ export const dashboardSessionResponseSchema = z
   })
   .strict();
 
+export const dashboardProjectCommandSchema = z
+  .object({
+    args: z.array(z.string().min(1).max(255)).max(32),
+    executable: z.string().min(1).max(255),
+  })
+  .strict();
+
+export const dashboardProjectRetentionSchema = z
+  .object({
+    audit_events_expire: z.literal(false),
+    files_days: z.number().int().positive().max(3650),
+    logs_days: z.number().int().positive().max(3650),
+    sensitive_days: z.number().int().positive().max(3650).nullable(),
+  })
+  .strict();
+
+export const dashboardProjectConfigSchema = z
+  .object({
+    activationIssues: z.array(z.string().min(1).max(500)),
+    activationReady: z.boolean(),
+    allowedExecutables: z.array(z.string().min(1).max(255)),
+    autonomyLevel: z.number().int().min(0).max(3),
+    configHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    name: z.string().min(1).max(120),
+    repositoryConfigured: z.boolean(),
+    retention: dashboardProjectRetentionSchema,
+    status: z.enum(["draft", "active", "future", "archived"]),
+  })
+  .strict();
+
+export const dashboardProjectConfigsResponseSchema = z
+  .object({ projects: z.array(dashboardProjectConfigSchema) })
+  .strict();
+
+export const createDashboardProjectRequestSchema = z
+  .object({
+    confirmed: z.literal(true),
+    id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    idempotencyKey: z.string().uuid(),
+    name: z.string().trim().min(1).max(120),
+  })
+  .strict();
+
+export const updateDashboardProjectRequestSchema = z
+  .object({
+    allowedCommands: z.array(dashboardProjectCommandSchema).max(32).optional(),
+    autonomyLevel: z.number().int().min(0).max(3),
+    configHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    confirmed: z.literal(true),
+    idempotencyKey: z.string().uuid(),
+    name: z.string().trim().min(1).max(120),
+    repository: z.string().trim().min(1).max(4096).nullable().optional(),
+    retention: dashboardProjectRetentionSchema,
+  })
+  .strict();
+
+export const dashboardProjectStatusRequestSchema = z
+  .object({
+    configHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    confirmed: z.literal(true),
+    idempotencyKey: z.string().uuid(),
+  })
+  .strict();
+
+export const detectDashboardProjectRepositoryRequestSchema = z
+  .object({ repository: z.string().trim().min(1).max(4096) })
+  .strict();
+
+export const dashboardProjectRepositorySuggestionSchema = z
+  .object({
+    command: dashboardProjectCommandSchema.nullable(),
+    source: z.enum(["package.json", "pyproject.toml", "Makefile"]).nullable(),
+  })
+  .strict();
+
+export const dashboardProjectCommandResponseSchema = z
+  .object({
+    idempotentReplay: z.boolean(),
+    project: dashboardProjectConfigSchema,
+  })
+  .strict();
+
+export type DashboardProjectConfig = z.infer<typeof dashboardProjectConfigSchema>;
+export type CreateDashboardProjectRequest = z.infer<typeof createDashboardProjectRequestSchema>;
+export type DashboardProjectCommandResponse = z.infer<typeof dashboardProjectCommandResponseSchema>;
+export type DashboardProjectRepositorySuggestion = z.infer<
+  typeof dashboardProjectRepositorySuggestionSchema
+>;
+export type DashboardProjectStatusRequest = z.infer<typeof dashboardProjectStatusRequestSchema>;
+export type UpdateDashboardProjectRequest = z.infer<typeof updateDashboardProjectRequestSchema>;
+
 export const approvalDecisionRequestSchema = z
   .object({
     comment: z.string().trim().max(1_000).optional(),

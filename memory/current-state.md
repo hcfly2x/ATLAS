@@ -91,6 +91,14 @@ livre aparece como texto sanitizado e ausência aparece como indisponível. Um
 marco opcional `DASHBOARD_GO_LIVE_AT` desloca Tasks anteriores apenas para um
 histórico visual recolhido. Nenhuma Task ou AuditEvent é removida ou alterada.
 
+A gestão governada de projetos pela Dashboard está nesta entrega. Em
+`/dashboard/projetos/gerenciar`, o dono pode criar rascunho seguro, conectar e
+validar um repositório Git visível pelo Mac-servidor, configurar comandos,
+autonomia e retenção e ativar/desativar explicitamente. O fluxo usa C1, CSRF,
+recibo idempotente e auditoria sanitizada; `.atlas/projects.yaml` segue como
+fonte de verdade. ADR-031 permanece Proposto. Criar demanda continua no C2b1 e
+exige projeto ativo.
+
 A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
 usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados
 pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a

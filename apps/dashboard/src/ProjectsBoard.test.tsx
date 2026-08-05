@@ -56,7 +56,7 @@ describe("Projects board UI", () => {
     expect(screen.getByText("sem descrição")).toBeInTheDocument();
     expect(screen.getByText("Projeto ativo")).toBeInTheDocument();
     expect(screen.getByText("Projeto em rascunho")).toBeInTheDocument();
-    expect(screen.getByText(/Ative no setup local em \/setup/)).toBeInTheDocument();
+    expect(screen.getByText(/Configure e ative em Projetos → Gerenciar/)).toBeInTheDocument();
     expect(screen.getByText("Plano não disponível.")).toBeInTheDocument();
     expect(container.querySelector("details.project-history")).not.toHaveAttribute("open");
   });
