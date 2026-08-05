@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -35,6 +36,19 @@ describe("dashboard project context", () => {
 
     expect([...contexts.descriptions]).toEqual([]);
     expect([...contexts.plans]).toEqual([]);
+  });
+
+  it("loads the declared ATLAS roadmap from the versioned project context", async () => {
+    const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
+    const contexts = await loadDashboardProjectContexts(
+      join(repositoryRoot, ".atlas/projects.yaml"),
+    );
+    const atlasPlan = contexts.plans.get("atlas");
+
+    expect(atlasPlan).toContain("## Motor (bastidores)");
+    expect(atlasPlan).toContain("- [x] Plano + histórico por projeto");
+    expect(atlasPlan).toContain("## Operação (go-live)");
+    expect(atlasPlan).toContain("- [ ] Primeira demanda real de teste");
   });
 });
 

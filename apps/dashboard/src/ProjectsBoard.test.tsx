@@ -37,6 +37,11 @@ describe("Projects board UI", () => {
     expect(screen.getByText("Publicar a autenticação")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { name: "Plano" })).toHaveLength(2);
     expect(screen.getByText("Base operacional do ATLAS")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Motor" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Operação" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "Progresso do plano: 2 de 3 etapas concluídas" }),
+    ).toHaveAttribute("value", "2");
     expect(screen.getAllByText("Feito")).toHaveLength(2);
     expect(screen.getByText("Pendente")).toBeInTheDocument();
     expect(screen.getByText("Histórico (pré–go-live)")).toBeInTheDocument();
@@ -59,6 +64,41 @@ describe("Projects board UI", () => {
     expect(screen.getByText(/Configure e ative em Projetos → Gerenciar/)).toBeInTheDocument();
     expect(screen.getByText("Plano não disponível.")).toBeInTheDocument();
     expect(container.querySelector("details.project-history")).not.toHaveAttribute("open");
+  });
+
+  it("renders legacy checklist and text plans without changing their meaning", () => {
+    const base = projectsBoardFixture.projects[0];
+    if (base === undefined) throw new Error("fixture must contain a project");
+    const legacyPlans: ProjectsBoardResponse = {
+      ...projectsBoardFixture,
+      projects: [
+        {
+          ...base,
+          id: "legacy-checklist",
+          plan: {
+            completedCount: 1,
+            format: "checklist",
+            items: [{ id: "legacy-item", label: "Checklist legado", status: "completed" }],
+            pendingCount: 0,
+            status: "available",
+          },
+        },
+        {
+          ...base,
+          id: "text-plan",
+          plan: { format: "text", status: "available", text: "Plano em texto livre" },
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <ProjectsBoard data={legacyPlans} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Checklist legado")).toBeInTheDocument();
+    expect(screen.getByText("Plano em texto livre")).toBeInTheDocument();
   });
 
   it("keeps an inactive project collapsed even if historical data reports active work", () => {

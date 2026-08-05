@@ -145,6 +145,32 @@ const projectPlanSchema = z.union([
   z
     .object({
       completedCount: z.number().int().nonnegative(),
+      format: z.literal("roadmap"),
+      pendingCount: z.number().int().nonnegative(),
+      sections: z.array(
+        z
+          .object({
+            completedCount: z.number().int().nonnegative(),
+            items: z.array(
+              z
+                .object({
+                  id: z.string().min(1).max(80),
+                  label: z.string().min(1).max(240),
+                  status: z.enum(["completed", "pending"]),
+                })
+                .strict(),
+            ),
+            pendingCount: z.number().int().nonnegative(),
+            title: z.string().min(1).max(120),
+          })
+          .strict(),
+      ),
+      status: z.literal("available"),
+    })
+    .strict(),
+  z
+    .object({
+      completedCount: z.number().int().nonnegative(),
       format: z.literal("checklist"),
       items: z.array(
         z

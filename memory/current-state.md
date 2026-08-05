@@ -102,6 +102,13 @@ aborta o startup sem alterar o banco. Projeções ativas ausentes do YAML são
 arquivadas para não ampliar elegibilidade. ADR-031 permanece Proposto. Criar
 demanda continua no C2b1 e exige projeto ativo.
 
+Nesta entrega, títulos `##` no Plano declarado passam a formar um roadmap com
+seções, contagens exatas e uma barra baseada somente na razão feito/total dos
+checklists. O projeto `atlas` declara em `.atlas/projects.yaml` seu roadmap
+curado de Motor, Escritório, Operação e Objetivo. O read-model não consulta
+Tasks nem varre repositórios para deduzir progresso; atualizar o plano continua
+sendo uma edição explícita do contexto protegido.
+
 A C2b1 está implementada sob o ADR-028 Proposto. Criar demanda pela Dashboard
 usa o mesmo intake, `TaskCoreStore.createTask` e disparo do supervisor usados
 pelo Telegram, com origem fixa `dashboard:owner`. Cancelar usa somente a

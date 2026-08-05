@@ -790,6 +790,74 @@ a {
   color: var(--accent-strong);
 }
 
+.project-roadmap {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-roadmap-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 40%);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid var(--accent-line);
+  border-radius: 0.8rem;
+  background: var(--accent-soft);
+}
+
+.project-roadmap-progress > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.project-roadmap-progress strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.project-roadmap-progress span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.project-roadmap-progress progress {
+  width: 100%;
+  height: 0.75rem;
+  accent-color: var(--accent-strong);
+}
+
+.project-roadmap-sections {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.project-roadmap-section {
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface-soft);
+}
+
+.project-roadmap-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.project-roadmap-section h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.project-roadmap-section > header span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
 .project-plan-text,
 .project-plan-unavailable,
 .project-history > p {
@@ -1861,6 +1929,12 @@ a {
   .fact-item:nth-child(4) {
     padding-left: 0;
     border-left: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  .project-roadmap-progress {
+    grid-template-columns: 1fr;
   }
 }
 

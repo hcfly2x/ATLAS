@@ -103,7 +103,23 @@ const projectsBoardFixture = {
       id: "atlas",
       isActive: true,
       name: "ATLAS",
-      plan: { status: "unavailable" },
+      plan: {
+        completedCount: 1,
+        format: "roadmap",
+        pendingCount: 1,
+        sections: [
+          {
+            completedCount: 1,
+            items: [
+              { id: "plan-base", label: "Base concluída", status: "completed" },
+              { id: "plan-next", label: "Próxima etapa", status: "pending" },
+            ],
+            pendingCount: 1,
+            title: "Motor",
+          },
+        ],
+        status: "available",
+      },
     },
   ],
 };
@@ -117,6 +133,29 @@ describe("@atlas/contracts dashboard schemas", () => {
       demandWorkspaceFixture,
     );
     expect(projectsBoardResponseSchema.parse(projectsBoardFixture)).toEqual(projectsBoardFixture);
+  });
+
+  it("keeps every declared project plan format strict and compatible", () => {
+    const project = projectsBoardFixture.projects[0];
+    if (project === undefined) throw new Error("fixture must contain a project");
+    for (const plan of [
+      {
+        completedCount: 1,
+        format: "checklist" as const,
+        items: [{ id: "legacy-item", label: "Etapa legada", status: "completed" as const }],
+        pendingCount: 0,
+        status: "available" as const,
+      },
+      { format: "text" as const, status: "available" as const, text: "Plano livre" },
+      { status: "unavailable" as const },
+    ]) {
+      expect(
+        projectsBoardResponseSchema.parse({
+          ...projectsBoardFixture,
+          projects: [{ ...project, plan }],
+        }),
+      ).toBeDefined();
+    }
   });
 
   it("rejects unexpected fields at both public boundaries", () => {
@@ -139,6 +178,20 @@ describe("@atlas/contracts dashboard schemas", () => {
           {
             ...projectsBoardFixture.projects[0],
             messageText: "must-not-cross-the-contract",
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      projectsBoardResponseSchema.parse({
+        ...projectsBoardFixture,
+        projects: [
+          {
+            ...projectsBoardFixture.projects[0],
+            plan: {
+              ...projectsBoardFixture.projects[0]?.plan,
+              payload: "must-not-cross-the-contract",
+            },
           },
         ],
       }),
