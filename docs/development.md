@@ -42,6 +42,13 @@ pnpm --filter @atlas/coordinator db:seed
 pnpm test:integration
 ```
 
+Os testes de integração criam projetos e outros registros efêmeros. Execute-os
+somente em banco isolado e descartável, nunca no banco operacional. A
+reconciliação usa `.atlas/projects.yaml` como autoridade e pode arquivar no boot
+qualquer projeção de teste que não esteja declarada nesse arquivo. O script
+oficial também serializa os arquivos de integração para que a reconciliação de
+uma fixture não altere outra que ainda esteja em execução.
+
 Nenhuma credencial real deve ser adicionada ao `.env`. O arquivo `.env.example` contém apenas valores locais de desenvolvimento.
 
 ## Pilot Setup Wizard

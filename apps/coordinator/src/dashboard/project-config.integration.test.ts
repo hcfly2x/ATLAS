@@ -22,6 +22,7 @@ import {
   ProjectProjectionReconciliationError,
   reconcileProjectProjectionAtStartup,
 } from "./project-projection-reconciler.js";
+import { DashboardService } from "./service.js";
 import {
   DashboardTaskCommandService,
   type DashboardTaskCommandError,
@@ -310,31 +311,43 @@ describe("Dashboard project management with PostgreSQL", () => {
     expect(JSON.stringify(audit)).not.toContain('"args"');
   });
 
-  it("reconciles the complete YAML projection at boot and archives an active undeclared row", async () => {
-    const existingActive = await prisma.project.findMany({
-      where: { status: ProjectStatus.ACTIVE },
+  it("reconciles the complete YAML projection and archives every undeclared status without deleting rows", async () => {
+    const existingProjection = await prisma.project.findMany({
+      where: { status: { not: ProjectStatus.ARCHIVED } },
+      select: { id: true, status: true },
     });
     const root = await mkdtemp(join(tmpdir(), "atlas-project-boot-integration-"));
     directories.push(root);
     const repository = join(root, "boot-repository-sensitive-value");
     await mkdir(join(repository, ".git"), { recursive: true });
-    const projectId = `project-${randomUUID()}`;
-    const undeclaredProjectId = `project-${randomUUID()}`;
-    const reconciliationStartedAt = new Date();
-    const desired = configuredProject({
-      id: projectId,
-      name: "Boot Project",
+    const declaredActiveId = `project-${randomUUID()}`;
+    const declaredDraftId = `project-${randomUUID()}`;
+    const undeclaredIds = [
+      { id: `project-${randomUUID()}`, status: ProjectStatus.DRAFT },
+      { id: `project-${randomUUID()}`, status: ProjectStatus.ACTIVE },
+      { id: `project-${randomUUID()}`, status: ProjectStatus.FUTURE },
+    ] as const;
+    const desiredActive = configuredProject({
+      id: declaredActiveId,
+      name: "Declared Active Project",
       repository,
       status: "active",
     });
-    const { reconciler } = await serviceFixture([desired]);
+    const desiredDraft = configuredProject({
+      id: declaredDraftId,
+      name: "Declared Draft Project",
+      repository,
+      status: "draft",
+    });
+    const declaredIds = new Set([declaredActiveId, declaredDraftId]);
+    const { reconciler } = await serviceFixture([desiredActive, desiredDraft]);
     await prisma.project.upsert({
-      where: { id: projectId },
+      where: { id: declaredActiveId },
       create: {
         allowedCommands: [],
         autonomyLevel: 0,
         dataClassification: "internal",
-        id: projectId,
+        id: declaredActiveId,
         name: "Stale Projection",
         policy: "least_privilege",
         protectedPathsProfile: "project_default",
@@ -346,46 +359,100 @@ describe("Dashboard project management with PostgreSQL", () => {
       },
       update: { autonomyLevel: 0, repository: null, status: ProjectStatus.DRAFT },
     });
-    await prisma.project.create({
-      data: {
+    await prisma.project.upsert({
+      where: { id: declaredDraftId },
+      create: {
         allowedCommands: [],
-        autonomyLevel: 4,
+        autonomyLevel: 0,
         dataClassification: "internal",
-        id: undeclaredProjectId,
-        name: "Undeclared Active Project",
+        id: declaredDraftId,
+        name: "Stale Declared Draft",
         policy: "least_privilege",
         protectedPathsProfile: "project_default",
         repository: null,
         requiredTools: {},
         retention: {},
-        risk: "critical",
+        risk: "low",
         status: ProjectStatus.ACTIVE,
       },
+      update: { autonomyLevel: 0, repository: null, status: ProjectStatus.ACTIVE },
     });
+    for (const project of undeclaredIds) {
+      await prisma.project.create({
+        data: {
+          allowedCommands: [{ args: ["SECRET_ARGUMENT"], executable: "pnpm" }],
+          autonomyLevel: 4,
+          dataClassification: "internal",
+          id: project.id,
+          name: `Undeclared ${project.status}`,
+          policy: "least_privilege",
+          protectedPathsProfile: "project_default",
+          repository: "/tmp/SECRET_REPOSITORY_PATH",
+          requiredTools: {},
+          retention: {
+            audit_events_expire: false,
+            files_days: 30,
+            logs_days: 30,
+            sensitive_days: 7,
+          },
+          risk: "critical",
+          status: project.status,
+        },
+      });
+    }
+    const retainedTask = await prisma.task.create({
+      data: {
+        idempotencyKey: `projection-retained-${randomUUID()}`,
+        origin: "integration-test",
+        originalMessage: "synthetic projection retention fixture",
+        projectId: undeclaredIds[0].id,
+      },
+    });
+    const beforeCounts = {
+      audits: await prisma.auditEvent.count(),
+      projects: await prisma.project.count(),
+      tasks: await prisma.task.count(),
+    };
 
     try {
       const first = await reconcileProjectProjectionAtStartup(reconciler, prisma, () => undefined);
       const trackedAuditCount = await prisma.auditEvent.count({
-        where: { projectId: { in: [projectId, undeclaredProjectId] } },
+        where: { projectId: { in: [...declaredIds, ...undeclaredIds.map(({ id }) => id)] } },
       });
       const second = await reconcileProjectProjectionAtStartup(reconciler, prisma, () => undefined);
 
-      expect(first.archivedUndeclaredCount).toBeGreaterThanOrEqual(1);
-      expect(second.archivedUndeclaredCount).toBeGreaterThanOrEqual(0);
+      expect(first.archivedUndeclaredCount).toBeGreaterThanOrEqual(undeclaredIds.length);
+      expect(second.archivedUndeclaredCount).toBe(0);
       expect(
         await prisma.auditEvent.count({
-          where: { projectId: { in: [projectId, undeclaredProjectId] } },
+          where: { projectId: { in: [...declaredIds, ...undeclaredIds.map(({ id }) => id)] } },
         }),
       ).toBe(trackedAuditCount);
-      expect(await prisma.project.findUniqueOrThrow({ where: { id: projectId } })).toMatchObject({
-        allowedCommands: desired.allowed_commands,
+      expect(
+        await prisma.project.findUniqueOrThrow({ where: { id: declaredActiveId } }),
+      ).toMatchObject({
+        allowedCommands: desiredActive.allowed_commands,
         autonomyLevel: 2,
         repository,
         status: ProjectStatus.ACTIVE,
       });
       expect(
-        (await prisma.project.findUniqueOrThrow({ where: { id: undeclaredProjectId } })).status,
-      ).toBe(ProjectStatus.ARCHIVED);
+        await prisma.project.findUniqueOrThrow({ where: { id: declaredDraftId } }),
+      ).toMatchObject({ status: ProjectStatus.DRAFT });
+      for (const project of undeclaredIds) {
+        expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).status).toBe(
+          ProjectStatus.ARCHIVED,
+        );
+      }
+
+      const board = await new DashboardService(prisma, {
+        declaredProjectIds: declaredIds,
+      }).projectsBoard();
+      expect(board.projects.map(({ id }) => id).sort()).toEqual([...declaredIds].sort());
+      expect(await prisma.project.count()).toBe(beforeCounts.projects);
+      expect(await prisma.task.count()).toBe(beforeCounts.tasks);
+      expect(await prisma.task.findUnique({ where: { id: retainedTask.id } })).not.toBeNull();
+      expect(await prisma.auditEvent.count()).toBeGreaterThanOrEqual(beforeCounts.audits);
 
       const taskCommands = new DashboardTaskCommandService(
         new TaskIntakeService({ taskStore: new PrismaTaskCoreStore(prisma) }),
@@ -396,7 +463,7 @@ describe("Dashboard project management with PostgreSQL", () => {
           {
             idempotencyKey: randomUUID(),
             objective: "Synthetic integration objective",
-            projectId: undeclaredProjectId,
+            projectId: undeclaredIds[1].id,
           },
           randomUUID(),
         ),
@@ -406,30 +473,27 @@ describe("Dashboard project management with PostgreSQL", () => {
         }),
       );
       const audit = await prisma.auditEvent.findMany({
-        where: { projectId: { in: [projectId, undeclaredProjectId] } },
+        where: { projectId: { in: undeclaredIds.map(({ id }) => id) } },
       });
       expect(JSON.stringify(audit)).not.toContain(repository);
-      expect(JSON.stringify(audit)).not.toContain("test-sensitive-value");
+      expect(JSON.stringify(audit)).not.toContain("SECRET_ARGUMENT");
+      expect(JSON.stringify(audit)).not.toContain("SECRET_REPOSITORY_PATH");
+      expect(
+        audit.some(
+          (event) =>
+            event.action === "project.projection.archived_undeclared" &&
+            JSON.stringify(event.payload).includes("absent_from_projects_yaml"),
+        ),
+      ).toBe(true);
     } finally {
-      const concurrentlyArchived = await prisma.auditEvent.findMany({
-        where: {
-          action: "project.projection.archived_undeclared",
-          createdAt: { gte: reconciliationStartedAt },
-          projectId: { not: undeclaredProjectId },
-        },
-        select: { projectId: true },
-      });
-      await prisma.project.updateMany({
-        where: {
-          id: {
-            in: [
-              ...existingActive.map(({ id }) => id),
-              ...concurrentlyArchived.map(({ projectId: id }) => id),
-            ],
-          },
-        },
-        data: { status: ProjectStatus.ACTIVE },
-      });
+      await Promise.all(
+        existingProjection.map((project) =>
+          prisma.project.updateMany({
+            where: { id: project.id },
+            data: { status: project.status },
+          }),
+        ),
+      );
     }
   });
 
@@ -440,22 +504,30 @@ describe("Dashboard project management with PostgreSQL", () => {
       directories.push(root);
       const configPath = join(root, "projects-sensitive-name.yaml");
       if (kind === "invalid") await writeFile(configPath, "projects: [SECRET_INVALID_YAML");
-      const projectId = `project-${randomUUID()}`;
-      await prisma.project.create({
-        data: {
-          allowedCommands: [],
-          autonomyLevel: 2,
-          dataClassification: "internal",
-          id: projectId,
-          name: "Preserved Active Project",
-          policy: "least_privilege",
-          protectedPathsProfile: "project_default",
-          repository: null,
-          requiredTools: {},
-          retention: {},
-          risk: "moderate",
-          status: ProjectStatus.ACTIVE,
-        },
+      const preservedProjects = [ProjectStatus.ACTIVE, ProjectStatus.DRAFT].map((status) => ({
+        id: `project-${randomUUID()}`,
+        status,
+      }));
+      for (const project of preservedProjects) {
+        await prisma.project.create({
+          data: {
+            allowedCommands: [],
+            autonomyLevel: 2,
+            dataClassification: "internal",
+            id: project.id,
+            name: `Preserved ${project.status} Project`,
+            policy: "least_privilege",
+            protectedPathsProfile: "project_default",
+            repository: null,
+            requiredTools: {},
+            retention: {},
+            risk: "moderate",
+            status: project.status,
+          },
+        });
+      }
+      const beforeAuditCount = await prisma.auditEvent.count({
+        where: { projectId: { in: preservedProjects.map(({ id }) => id) } },
       });
       const failures: string[] = [];
 
@@ -472,9 +544,16 @@ describe("Dashboard project management with PostgreSQL", () => {
 
       expect(failure).toBeInstanceOf(ProjectProjectionReconciliationError);
       expect(failures).toEqual(["PROJECT_PROJECTION_RECONCILIATION_FAILED"]);
-      expect((await prisma.project.findUniqueOrThrow({ where: { id: projectId } })).status).toBe(
-        ProjectStatus.ACTIVE,
-      );
+      for (const project of preservedProjects) {
+        expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).status).toBe(
+          project.status,
+        );
+      }
+      expect(
+        await prisma.auditEvent.count({
+          where: { projectId: { in: preservedProjects.map(({ id }) => id) } },
+        }),
+      ).toBe(beforeAuditCount);
       expect(JSON.stringify({ failure, failures })).not.toContain(configPath);
       expect(JSON.stringify({ failure, failures })).not.toContain("SECRET_INVALID_YAML");
     },

@@ -8,6 +8,11 @@
 - Revisar empiricamente a reconciliação de boot e retry: YAML à frente converge,
   intenção divergente conflita, YAML inválido aborta sem mutação e projeção ativa
   ausente é arquivada sem vazar path ou argumentos.
+- Revisar empiricamente a convergência total da projeção: `DRAFT|ACTIVE|FUTURE`
+  ausente do YAML vira `ARCHIVED`, a board lista exatamente os IDs declarados e
+  nenhuma linha de Project, Task ou AuditEvent é apagada.
+- Executar toda suíte PostgreSQL somente em banco isolado e descartável; nunca
+  apontar testes de integração para o banco operacional.
 - Validar em staging Mac-servidor o fluxo criar → conectar → configurar →
   ativar → criar demanda. Um coordinator remoto deve falhar fechado para paths
   locais; clone por URL/worker hospedado continua não autorizado.

@@ -766,7 +766,27 @@ describe("DashboardService", () => {
     });
   });
 
+  it("limits the operational project list to active IDs declared by the YAML context", async () => {
+    const findMany = vi.fn(() => Promise.resolve([{ id: "atlas", name: "ATLAS" }]));
+    const service = new DashboardService({ project: { findMany } } as never, {
+      declaredProjectIds: new Set(["atlas", "course-platform"]),
+    });
+
+    await expect(service.projects()).resolves.toEqual({
+      projects: [{ id: "atlas", name: "ATLAS" }],
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: ["atlas", "course-platform"] },
+          status: "ACTIVE",
+        },
+      }),
+    );
+  });
+
   it("builds a safe read-only Projects board and never returns raw demand fields", async () => {
+    let projectQuery: unknown;
     let taskQuery: unknown;
     const write = vi.fn(() => {
       throw new Error("Projects board attempted a write");
@@ -774,12 +794,14 @@ describe("DashboardService", () => {
     const prisma = {
       project: {
         create: write,
-        findMany: () =>
-          Promise.resolve([
+        findMany: (input: unknown) => {
+          projectQuery = input;
+          return Promise.resolve([
             { id: "atlas", name: "ATLAS", status: "ACTIVE" },
             { id: "future", name: "Futuro", status: "FUTURE" },
             { id: "missing", name: "Sem plano", status: "DRAFT" },
-          ]),
+          ]);
+        },
         update: write,
       },
       task: {
@@ -830,6 +852,7 @@ describe("DashboardService", () => {
       },
     };
     const service = new DashboardService(prisma as never, {
+      declaredProjectIds: new Set(["atlas", "future", "missing"]),
       goLiveAt: new Date("2026-08-04T10:00:00.000Z"),
       now: () => new Date("2026-08-04T12:00:00.000Z"),
       projectDescriptions: new Map([
@@ -886,7 +909,14 @@ describe("DashboardService", () => {
     });
     expect(board.projects[2]?.plan).toEqual({ status: "unavailable" });
     expect(write).not.toHaveBeenCalled();
+    expect(projectQuery).toMatchObject({
+      where: {
+        id: { in: ["atlas", "future", "missing"] },
+        status: { not: "ARCHIVED" },
+      },
+    });
     expect(taskQuery).toMatchObject({
+      where: { projectId: { in: ["atlas", "future", "missing"] } },
       select: {
         activeSpecification: { select: { payload: true } },
         createdAt: true,
