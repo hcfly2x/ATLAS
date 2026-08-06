@@ -92,6 +92,10 @@ elegibilidade visual; por isso um projeto criado pela Dashboard aparece sem
 reiniciar o coordinator e uma projeção arquivada pelo reconciliador de boot
 permanece oculta.
 
+O coordinator compilado no Render resolve `.atlas/projects.yaml` a partir da
+raiz do repositório quando o caminho relativo do código-fonte não existe. Isso
+mantém a reconciliação de boot e o Plano declarado disponíveis após o deploy.
+
 A aba Projetos agora separa o Plano vindo do contexto declarado das Demandas.
 Checklist Markdown gera somente os estados explícitos feito e pendente; formato
 livre aparece como texto sanitizado e ausência aparece como indisponível. Um

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — inicialização do coordinator no Render
+
+- O caminho padrão de `.atlas/projects.yaml` agora resolve a raiz do repositório
+  também no JavaScript compilado. Isso preserva o contexto declarado da
+  Dashboard e permite a reconciliação de boot no Render, sem alterar YAML,
+  schema ou governança.
+
 ## Unreleased — Reconciliação da projeção de projetos
 
 - A reconciliação passa a arquivar toda projeção `DRAFT|ACTIVE|FUTURE` ausente
