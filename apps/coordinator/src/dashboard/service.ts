@@ -382,7 +382,6 @@ export class DashboardService {
     private readonly prisma: PrismaClient,
     private readonly options: {
       readonly deliverySlaMs?: number;
-      readonly declaredProjectIds?: ReadonlySet<string>;
       readonly goLiveAt?: Date;
       readonly now?: () => Date;
       readonly projectDescriptions?: ReadonlyMap<string, string>;
@@ -405,10 +404,8 @@ export class DashboardService {
     return this.options.deliverySlaMs ?? 5 * 60_000;
   }
 
-  private declaredProjectFilter() {
-    return this.options.declaredProjectIds === undefined
-      ? {}
-      : { id: { in: [...this.options.declaredProjectIds].sort() } };
+  private operationalProjectFilter() {
+    return { status: { not: ProjectStatus.ARCHIVED } };
   }
 
   private async safeBlock<T>(loader: () => Promise<readonly T[]>): Promise<DashboardBlock<T>> {
@@ -422,6 +419,7 @@ export class DashboardService {
   private async terminalWithoutDelivery(projectId?: string) {
     const tasks = await this.prisma.task.findMany({
       where: {
+        project: this.operationalProjectFilter(),
         ...(projectId === undefined ? {} : { projectId }),
         origin: { startsWith: "telegram:" },
         state: { in: [TaskState.COMPLETED, TaskState.FAILED] },
@@ -458,11 +456,15 @@ export class DashboardService {
     const [grouped, overdue, missing] = await Promise.all([
       this.prisma.resultDeliveryOutbox.groupBy({
         by: ["status"],
-        where: projectId === undefined ? {} : { projectId },
+        where: {
+          project: this.operationalProjectFilter(),
+          ...(projectId === undefined ? {} : { projectId }),
+        },
         _count: { _all: true },
       }),
       this.prisma.resultDeliveryOutbox.count({
         where: {
+          project: this.operationalProjectFilter(),
           ...(projectId === undefined ? {} : { projectId }),
           createdAt: { lte: cutoff },
           status: DeliveryOutboxStatus.PENDING,
@@ -862,8 +864,7 @@ export class DashboardService {
     const [projects, grouped, llm, codex, delivery] = await Promise.all([
       this.prisma.project.findMany({
         where: {
-          ...this.declaredProjectFilter(),
-          status: { not: ProjectStatus.ARCHIVED },
+          ...this.operationalProjectFilter(),
           ...(projectId === undefined ? {} : { id: projectId }),
         },
         orderBy: { name: "asc" },
@@ -871,12 +872,16 @@ export class DashboardService {
       }),
       this.prisma.task.groupBy({
         by: ["state"],
-        where: projectId === undefined ? {} : { projectId },
+        where: {
+          project: this.operationalProjectFilter(),
+          ...(projectId === undefined ? {} : { projectId }),
+        },
         _count: { _all: true },
       }),
       this.prisma.llmCall.aggregate({
         where: {
           createdAt: { gte: since },
+          project: this.operationalProjectFilter(),
           ...(projectId === undefined ? {} : { projectId }),
         },
         _sum: { estimatedCostUsd: true },
@@ -884,6 +889,7 @@ export class DashboardService {
       this.prisma.codexUsage.aggregate({
         where: {
           createdAt: { gte: since },
+          project: this.operationalProjectFilter(),
           ...(projectId === undefined ? {} : { projectId }),
         },
         _sum: { estimatedCostUsd: true },
@@ -1287,7 +1293,7 @@ export class DashboardService {
 
   async projects() {
     const projects = await this.prisma.project.findMany({
-      where: { ...this.declaredProjectFilter(), status: "ACTIVE" },
+      where: this.operationalProjectFilter(),
       orderBy: [{ name: "asc" }, { id: "asc" }],
       select: { id: true, name: true },
     });
@@ -1298,17 +1304,13 @@ export class DashboardService {
     const [projects, tasks] = await Promise.all([
       this.prisma.project.findMany({
         where: {
-          ...this.declaredProjectFilter(),
-          status: { not: ProjectStatus.ARCHIVED },
+          ...this.operationalProjectFilter(),
         },
         orderBy: [{ name: "asc" }, { id: "asc" }],
         select: { id: true, name: true, status: true },
       }),
       this.prisma.task.findMany({
-        where:
-          this.options.declaredProjectIds === undefined
-            ? {}
-            : { projectId: { in: [...this.options.declaredProjectIds].sort() } },
+        where: { project: this.operationalProjectFilter() },
         orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
         take: 500,
         select: {

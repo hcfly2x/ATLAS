@@ -5,9 +5,10 @@
 - A reconciliação passa a arquivar toda projeção `DRAFT|ACTIVE|FUTURE` ausente
   de `.atlas/projects.yaml`, com motivo estável e evidência sanitizada. Linhas de
   Project, Task e AuditEvent nunca são apagadas.
-- A board e as listagens operacionais filtram pelos IDs declarados no YAML e
-  excluem `ARCHIVED`, evitando que fixtures ou projeções órfãs apareçam como
-  projetos reais.
+- A board, o overview e a lista operacional consultam a projeção PostgreSQL a
+  cada leitura e excluem `ARCHIVED`. Assim, uma criação/ativação já projetada
+  aparece sem restart, enquanto as projeções órfãs arquivadas no boot continuam
+  ocultas.
 - Um reconciliador único ressincroniza a projeção PostgreSQL quando um retry
   encontra a mesma intenção já aplicada em `.atlas/projects.yaml`.
 - No startup, o coordinator valida o YAML inteiro antes de escrever, faz upsert

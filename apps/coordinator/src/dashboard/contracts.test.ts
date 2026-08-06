@@ -83,7 +83,6 @@ describe("DashboardService public contracts", () => {
 
   it("serializes the Projects board in the shared contract", async () => {
     const service = new DashboardService(projectsBoardPrisma as never, {
-      declaredProjectIds: new Set(["atlas"]),
       now: () => new Date("2026-08-04T12:00:00.000Z"),
     });
     const wireResponse = JSON.parse(JSON.stringify(await service.projectsBoard())) as unknown;
