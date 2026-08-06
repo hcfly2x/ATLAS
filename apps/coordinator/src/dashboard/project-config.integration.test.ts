@@ -110,6 +110,36 @@ function configuredProject(input: {
 }
 
 describe("Dashboard project management with PostgreSQL", () => {
+  it("projects a newly created YAML draft immediately and excludes it after archival", async () => {
+    const { service, store } = await serviceFixture();
+    const projectId = `project-${randomUUID()}`;
+    const dashboard = new DashboardService(prisma);
+
+    await service.create(
+      {
+        confirmed: true,
+        id: projectId,
+        idempotencyKey: randomUUID(),
+        name: "Runtime YAML Project",
+      },
+      randomUUID(),
+    );
+
+    expect((await store.get(projectId))?.status).toBe("draft");
+    expect((await dashboard.projectsBoard()).projects.map(({ id }) => id)).toContain(projectId);
+    expect((await dashboard.overview()).projects.map(({ id }) => id)).toContain(projectId);
+    expect((await dashboard.projects()).projects.map(({ id }) => id)).toContain(projectId);
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: ProjectStatus.ARCHIVED },
+    });
+
+    expect((await dashboard.projectsBoard()).projects.map(({ id }) => id)).not.toContain(projectId);
+    expect((await dashboard.overview()).projects.map(({ id }) => id)).not.toContain(projectId);
+    expect((await dashboard.projects()).projects.map(({ id }) => id)).not.toContain(projectId);
+  });
+
   it("repairs a missing projection when create is retried after YAML already committed", async () => {
     const { service, store } = await serviceFixture();
     const projectId = `project-${randomUUID()}`;
@@ -445,10 +475,11 @@ describe("Dashboard project management with PostgreSQL", () => {
         );
       }
 
-      const board = await new DashboardService(prisma, {
-        declaredProjectIds: declaredIds,
-      }).projectsBoard();
-      expect(board.projects.map(({ id }) => id).sort()).toEqual([...declaredIds].sort());
+      const board = await new DashboardService(prisma).projectsBoard();
+      expect(board.projects.map(({ id }) => id)).toEqual(expect.arrayContaining([...declaredIds]));
+      expect(board.projects.map(({ id }) => id)).not.toEqual(
+        expect.arrayContaining(undeclaredIds.map(({ id }) => id)),
+      );
       expect(await prisma.project.count()).toBe(beforeCounts.projects);
       expect(await prisma.task.count()).toBe(beforeCounts.tasks);
       expect(await prisma.task.findUnique({ where: { id: retainedTask.id } })).not.toBeNull();

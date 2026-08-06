@@ -766,11 +766,9 @@ describe("DashboardService", () => {
     });
   });
 
-  it("limits the operational project list to active IDs declared by the YAML context", async () => {
+  it("lists every non-archived project from the current projection", async () => {
     const findMany = vi.fn(() => Promise.resolve([{ id: "atlas", name: "ATLAS" }]));
-    const service = new DashboardService({ project: { findMany } } as never, {
-      declaredProjectIds: new Set(["atlas", "course-platform"]),
-    });
+    const service = new DashboardService({ project: { findMany } } as never);
 
     await expect(service.projects()).resolves.toEqual({
       projects: [{ id: "atlas", name: "ATLAS" }],
@@ -778,8 +776,7 @@ describe("DashboardService", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          id: { in: ["atlas", "course-platform"] },
-          status: "ACTIVE",
+          status: { not: "ARCHIVED" },
         },
       }),
     );
@@ -852,7 +849,6 @@ describe("DashboardService", () => {
       },
     };
     const service = new DashboardService(prisma as never, {
-      declaredProjectIds: new Set(["atlas", "future", "missing"]),
       goLiveAt: new Date("2026-08-04T10:00:00.000Z"),
       now: () => new Date("2026-08-04T12:00:00.000Z"),
       projectDescriptions: new Map([
@@ -911,12 +907,11 @@ describe("DashboardService", () => {
     expect(write).not.toHaveBeenCalled();
     expect(projectQuery).toMatchObject({
       where: {
-        id: { in: ["atlas", "future", "missing"] },
         status: { not: "ARCHIVED" },
       },
     });
     expect(taskQuery).toMatchObject({
-      where: { projectId: { in: ["atlas", "future", "missing"] } },
+      where: { project: { status: { not: "ARCHIVED" } } },
       select: {
         activeSpecification: { select: { payload: true } },
         createdAt: true,

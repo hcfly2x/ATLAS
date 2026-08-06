@@ -77,7 +77,6 @@ const dashboardAuth =
 const dashboardProjectContexts =
   dashboardAuth === undefined
     ? {
-        declaredProjectIds: new Set<string>(),
         descriptions: new Map<string, string>(),
         plans: new Map<string, string>(),
       }
@@ -90,7 +89,6 @@ const dashboardService =
     ? undefined
     : new DashboardService(prisma, {
         deliverySlaMs,
-        declaredProjectIds: dashboardProjectContexts.declaredProjectIds,
         ...(dashboardGoLiveAt === undefined ? {} : { goLiveAt: dashboardGoLiveAt }),
         projectDescriptions: dashboardProjectContexts.descriptions,
         projectPlans: dashboardProjectContexts.plans,

@@ -85,6 +85,13 @@ demanda ativa ficam recolhidos. A mesma entrega aplica uma paleta clara e
 centralizada ao app React e ao login inline, sem alterar os gates de sessão,
 RBAC ou qualquer escrita governada.
 
+As superfícies operacionais de projetos consultam o status atual da projeção
+PostgreSQL em cada request e exibem somente `status != ARCHIVED`. O contexto
+de descrição e plano continua declarado no YAML, mas não define mais a
+elegibilidade visual; por isso um projeto criado pela Dashboard aparece sem
+reiniciar o coordinator e uma projeção arquivada pelo reconciliador de boot
+permanece oculta.
+
 A aba Projetos agora separa o Plano vindo do contexto declarado das Demandas.
 Checklist Markdown gera somente os estados explícitos feito e pendente; formato
 livre aparece como texto sanitizado e ausência aparece como indisponível. Um
