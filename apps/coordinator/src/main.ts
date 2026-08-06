@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { OpenAIAgentRuntime } from "@atlas/agent-runtime";
 
 import { createCoordinatorApp } from "./app.js";
+import { defaultAtlasConfigPath } from "./config-path.js";
 import { PrismaTaskCoreStore } from "./core/prisma-task-core-store.js";
 import { loadAlwaysHumanActions, parseMonthlyBudgetUsd } from "./supervisor/config.js";
 import { loadCouncilConfig } from "./supervisor/council-config.js";
@@ -53,8 +54,7 @@ if (setupWizardEnabled && host !== "127.0.0.1" && host !== "::1" && host !== "lo
   throw new Error("Pilot Setup Wizard requires HOST=127.0.0.1");
 }
 const projectsPath =
-  process.env.ATLAS_PROJECTS_PATH ??
-  fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url));
+  process.env.ATLAS_PROJECTS_PATH ?? defaultAtlasConfigPath("projects.yaml", import.meta.url);
 const projectConfigStore = new ProjectConfigStore(projectsPath);
 const projectProjectionReconciler = new ProjectProjectionReconciler(projectConfigStore);
 const taskStore = new PrismaTaskCoreStore(prisma);
@@ -80,10 +80,7 @@ const dashboardProjectContexts =
         descriptions: new Map<string, string>(),
         plans: new Map<string, string>(),
       }
-    : await loadDashboardProjectContexts(
-        process.env.ATLAS_PROJECTS_PATH ??
-          fileURLToPath(new URL("../../../.atlas/projects.yaml", import.meta.url)),
-      );
+    : await loadDashboardProjectContexts(projectsPath);
 const dashboardService =
   dashboardAuth === undefined
     ? undefined
